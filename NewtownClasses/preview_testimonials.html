@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview – Our Students Speak (Updated)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0a0e1a;
+    --card-glass: rgba(255,255,255,.04);
+    --border: rgba(255,255,255,.08);
+    --gold: #f5c842;
+    --muted: rgba(255,255,255,.6);
+    --glow-gold: 0 0 20px rgba(245,200,66,.15);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--navy);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    padding: 2rem;
+  }
+
+  h2.preview-label {
+    text-align: center;
+    color: var(--gold);
+    font-family: 'Syne', sans-serif;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  .divider { border: 1px dashed rgba(245,200,66,.3); margin: 2rem 0; }
+
+  /* Section Header */
+  .courses-header { text-align: center; margin-bottom: 1rem; }
+  .section-label {
+    display: inline-block;
+    background: rgba(245,200,66,.1);
+    color: var(--gold);
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: .4rem 1rem;
+    border-radius: 20px;
+    border: 1px solid rgba(245,200,66,.2);
+    margin-bottom: .8rem;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin-bottom: .6rem;
+  }
+  .section-sub {
+    color: var(--muted);
+    max-width: 600px;
+    margin: 0 auto;
+    font-size: .95rem;
+    line-height: 1.6;
+  }
+
+  /* Google Badge */
+  .google-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 2rem auto 0;
+    padding: 1rem 2rem;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 16px;
+    max-width: 420px;
+  }
+  .google-badge img {
+    height: 36px;
+  }
+  .google-badge .rating-info {
+    text-align: left;
+  }
+  .google-badge .rating-info .score {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+  }
+  .google-badge .rating-info .stars-text {
+    color: var(--gold);
+    font-size: .85rem;
+    letter-spacing: 2px;
+  }
+  .google-badge .rating-info .count {
+    color: var(--muted);
+    font-size: .78rem;
+  }
+
+  /* Review Screenshot Grid */
+  .review-screenshots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 2rem auto 0;
+  }
+  .review-screenshot-card {
+    background: var(--card-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 0.6rem;
+    position: relative;
+    transition: all .35s ease;
+    overflow: hidden;
+  }
+  .review-screenshot-card:hover {
+    border-color: rgba(245,200,66,.3);
+    box-shadow: 0 10px 30px rgba(0,0,0,.3), var(--glow-gold);
+    transform: translateY(-4px);
+  }
+  .review-screenshot-card img {
+    width: 100%;
+    border-radius: 14px;
+    display: block;
+  }
+  .google-source-tag {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255,255,255,.9);
+    color: #333;
+    font-size: .65rem;
+    font-weight: 600;
+    padding: .25rem .6rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .google-source-tag svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* CTA Link */
+  .reviews-cta {
+    text-align: center;
+    margin-top: 2rem;
+  }
+  .reviews-cta a {
+    color: var(--gold);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: .95rem;
+    border-bottom: 1px dashed var(--gold);
+    padding-bottom: 2px;
+    transition: opacity .3s;
+  }
+  .reviews-cta a:hover { opacity: .7; }
+</style>
+</head>
+<body>
+
+<h2 class="preview-label">Preview: Updated "Our Students Speak" Section</h2>
+<div class="divider"></div>
+
+<!-- TESTIMONIALS SECTION -->
+<section id="testimonials" style="background: rgba(255,255,255,.015); padding: 4rem 1.5rem;">
+  <div class="courses-header">
+    <div class="section-label">Student Stories</div>
+    <div class="section-title">Our Students Speak</div>
+    <p class="section-sub">Real results, real journeys — hear from students who cracked their goals with NewTown Classes.</p>
+  </div>
+
+  <!-- Google Rating Badge -->
+  <div class="google-badge">
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+      <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+      <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+      <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+    </svg>
+    <div class="rating-info">
+      <div class="score">5.0</div>
+      <div class="stars-text">★★★★★</div>
+      <div class="count">33 reviews on Google</div>
+    </div>
+  </div>
+
+  <!-- Review Screenshots Grid -->
+  <div class="review-screenshots-grid">
+    <div class="review-screenshot-card">
+      <img src="reviews/review_1.png" alt="Review by Shonly Debnath">
+    </div>
+    <div class="review-screenshot-card">
+      <img src="reviews/review_2.png" alt="Review by SOHEL AKTAR">
+    </div>
+    <div class="review-screenshot-card">
+      <img src="reviews/review_3.png" alt="Review by Snehasish">
+    </div>
+    <div class="review-screenshot-card">
+      <img src="reviews/review_4.png" alt="Review by Lakshmi Priya Haldar">
+    </div>
+    <div class="review-screenshot-card">
+      <img src="reviews/review_5.png" alt="Review by Tarique Zafar">
+    </div>
+    <div class="review-screenshot-card">
+      <img src="reviews/review_6.png" alt="Review by Nadim Ashrafee">
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="reviews-cta">
+    <a href="https://www.google.com/maps/place/The+Newtown+Classes/@22.5696502,88.4671908,17z/data=!4m8!3m7!1s0x3a027510a3c2c569:0xca847ba9138914ae!8m2!3d22.5696453!4d88.4697657!9m1!1b1!16s%2Fg%2F11zjwvw21w" target="_blank">
+      Read all 33 reviews on Google Maps &rarr;
+    </a>
+  </div>
+</section>
+
+</body>
+</html>
