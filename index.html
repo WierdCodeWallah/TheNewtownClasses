@@ -1360,7 +1360,7 @@
           </div>
           <div class="form-group">
             <label>Mobile Number *</label>
-            <input type="tel" name="mobile" placeholder="+91 XXXXX XXXXX" required />
+            <input type="tel" name="mobile" placeholder="+91 XXXXX XXXXX" required inputmode="numeric" maxlength="15" autocomplete="tel" />
           </div>
         </div>
         <div class="form-group">
@@ -1413,24 +1413,84 @@
   const cmsDb = getFirestore(cmsApp);
   const enquiryForm = document.querySelector('form[name="enquiry"]');
   const enquiryMsg = document.getElementById('cmsEnquiryMsg');
+
+  // Record when the form became available — used to catch bots that submit instantly.
+  const enquiryLoadTime = Date.now();
+
+  // Normalise an Indian mobile number to bare 10 digits (strips +91, 0, spaces, dashes).
+  function normalizePhone(raw) {
+    let d = String(raw || '').replace(/\D/g, '');
+    if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+    else if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+    return d;
+  }
+  // A real Indian mobile: 10 digits, starts 6-9, not all-same-digit, not obvious junk.
+  function isValidIndianMobile(d) {
+    if (!/^[6-9]\d{9}$/.test(d)) return false;        // 10 digits starting 6-9
+    if (/^(\d)\1{9}$/.test(d)) return false;          // 9999999999 etc.
+    if (new Set(d).size <= 2) return false;           // 9898989898, 6767676767 etc.
+    if (d === '1234567890' || d === '0123456789') return false;
+    return true;
+  }
+  // Strict e-mail format + block throwaway/disposable mailbox providers.
+  function isValidEmail(email) {
+    if (!email) return true; // email is optional
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return false;
+    const domain = email.split('@')[1].toLowerCase();
+    const blocked = ['mailinator.com','tempmail.com','temp-mail.org','guerrillamail.com',
+      '10minutemail.com','yopmail.com','trashmail.com','sharklasers.com','getnada.com',
+      'dispostable.com','fakeinbox.com','maildrop.cc','throwawaymail.com','mvrht.com',
+      'emailondeck.com','mintemail.com','tempmailo.com','moakt.com','mohmal.com'];
+    return !blocked.some(b => domain === b || domain.endsWith('.' + b));
+  }
+  function showEnquiryError(text) {
+    if (enquiryMsg) { enquiryMsg.style.color = '#dc2626'; enquiryMsg.textContent = text; }
+  }
+
   if (enquiryForm) {
     enquiryForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = enquiryForm.querySelector('button[type="submit"]');
       const fd = new FormData(enquiryForm);
       const name = String(fd.get('student-name') || '').trim();
-      const phone = String(fd.get('mobile') || '').trim();
+      const phoneRaw = String(fd.get('mobile') || '').trim();
+      const email = String(fd.get('email') || '').trim();
       const course = String(fd.get('course') || '').trim();
-      if (!name || !phone || !course) {
-        if (enquiryMsg) { enquiryMsg.style.color = '#dc2626'; enquiryMsg.textContent = 'Please fill name, mobile number and course.'; }
+
+      // 1) Bot trap: honeypot field must stay empty, and humans take a few seconds to fill the form.
+      if (String(fd.get('bot-field') || '').trim() !== '' || (Date.now() - enquiryLoadTime) < 3000) {
+        enquiryForm.reset();
+        if (enquiryMsg) { enquiryMsg.style.color = '#059669'; enquiryMsg.textContent = 'Enquiry submitted. Our team will contact you soon.'; }
+        return; // silently drop without saving
+      }
+
+      // 2) Required fields
+      if (!name || !phoneRaw || !course) {
+        showEnquiryError('Please fill name, mobile number and course.');
         return;
       }
+      if (name.length < 2 || !/[A-Za-zऀ-ॿ]/.test(name)) {
+        showEnquiryError('Please enter a valid name.');
+        return;
+      }
+      // 3) Mobile number
+      const phone = normalizePhone(phoneRaw);
+      if (!isValidIndianMobile(phone)) {
+        showEnquiryError('Please enter a valid 10-digit Indian mobile number.');
+        return;
+      }
+      // 4) Email (optional, but must be real if given)
+      if (!isValidEmail(email)) {
+        showEnquiryError('Please enter a valid email address (temporary/disposable emails are not allowed).');
+        return;
+      }
+
       if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
       try {
         await addDoc(collection(cmsDb, 'enquiries'), {
           name,
           phone,
-          email: String(fd.get('email') || '').trim(),
+          email,
           course,
           currentClass: String(fd.get('current-class') || '').trim(),
           message: String(fd.get('message') || '').trim(),
