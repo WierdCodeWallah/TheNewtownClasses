@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <base href="/" />
+  <title>Admin Access | The NewTown Classes</title>
+  <link rel="icon" href="favicon.ico?v=2" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=2">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png?v=2">
+  <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png?v=2">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png?v=2">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
+  <link rel="manifest" href="site.webmanifest?v=2">
+  <meta name="theme-color" content="#0b2d7b">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f5f7ff;
+      color: #111827;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV BAR ── */
+    .login-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .8rem 5%;
+      background: rgba(0,48,135,0.95);
+      backdrop-filter: blur(20px);
+    }
+    .login-nav .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.4rem;
+      color: #ffffff;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .login-nav .logo span { color: #0ea5e9; }
+    .login-nav .back-link {
+      color: rgba(255,255,255,.7);
+      text-decoration: none;
+      font-size: .9rem;
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .login-nav .back-link:hover { color: #0ea5e9; }
+
+    /* ── MAIN CONTAINER ── */
+    .login-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border: 1px solid rgba(0,48,135,.08);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,.07);
+      animation: slideUp .5s ease both;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── HEADER ── */
+    .login-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .login-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #003087, #004bc2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 1.8rem;
+    }
+    .login-header h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.5rem;
+      color: #003087;
+      margin-bottom: .35rem;
+    }
+    .login-header p {
+      color: #546e7a;
+      font-size: .9rem;
+    }
+
+    /* ── FORM ── */
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+    }
+    .form-field label {
+      font-size: .82rem;
+      color: #546e7a;
+      font-weight: 500;
+    }
+    .form-field input {
+      width: 100%;
+      padding: .75rem 1rem;
+      background: #f5f7ff;
+      border: 1px solid rgba(0,48,135,.1);
+      border-radius: 10px;
+      color: #111827;
+      font-family: inherit;
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .form-field input:focus {
+      border-color: rgba(14,165,233,.5);
+      box-shadow: 0 0 0 3px rgba(14,165,233,.08);
+    }
+    .form-field input::placeholder {
+      color: #90a4ae;
+    }
+
+    /* ── PASSWORD WRAPPER ── */
+    .password-wrap {
+      position: relative;
+    }
+    .password-wrap input {
+      padding-right: 3rem;
+    }
+    .toggle-password {
+      position: absolute;
+      right: .75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #546e7a;
+      font-size: 1.1rem;
+      padding: 4px;
+      transition: color .2s;
+    }
+    .toggle-password:hover { color: #0ea5e9; }
+
+    /* ── SUBMIT BUTTON ── */
+    .login-btn {
+      width: 100%;
+      padding: .85rem;
+      background: linear-gradient(135deg, #003087, #0ea5e9);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all .3s cubic-bezier(.4,0,.2,1);
+      box-shadow: 0 4px 20px rgba(0,48,135,.2);
+      margin-top: .5rem;
+    }
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,48,135,.35);
+    }
+    .login-btn:active { transform: translateY(0); }
+    .login-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    /* ── FOOTER LINK ── */
+    .login-footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: .85rem;
+      color: #546e7a;
+    }
+    .login-footer a {
+      color: #0ea5e9;
+      text-decoration: none;
+      font-weight: 600;
+      transition: opacity .2s;
+    }
+    .login-footer a:hover { opacity: .7; }
+
+    /* ── BOTTOM FOOTER ── */
+    .page-footer {
+      text-align: center;
+      padding: 1.2rem;
+      font-size: .78rem;
+      color: #90a4ae;
+      border-top: 1px solid rgba(0,48,135,.06);
+    }
+    .page-footer a {
+      color: #003087;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    /* ── ERROR MESSAGE ── */
+    .login-error {
+      color: #dc2626;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 8px;
+      padding: .6rem 1rem;
+      font-size: .85rem;
+      font-weight: 500;
+      display: none;
+    }
+    .login-error:not(:empty) { display: block; }
+
+    /* ── DEBUG INFO ── */
+    .debug-info {
+      margin-top: .8rem;
+      padding: .6rem 1rem;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      font-size: .78rem;
+      color: #92400e;
+      display: none;
+      word-break: break-all;
+    }
+    .debug-info:not(:empty) { display: block; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .login-nav { padding: .65rem 4%; flex-wrap: wrap; gap: .5rem; }
+      .login-nav .logo { font-size: 1.1rem; }
+      .login-nav .back-link { font-size: .8rem; }
+      .login-wrapper { padding: 1.25rem .75rem; }
+      .login-card { padding: 1.8rem 1.25rem; border-radius: 16px; }
+      .login-header h1 { font-size: 1.25rem; }
+      .login-header p { font-size: .82rem; }
+    }
+    @media (max-width: 400px) {
+      .login-nav { padding: .55rem 3%; }
+      .login-nav .logo { font-size: 1rem; }
+      .login-card { padding: 1.5rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="login-nav">
+    <a href="/" class="logo">The NewTown <span>Classes</span></a>
+    <a href="/" class="back-link">&larr; Back to Home</a>
+  </nav>
+
+  <!-- LOGIN FORM -->
+  <div class="login-wrapper">
+    <div class="login-card">
+
+      <div class="login-header">
+        <div class="login-icon">🛡</div>
+        <h1>Admin Login</h1>
+        <p>Sign in to manage the portal</p>
+      </div>
+
+      <form class="login-form" id="adminLoginForm">
+
+        <div class="form-field">
+          <label for="loginEmail">Admin Email</label>
+          <input type="email" id="loginEmail" placeholder="transitionTNC@thenewtownclasses.com" required autocomplete="username"/>
+        </div>
+
+        <div class="form-field">
+          <label for="loginPassword">Password</label>
+          <div class="password-wrap">
+            <input type="password" id="loginPassword" placeholder="Enter your password" required autocomplete="current-password"/>
+            <button type="button" class="toggle-password" id="togglePwBtn" aria-label="Show password">👁</button>
+          </div>
+        </div>
+
+        <!-- Error message -->
+        <div id="loginError" class="login-error"></div>
+
+        <!-- Debug info (shows technical details) -->
+        <div id="debugInfo" class="debug-info"></div>
+
+        <button type="submit" class="login-btn" id="loginBtn">Sign In &rarr;</button>
+      </form>
+
+      <div class="login-footer">
+        Teacher? <a href="/login/teacher">Login here</a> &nbsp;|&nbsp; Student? <a href="/login/student">Login here</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="page-footer">
+    &copy; 2026 <a href="/">The NewTown Classes</a>. All rights reserved.
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp }                     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword,
+             onAuthStateChanged }                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc }         from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { FIREBASE_CONFIG, initAppCheck }     from "/firebase-config.js";
+
+    const app  = initializeApp(FIREBASE_CONFIG);
+    await initAppCheck(app);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    const form     = document.getElementById('adminLoginForm');
+    const emailIn  = document.getElementById('loginEmail');
+    const passIn   = document.getElementById('loginPassword');
+    const btn      = document.getElementById('loginBtn');
+    const errEl    = document.getElementById('loginError');
+    const debugEl  = document.getElementById('debugInfo');
+    const toggleBtn = document.getElementById('togglePwBtn');
+
+    // ── Toggle password visibility ──
+    toggleBtn.addEventListener('click', () => {
+      if (passIn.type === 'password') {
+        passIn.type = 'text';
+        toggleBtn.textContent = '🙈';
+      } else {
+        passIn.type = 'password';
+        toggleBtn.textContent = '👁';
+      }
+    });
+
+    // ── Form submit handler ──
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email    = emailIn.value.trim();
+      const password = passIn.value;
+      errEl.textContent = '';
+      debugEl.textContent = '';
+
+      if (!email || !password) {
+        errEl.textContent = 'Please enter email and password.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+
+      try {
+        // Step 1: Firebase Authentication
+        console.log('[Admin Login] Attempting sign-in for:', email);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const uid  = cred.user.uid;
+        console.log('[Admin Login] Auth success. UID:', uid);
+
+        // Step 2: Check admin document in Firestore
+        console.log('[Admin Login] Checking admins/' + uid + ' in Firestore...');
+        const adminSnap = await getDoc(doc(db, 'admins', uid));
+
+        if (!adminSnap.exists()) {
+          console.error('[Admin Login] No admin document found for UID:', uid);
+          debugEl.textContent = 'Debug: Auth succeeded (UID: ' + uid + ') but no document found at admins/' + uid + ' in Firestore. Make sure the admin document exists with isAdmin: true.';
+          await auth.signOut();
+          throw new Error('Access denied — no admin record found. Check Firestore admins collection.');
+        }
+
+        const adminData = adminSnap.data();
+        console.log('[Admin Login] Admin document data:', JSON.stringify(adminData));
+
+        if (!adminData.isAdmin) {
+          debugEl.textContent = 'Debug: Document exists at admins/' + uid + ' but isAdmin is ' + adminData.isAdmin + '. Set isAdmin to true.';
+          await auth.signOut();
+          throw new Error('Access denied — isAdmin is not true in your admin document.');
+        }
+
+        // Step 3: Redirect to admin panel
+        console.log('[Admin Login] Verified! Redirecting to /command-center');
+        window.location.href = '/command-center';
+
+      } catch (err) {
+        console.error('[Admin Login] Error:', err.code, err.message);
+        let msg = 'Login failed. Check your credentials.';
+
+        if (err.code === 'auth/invalid-credential' ||
+            err.code === 'auth/user-not-found' ||
+            err.code === 'auth/wrong-password') {
+          msg = 'Invalid email or password.';
+        } else if (err.code === 'auth/too-many-requests') {
+          msg = 'Too many attempts. Try again in a few minutes.';
+        } else if (err.code === 'auth/network-request-failed') {
+          msg = 'Network error. Check your internet connection.';
+        } else if (err.code === 'permission-denied' || err.code === 'unavailable') {
+          msg = 'Firestore access denied. Check your Firestore security rules — the admins collection needs read permission.';
+          debugEl.textContent = 'Debug: Firestore returned "' + err.code + '". Your Firestore rules likely don\'t allow reading the admins collection. See firebase-config.js for the correct rules.';
+        } else if (err.message) {
+          msg = err.message;
+        }
+
+        errEl.textContent = msg;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In →';
+      }
+    });
+
+    // ── Already logged in? Auto-redirect ──
+    try {
+      await auth.authStateReady();
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const adminSnap = await getDoc(doc(db, 'admins', uid));
+        if (adminSnap.exists() && adminSnap.data().isAdmin) {
+          window.location.href = '/command-center';
+        }
+      }
+    } catch (e) {
+      console.warn('[Admin Login] Auto-redirect check failed:', e.message);
+    }
+  </script>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       MODERN ENHANCEMENTS — 2026 (purely additive)
+       To revert: delete this <style> + <script> block.
+       ════════════════════════════════════════════════════════════════ -->
+  <style>
+    body { transition: opacity .55s ease, transform .55s ease; position: relative; }
+    body.page-leaving { opacity: 0; transform: translateY(-6px); }
+    ::selection { background: rgba(14,165,233,.22); color: #003087; }
+
+    body::before, body::after {
+      content: ''; position: fixed; border-radius: 50%;
+      filter: blur(90px); pointer-events: none; z-index: 0;
+      will-change: transform;
+    }
+    body::before {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(14,165,233,.30), rgba(14,165,233,0) 70%);
+      top: -10%; left: -8%;
+      animation: ntcBlobA 14s ease-in-out infinite;
+    }
+    body::after {
+      width: 460px; height: 460px;
+      background: radial-gradient(circle, rgba(26,86,219,.25), rgba(26,86,219,0) 70%);
+      bottom: -12%; right: -10%;
+      animation: ntcBlobB 18s ease-in-out infinite;
+    }
+    @keyframes ntcBlobA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(40px,30px) scale(1.08)} }
+    @keyframes ntcBlobB { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-30px,-20px) scale(1.1)} }
+
+    body { background-image: radial-gradient(rgba(0,48,135,.05) 1px, transparent 1px); background-size: 28px 28px; }
+    .login-nav, .login-wrapper, .page-footer { position: relative; z-index: 1; }
+
+    .login-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.76));
+      backdrop-filter: blur(14px) saturate(120%);
+      -webkit-backdrop-filter: blur(14px) saturate(120%);
+      box-shadow:
+        0 30px 60px -20px rgba(0,48,135,.22),
+        0 8px 24px -8px rgba(14,165,233,.14),
+        inset 0 1px 0 rgba(255,255,255,.6);
+      border: 1px solid rgba(255,255,255,.5);
+      transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .login-card:hover {
+        transform: translateY(-3px);
+        box-shadow:
+          0 36px 70px -18px rgba(0,48,135,.28),
+          0 10px 28px -8px rgba(14,165,233,.18);
+      }
+    }
+
+    .login-icon { position: relative; box-shadow: 0 10px 30px -10px rgba(0,48,135,.45); animation: iconFloat 4.5s ease-in-out infinite; }
+    .login-icon::after {
+      content: ''; position: absolute; inset: -8px;
+      border-radius: 50%;
+      border: 2px solid rgba(14,165,233,.35);
+      animation: iconRing 2.6s ease-out infinite;
+    }
+    @keyframes iconFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes iconRing  { 0%{transform:scale(.95);opacity:.85} 100%{transform:scale(1.5);opacity:0} }
+
+    .login-header h1 {
+      background-image: linear-gradient(90deg, #003087 0%, #1a56db 45%, #0ea5e9 60%, #003087 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: ntcTitleShimmer 7s linear infinite;
+    }
+    @keyframes ntcTitleShimmer { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+
+    .login-btn {
+      background-size: 200% 100% !important;
+      background-image: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #1a56db 100%) !important;
+      background-position: 0% 50%;
+      transition: background-position .6s ease, transform .25s ease, box-shadow .25s ease !important;
+      box-shadow: 0 8px 24px -6px rgba(14,165,233,.45) !important;
+    }
+    .login-btn:hover { background-position: 100% 50%; transform: translateY(-2px); }
+    .login-btn:active { transform: translateY(0); }
+
+    .form-field input:focus,
+    .form-field select:focus {
+      box-shadow:
+        0 0 0 3px rgba(14,165,233,.14),
+        0 6px 20px -6px rgba(14,165,233,.25) !important;
+      border-color: rgba(14,165,233,.55) !important;
+    }
+
+    [data-reveal] { opacity: 0; transform: translateY(20px); transition: opacity .8s cubic-bezier(.2,.8,.2,1), transform .8s cubic-bezier(.2,.8,.2,1); }
+    [data-reveal].is-visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 768px) {
+      .login-btn { min-height: 48px; }
+      body { padding-bottom: env(safe-area-inset-bottom, 0); }
+    }
+
+    @media (hover: hover) {
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: rgba(0,48,135,.04); }
+      ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0ea5e9, #1a56db); border-radius: 10px; border: 2px solid #f5f7ff; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body::before, body::after, .login-icon, .login-icon::after, .login-header h1, .login-card { animation: none !important; }
+      [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; }
+      body.page-leaving { opacity: 1 !important; transform: none !important; }
+    }
+
+    /* ── Tighter mobile typography & spacing ── */
+    @media (max-width: 768px) {
+      .login-nav { padding: .55rem .9rem !important; }
+      .login-nav .logo { font-size: 1rem !important; }
+      .login-nav .back-link { font-size: .78rem !important; }
+      .login-wrapper { padding: 1.25rem .85rem !important; }
+      .login-card { padding: 1.6rem 1.25rem !important; border-radius: 16px !important; }
+      .login-icon { width: 52px !important; height: 52px !important; font-size: 1.5rem !important; }
+      .login-header { margin-bottom: 1.4rem !important; }
+      .login-header h1 { font-size: 1.15rem !important; }
+      .login-header p { font-size: .8rem !important; }
+      .form-field label { font-size: .76rem !important; }
+      .form-field input, .form-field select {
+        font-size: .85rem !important; padding: .6rem .8rem !important; border-radius: 10px !important;
+      }
+      .login-btn { padding: .75rem !important; font-size: .9rem !important; min-height: 46px !important; }
+      .login-footer, .login-footer a { font-size: .78rem !important; }
+      .page-footer { font-size: .68rem !important; padding: .85rem 1rem !important; }
+    }
+    @media (max-width: 400px) {
+      .login-card { padding: 1.35rem 1rem !important; }
+      .login-icon { width: 46px !important; height: 46px !important; font-size: 1.3rem !important; }
+      .login-header h1 { font-size: 1.05rem !important; }
+      .form-field input, .form-field select { font-size: .82rem !important; padding: .55rem .7rem !important; }
+      .login-btn { font-size: .85rem !important; }
+    }
+  </style>
+
+  <script>
+  (function () {
+    if (window.__ntcModernLoaded) return;
+    window.__ntcModernLoaded = true;
+    var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function init() {
+      document.querySelectorAll('.login-card, .page-footer, .login-footer').forEach(function (el) {
+        if (!el.hasAttribute('data-reveal')) el.setAttribute('data-reveal', '');
+      });
+      if (rm || !('IntersectionObserver' in window)) {
+        document.querySelectorAll('[data-reveal]').forEach(function (el) { el.classList.add('is-visible'); });
+      } else {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) { e.target.classList.add('is-visible'); io.unobserve(e.target); }
+          });
+        }, { threshold: 0.12 });
+        document.querySelectorAll('[data-reveal]').forEach(function (el) { io.observe(el); });
+      }
+      if (rm) return;
+      document.addEventListener('click', function (ev) {
+        var a = ev.target.closest && ev.target.closest('a[href]');
+        if (!a) return;
+        var href = a.getAttribute('href') || '';
+        if (a.target === '_blank' || a.hasAttribute('download')) return;
+        if (/^(mailto:|tel:|javascript:|whatsapp:)/i.test(href)) return;
+        if (href.startsWith('#')) return;
+        if (/^https?:\/\//i.test(href)) {
+          try { var u = new URL(href, location.href); if (u.host !== location.host) return; }
+          catch (e) { return; }
+        }
+        ev.preventDefault();
+        document.body.classList.add('page-leaving');
+        setTimeout(function () { location.href = href; }, 380);
+      }, true);
+      window.addEventListener('pageshow', function () { document.body.classList.remove('page-leaving'); });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+  </script>
+
+</body>
+</html>

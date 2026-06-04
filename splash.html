@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a2463">
+<title>The Newtown Classes</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ease-out-expo: cubic-bezier(.16, 1, .3, 1);
+    --ease-out-back: cubic-bezier(.34, 1.56, .64, 1);
+    --ease-in-out:   cubic-bezier(.65, 0, .35, 1);
+    --logo-size: clamp(118px, 34vmin, 200px);
+  }
+
+  html, body { height: 100%; }
+  body {
+    min-height: 100svh;
+    color: #fff;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #0a2463;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* ── stage ──────────────────────────────────────────────── */
+  .splash {
+    position: relative;
+    min-height: 100svh;
+    width: 100%;
+    background:
+      radial-gradient(70% 55% at 78% 18%, rgba(102, 232, 255, .34) 0%, rgba(102, 232, 255, 0) 62%),
+      radial-gradient(65% 55% at 18% 88%, rgba(44, 123, 255, .36) 0%, rgba(44, 123, 255, 0) 66%),
+      linear-gradient(145deg, #06173f 0%, #0b2d7b 42%, #0787d9 100%);
+    overflow: hidden;
+    isolation: isolate;
+    animation: auroraIn .9s var(--ease-out-expo) both;
+  }
+
+  /* subtle drifting highlight behind everything */
+  .splash::before {
+    content: "";
+    position: absolute;
+    top: -20%; left: -20%;
+    width: 80vmax; height: 80vmax;
+    background: radial-gradient(circle, rgba(255, 255, 255, .18) 0%, rgba(41, 182, 246, .18) 34%, rgba(41, 182, 246, 0) 65%);
+    animation: drift 18s ease-in-out infinite alternate;
+    pointer-events: none; z-index: 0;
+  }
+  /* fine noise texture for depth */
+  .splash::after {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: .06; mix-blend-mode: overlay;
+    pointer-events: none; z-index: 0;
+  }
+
+  .stage {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: min(100%, 720px);
+    margin: 0 auto;
+    padding: clamp(20px, 5vh, 52px) clamp(18px, 5vw, 40px);
+    padding-top: max(env(safe-area-inset-top, 0px), clamp(20px, 5vh, 52px));
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), clamp(20px, 5vh, 52px));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(18px, 4vh, 34px);
+    text-align: center;
+  }
+  .stage > div:first-child { display: none; }
+
+  .hero {
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(14px, 2.4vh, 22px);
+    max-width: 100%;
+  }
+
+  /* ── LOGO ───────────────────────────────────────────────── */
+  .logo-stack {
+    position: relative;
+    width: var(--logo-size);
+    height: var(--logo-size);
+    display: grid; place-items: center;
+    margin-bottom: clamp(6px, 1.4vh, 12px);
+    flex: 0 0 auto;
+  }
+
+  .logo-tile {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: #ffffff;
+    display: grid; place-items: center;
+    overflow: hidden; isolation: isolate;
+    box-shadow:
+      0 26px 70px rgba(4, 18, 58, .58),
+      0 0 0 1px rgba(255, 255, 255, .18),
+      0 0 42px rgba(90, 211, 255, .26);
+    transform-origin: center;
+    animation:
+      logoEnter 900ms var(--ease-out-expo) 60ms both,
+      logoBreath 4.5s ease-in-out 1.6s infinite;
+    will-change: transform, opacity, filter;
+  }
+
+  .logo-tile img {
+    width: 92%; height: 92%;
+    object-fit: contain;
+    display: block;
+    animation: imgReveal 900ms var(--ease-out-expo) 120ms both;
+  }
+
+  /* Shimmer sweep — soft cyan tint so it reads on a white tile */
+  .logo-tile::after {
+    content: "";
+    position: absolute; top: 0; left: -70%;
+    width: 55%; height: 100%;
+    background: linear-gradient(110deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(30, 136, 229, .35) 50%,
+      rgba(255, 255, 255, 0) 100%);
+    transform: skewX(-18deg);
+    animation: shimmer 2.4s ease-in-out 1.4s infinite;
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+
+  /* ── PROGRESS RING around logo ──────────────────────────── */
+  .progress-ring {
+    position: absolute;
+    inset: calc(var(--logo-size) * -0.08);
+    width: calc(var(--logo-size) * 1.16);
+    height: calc(var(--logo-size) * 1.16);
+    transform: rotate(-90deg);
+    opacity: 0;
+    animation: fadeIn .6s var(--ease-out-expo) .5s forwards;
+    pointer-events: none;
+  }
+  .progress-ring .track { stroke: rgba(255, 255, 255, .12); }
+  .progress-ring .arc {
+    stroke: rgba(255, 255, 255, .92);
+    stroke-linecap: round;
+    stroke-dasharray: 295;
+    stroke-dashoffset: 295;
+    filter: drop-shadow(0 0 6px rgba(200, 230, 255, .35));
+    animation: progressSweep 2.4s var(--ease-in-out) .7s infinite;
+  }
+
+  /* ── ORBITAL PARTICLES ──────────────────────────────────── */
+  .orbit {
+    position: absolute; inset: 0;
+    animation: orbitSpin 28s linear 1.2s infinite;
+    pointer-events: none;
+  }
+  .orbit span {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: rgba(255, 255, 255, .85);
+    margin: -2.5px 0 0 -2.5px;
+    box-shadow: 0 0 10px rgba(200, 230, 255, .6);
+    opacity: 0;
+    animation: particleIn .5s var(--ease-out-expo) forwards;
+  }
+  .orbit span:nth-child(1) { transform: rotate(  0deg) translate(calc(var(--logo-size) * .72)); animation-delay: .5s; }
+  .orbit span:nth-child(2) { transform: rotate( 60deg) translate(calc(var(--logo-size) * .72)); animation-delay: .58s; }
+  .orbit span:nth-child(3) { transform: rotate(120deg) translate(calc(var(--logo-size) * .72)); animation-delay: .66s; }
+  .orbit span:nth-child(4) { transform: rotate(180deg) translate(calc(var(--logo-size) * .72)); animation-delay: .74s; }
+  .orbit span:nth-child(5) { transform: rotate(240deg) translate(calc(var(--logo-size) * .72)); animation-delay: .82s; }
+  .orbit span:nth-child(6) { transform: rotate(300deg) translate(calc(var(--logo-size) * .72)); animation-delay: .9s; }
+
+  /* ── WORDMARK ───────────────────────────────────────────── */
+  .brand {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: clamp(24px, 7vw, 42px);
+    letter-spacing: -.01em;
+    line-height: 1.1;
+    color: #fff;
+    display: flex; gap: .35em; flex-wrap: wrap; justify-content: center;
+  }
+  .brand .w {
+    display: inline-block;
+    clip-path: inset(0 100% 0 0);
+    transform: translateY(10px);
+    opacity: 0;
+    animation: wordReveal 700ms var(--ease-out-expo) forwards;
+  }
+  .brand .w1 { animation-delay: .62s; }
+  .brand .w2 { animation-delay: .76s; }
+  .brand .w3 { animation-delay: .90s; }
+
+  /* ── TAGLINE + DIVIDER + PILLS ──────────────────────────── */
+  .tagline {
+    font-family: 'DM Sans', sans-serif;
+    font-size: clamp(11px, 3vw, 13px);
+    text-transform: uppercase;
+    letter-spacing: clamp(.14em, 1.2vw, .32em);
+    font-weight: 500;
+    color: rgba(255, 255, 255, .78);
+    opacity: 0; transform: translateY(8px);
+    animation: slideFade .55s var(--ease-out-expo) 1s forwards;
+    max-width: 100%;
+  }
+
+  .divider {
+    width: clamp(36px, 10vw, 48px);
+    height: 2px;
+    background: rgba(255, 255, 255, .6);
+    border-radius: 2px;
+    transform-origin: center;
+    transform: scaleX(0);
+    animation: drawLine .55s var(--ease-out-expo) 1.15s forwards;
+  }
+
+  .pills {
+    display: flex; flex-wrap: wrap; gap: clamp(6px, 1.6vw, 10px);
+    justify-content: center;
+    margin-top: clamp(2px, .6vh, 6px);
+    max-width: min(100%, 380px);
+  }
+  .pill {
+    padding: 7px clamp(12px, 3vw, 16px);
+    border-radius: 999px;
+    font-size: clamp(11.5px, 2.8vw, 13px);
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: rgba(255, 255, 255, .95);
+    background: rgba(255, 255, 255, .12);
+    border: 1px solid rgba(255, 255, 255, .28);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    white-space: nowrap;
+    opacity: 0; transform: translateY(12px) scale(.92);
+    animation: pillIn .55s var(--ease-out-back) forwards;
+  }
+  .pill:nth-child(1) { animation-delay: 1.25s; }
+  .pill:nth-child(2) { animation-delay: 1.32s; }
+  .pill:nth-child(3) { animation-delay: 1.39s; }
+  .pill:nth-child(4) { animation-delay: 1.46s; }
+
+  /* ── BOTTOM LOADING ─────────────────────────────────────── */
+  .footer {
+    align-self: center;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+    opacity: 0;
+    margin-top: clamp(4px, 1.8vh, 18px);
+    animation: slideFade .5s var(--ease-out-expo) 1.5s forwards;
+  }
+  .loader {
+    position: relative;
+    width: clamp(120px, 40vw, 160px);
+    height: 3px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .12);
+    overflow: hidden;
+  }
+  .loader::after {
+    content: "";
+    position: absolute; top: 0; left: 0;
+    width: 40%; height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, .9),
+      rgba(255, 255, 255, 0));
+    animation: loaderSlide 1.4s ease-in-out infinite;
+  }
+  .loading-text {
+    font-size: clamp(11.5px, 2.8vw, 13px);
+    color: rgba(255, 255, 255, .68);
+    letter-spacing: .04em;
+  }
+
+  /* ── KEYFRAMES ─────────────────────────────────────────── */
+  @keyframes auroraIn {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  @keyframes drift {
+    from { transform: translate(0, 0)    scale(1); }
+    to   { transform: translate(6%, -4%) scale(1.08); }
+  }
+  @keyframes logoEnter {
+    0%   { transform: scale(.7);  opacity: 0; filter: blur(18px); }
+    60%  { transform: scale(1.04); opacity: 1; filter: blur(0); }
+    100% { transform: scale(1);   opacity: 1; filter: blur(0); }
+  }
+  @keyframes logoBreath {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.025); }
+  }
+  @keyframes imgReveal {
+    0%   { opacity: 0; transform: scale(.92); filter: blur(6px); }
+    100% { opacity: 1; transform: scale(1);  filter: blur(0); }
+  }
+  @keyframes shimmer {
+    0%   { left: -70%; }
+    60%  { left: 120%; }
+    100% { left: 120%; }
+  }
+  @keyframes progressSweep {
+    0%   { stroke-dashoffset: 295; transform: rotate(0deg); transform-origin: center; }
+    50%  { stroke-dashoffset: 60;  }
+    100% { stroke-dashoffset: 295; transform: rotate(360deg); transform-origin: center; }
+  }
+  @keyframes orbitSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes particleIn {
+    0%   { opacity: 0; }
+    60%  { opacity: .9; }
+    100% { opacity: .55; }
+  }
+  @keyframes wordReveal {
+    0%   { clip-path: inset(0 100% 0 0); transform: translateY(10px); opacity: 0; }
+    60%  { opacity: 1; }
+    100% { clip-path: inset(0 0 0 0);    transform: translateY(0);    opacity: 1; }
+  }
+  @keyframes slideFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes drawLine {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes pillIn {
+    from { opacity: 0; transform: translateY(12px) scale(.92); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+  @keyframes loaderSlide {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(360%); }
+  }
+
+  /* ── TABLET / DESKTOP ──────────────────────────────────── */
+  @media (min-width: 720px) {
+    :root { --logo-size: clamp(170px, 18vw, 230px); }
+    .stage { width: min(100%, 760px); padding-inline: 48px; }
+    .brand { font-size: clamp(32px, 3.4vw, 44px); }
+    .tagline { font-size: 14px; }
+    .hero { gap: clamp(20px, 2.8vh, 30px); }
+  }
+  @media (min-width: 1200px) {
+    :root { --logo-size: clamp(190px, 15vw, 245px); }
+    .stage { width: min(100%, 820px); }
+    .brand { white-space: nowrap; }
+  }
+
+  /* ── SHORT LANDSCAPE PHONES ONLY ───────────────────────── */
+  @media (max-height: 520px) and (max-width: 900px) and (orientation: landscape) {
+    :root { --logo-size: clamp(86px, 26vh, 130px); }
+    .stage {
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 24px;
+      text-align: left;
+    }
+    .hero { flex-direction: row; align-items: center; gap: 20px; }
+    .hero > .copy { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
+    .brand { justify-content: flex-start; font-size: clamp(22px, 5vh, 32px); }
+    .tagline { font-size: 11px; letter-spacing: .18em; }
+    .pills { justify-content: flex-start; }
+    .footer { margin-top: 0; }
+  }
+
+  /* Very small phones */
+  @media (max-width: 360px) {
+    :root { --logo-size: 110px; }
+    .stage { gap: 14px; }
+    .brand { font-size: 22px; }
+    .tagline { letter-spacing: .24em; }
+    .pill { padding: 6px 10px; font-size: 10.5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+    }
+    .brand .w, .tagline, .pill, .footer { opacity: 1 !important; transform: none !important; clip-path: none !important; }
+    .divider { transform: scaleX(1) !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="splash">
+    <div class="stage">
+      <div></div><!-- top spacer -->
+
+      <div class="hero">
+        <div class="logo-stack">
+          <svg class="progress-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="track" cx="50" cy="50" r="47" fill="none" stroke-width="1.4"/>
+            <circle class="arc"   cx="50" cy="50" r="47" fill="none" stroke-width="1.6"/>
+          </svg>
+
+          <div class="orbit" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+
+          <div class="logo-tile">
+            <img src="logo-mark.png" alt="The Newtown Classes">
+          </div>
+        </div>
+
+        <div class="copy">
+          <h1 class="brand" aria-label="The Newtown Classes">
+            <span class="w w1">The</span><span class="w w2">Newtown</span><span class="w w3">Classes</span>
+          </h1>
+          <p class="tagline">Dream &middot; Prepare &middot; Achieve</p>
+          <span class="divider" aria-hidden="true"></span>
+          <div class="pills" role="list">
+            <span class="pill" role="listitem">7&ndash;12</span>
+            <span class="pill" role="listitem">Foundation</span>
+            <span class="pill" role="listitem">JEE</span>
+            <span class="pill" role="listitem">NEET</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="loader" aria-hidden="true"></div>
+        <div class="loading-text">Welcome to our portal&hellip;</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

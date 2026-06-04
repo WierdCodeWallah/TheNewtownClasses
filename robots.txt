@@ -1,0 +1,6 @@
+# Robots.txt for The NewTown Classes
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://thenewtownclasses.com/sitemap.xml

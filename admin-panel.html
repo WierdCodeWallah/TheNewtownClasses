@@ -1,0 +1,3244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <base href="/" />
+  <title>Command Center | The NewTown Classes</title>
+  <link rel="icon" href="favicon.ico?v=2" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=2">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png?v=2">
+  <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png?v=2">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png?v=2">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
+  <link rel="manifest" href="site.webmanifest?v=2">
+  <meta name="theme-color" content="#0b2d7b">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #f5f7ff;
+      color: #111827;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    img, video, iframe, canvas { max-width: 100%; height: auto; }
+
+    /* ── NAV ── */
+    .nav {
+      background: rgba(0,48,135,0.97);
+      padding: .8rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; color: #fff; text-decoration: none; }
+    .logo span { color: #0ea5e9; }
+    .admin-badge {
+      background: rgba(14,165,233,.2); border: 1px solid rgba(14,165,233,.4);
+      color: #0ea5e9; font-size: .75rem; font-weight: 700;
+      padding: .25rem .75rem; border-radius: 50px; letter-spacing: .5px;
+    }
+    #logoutBtn {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; padding: .35rem 1rem; border-radius: 8px;
+      font-family: inherit; font-size: .82rem; font-weight: 600;
+      cursor: pointer; transition: all .2s; display: none;
+    }
+    #logoutBtn:hover { background: rgba(220,38,38,.25); border-color: rgba(220,38,38,.4); }
+
+    /* ── DASHBOARD LAYOUT (sidebar + main) ── */
+    .dash-body {
+      display: flex;
+      min-height: calc(100vh - 52px);
+    }
+    .sidebar {
+      width: 260px; background: #ffffff;
+      border-right: 1px solid rgba(0,48,135,.06);
+      padding: 1.5rem 0; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      overflow-y: auto; height: calc(100vh - 52px);
+      position: sticky; top: 52px;
+    }
+    .sidebar-section { margin-bottom: 1.5rem; }
+    .sidebar-heading {
+      font-family: 'Syne', sans-serif; font-size: .7rem; font-weight: 700;
+      color: #90a4ae; letter-spacing: 2px; text-transform: uppercase;
+      padding: 0 1.5rem; margin-bottom: .6rem;
+    }
+    .sidebar-item {
+      display: flex; align-items: center; gap: .7rem;
+      padding: .65rem 1.5rem; cursor: pointer;
+      color: #546e7a; font-size: .88rem; font-weight: 500;
+      transition: all .2s; border-left: 3px solid transparent;
+      text-decoration: none; user-select: none;
+    }
+    .sidebar-item:hover { background: #f5f7ff; color: #003087; }
+    .sidebar-item.active {
+      background: rgba(14,165,233,.05); color: #0ea5e9;
+      border-left-color: #0ea5e9; font-weight: 600;
+    }
+    .sidebar-item .icon { font-size: 1.05rem; width: 22px; text-align: center; }
+    .main-content {
+      flex: 1; min-width: 0;
+      overflow-y: auto;
+      width: 100%;
+    }
+    /* Hamburger (mobile) */
+    .menu-toggle {
+      display: none; background: none; border: none; cursor: pointer;
+      flex-direction: column; gap: 4px; padding: 4px;
+    }
+    .menu-toggle span {
+      display: block; width: 22px; height: 2px; background: #fff; border-radius: 2px;
+    }
+    /* Sidebar overlay (mobile) */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; top: 52px;
+      background: rgba(0,0,0,.35); z-index: 140;
+    }
+    .sidebar-overlay.open { display: block; }
+    /* Tab content visibility */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── PAGE WRAPPER ── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.5rem; }
+
+    /* ── SECTION CARD ── */
+    .card {
+      background: #fff;
+      border: 1px solid rgba(0,48,135,.08);
+      border-radius: 20px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 16px rgba(0,0,0,.05);
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.2rem; font-weight: 800; color: #003087;
+      margin-bottom: .4rem;
+      display: flex; align-items: center; gap: .6rem;
+    }
+    .card-sub { font-size: .88rem; color: #546e7a; margin-bottom: 1.5rem; }
+
+    /* ── FORM GRID ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: .35rem; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { font-size: .82rem; font-weight: 600; color: #546e7a; }
+    .field input, .field select {
+      padding: .7rem 1rem;
+      background: #f5f7ff;
+      border: 1px solid rgba(0,48,135,.12);
+      border-radius: 10px;
+      font-family: inherit; font-size: .95rem; color: #111827;
+      outline: none; transition: border-color .3s, box-shadow .3s;
+    }
+    .field input:focus, .field select:focus {
+      border-color: rgba(14,165,233,.5);
+      box-shadow: 0 0 0 3px rgba(14,165,233,.08);
+    }
+    .field input::placeholder { color: #90a4ae; }
+
+    /* ── HINT BOX ── */
+    .hint {
+      background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 10px; padding: .75rem 1rem;
+      font-size: .82rem; color: #1d4ed8; line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .hint strong { font-weight: 700; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: .75rem 1.8rem; border-radius: 12px;
+      font-family: inherit; font-size: .95rem; font-weight: 700;
+      border: none; cursor: pointer; transition: all .25s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(14,165,233,.25);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(14,165,233,.35); }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(239,68,68,.2);
+    }
+    .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(239,68,68,.3); }
+    .btn-sm { padding: .45rem 1rem; font-size: .82rem; border-radius: 8px; }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid rgba(0,48,135,.2);
+      color: #003087;
+    }
+    .btn-outline:hover { background: rgba(0,48,135,.04); }
+
+    /* ── ALERT BOXES ── */
+    .alert {
+      padding: .8rem 1.1rem; border-radius: 10px;
+      font-size: .88rem; font-weight: 500; margin-top: 1rem;
+      display: none;
+    }
+    .alert:not(:empty) { display: block; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .alert-error   { background: #fff1f2; border: 1px solid #fecdd3; color: #991b1b; }
+    .alert-info    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+
+    /* ── STUDENT TABLE ── */
+    .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+      /* subtle scrollbar styling */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,48,135,.25) transparent;
+    }
+    .table-wrap::-webkit-scrollbar { height: 8px; }
+    .table-wrap::-webkit-scrollbar-thumb { background: rgba(0,48,135,.22); border-radius: 4px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    /* Student list table: keep columns readable, never break words inside cells */
+    #studentTableBody, #studentTableBody td,
+    .table-wrap thead th { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+    .table-wrap > table { min-width: 980px; }   /* triggers horizontal scroll on small screens */
+
+    thead tr { background: #f5f7ff; }
+    th { padding: .75rem 1rem; text-align: left; font-size: .78rem; font-weight: 700;
+         color: #546e7a; letter-spacing: .5px; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
+    td { padding: .75rem 1rem; border-bottom: 1px solid #f3f4f6; color: #111827; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+    .tag {
+      display: inline-block; padding: .2rem .65rem; border-radius: 50px;
+      font-size: .72rem; font-weight: 700;
+    }
+    .tag-blue  { background: #dbeafe; color: #1d4ed8; }
+    .tag-sky   { background: #e0f2fe; color: #0284c7; }
+    .tag-green { background: #dcfce7; color: #166534; }
+    .tag-gray  { background: #f3f4f6; color: #6b7280; }
+    .tag-amber { background: #fef3c7; color: #b45309; }
+    .tag-rose  { background: #ffe4e6; color: #be123c; }
+    .tag-violet{ background: #ede9fe; color: #6d28d9; }
+    .tag-teal  { background: #ccfbf1; color: #0f766e; }
+    .tag-indigo{ background: #e0e7ff; color: #4338ca; }
+
+    /* ── STUDENT FILTER BAR (search + selects + refresh) ── */
+    .student-filter-bar {
+      display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+    }
+    .student-filter-bar input,
+    .student-filter-bar select {
+      padding: .55rem .9rem;
+      border: 1px solid rgba(0,48,135,.12); border-radius: 8px;
+      font-family: inherit; font-size: .88rem;
+      background: #f5f7ff; color: #111827;
+      outline: none; min-height: 40px;
+    }
+    .student-filter-bar input { flex: 2 1 220px; min-width: 0; }
+    .student-filter-bar select { flex: 1 1 130px; min-width: 0; }
+    .student-filter-bar .btn-sm { flex: 0 0 auto; }
+    @media (max-width: 540px) {
+      .student-filter-bar { gap: .45rem; }
+      .student-filter-bar input { flex: 1 1 100%; }
+      .student-filter-bar select { flex: 1 1 calc(50% - .25rem); }
+      .student-filter-bar .btn-sm { flex: 1 1 100%; text-align: center; }
+    }
+
+    /* ── SUBJECT CHECKBOX GROUP ── */
+    .chip-group { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .chip-check {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .55rem 1rem; border-radius: 50px;
+      background: #f5f7ff; border: 1.5px solid rgba(0,48,135,.15);
+      font-size: .88rem; font-weight: 600; color: #003087;
+      cursor: pointer; transition: all .2s; user-select: none;
+      min-height: 40px;            /* comfy thumb target on phones */
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip-check input { accent-color: #0ea5e9; cursor: pointer; width: 16px; height: 16px; }
+    .chip-check:has(input:checked) {
+      background: #e0f2fe; border-color: #0ea5e9; color: #0369a1;
+    }
+    .chip-check:hover { border-color: rgba(14,165,233,.4); }
+    @media (max-width: 480px) {
+      .chip-group { gap: .4rem; }
+      .chip-check { font-size: .82rem; padding: .5rem .85rem; }
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-box { background: #fff; border: 1px solid rgba(0,48,135,.08); border-radius: 14px;
+                padding: 1rem 1.2rem; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    .stat-box .num { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; color: #003087; }
+    .stat-box .lbl { font-size: .75rem; color: #546e7a; margin-top: .2rem; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* ── DIVIDER ── */
+    .divider { border: none; border-top: 1px solid rgba(0,48,135,.08); margin: 1.5rem 0; }
+
+    /* ── TEACHER MGMT ── */
+    .teacher-card-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .8rem 1rem; background: #f9fbff;
+      border-radius: 12px; margin-bottom: .5rem;
+      border: 1px solid rgba(0,48,135,.08);
+    }
+
+    /* ── LOADING ── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+      border-radius: 50%; animation: spin .7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── EMPTY STATE ── */
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #90a4ae; }
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: .5rem; }
+  @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+    /* Prevent long text breaking layout (excluding tables — they horizontal-scroll instead) */
+    .card, .teacher-card-item, .page, .stat-box {
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    /* ── RESPONSIVE / TABLET ── */
+    @media (max-width: 1024px) {
+      .menu-toggle { display: flex; }
+      .sidebar {
+        position: fixed; left: -300px; top: 52px;
+        height: calc(100vh - 52px); z-index: 150;
+        box-shadow: 4px 0 20px rgba(0,0,0,.1);
+        transition: left .3s ease;
+        width: 280px; max-width: 85vw;
+      }
+      .sidebar.open { left: 0; }
+    }
+    @media (max-width: 900px) {
+      .nav { padding: .65rem 1.2rem; }
+      .page { max-width: 100%; padding: 1.5rem 1rem; }
+      .card { padding: 1.5rem; }
+    }
+
+    /* ── RESPONSIVE / MOBILE ── */
+    @media (max-width: 640px) {
+      .nav {
+        padding: .55rem .8rem;
+        flex-wrap: wrap;
+        gap: .5rem;
+      }
+      .logo { font-size: 1.05rem; }
+      .nav > div { gap: .45rem !important; flex-wrap: wrap; justify-content: flex-end; }
+      .admin-badge { font-size: .66rem; padding: .2rem .6rem; }
+      .nav a[href$="/teach"] {
+        font-size: .72rem !important;
+        padding: .25rem .6rem !important;
+      }
+      #logoutBtn { font-size: .72rem; padding: .3rem .7rem; }
+
+      .page { padding: 1rem .75rem; max-width: 100%; }
+
+      /* Stats row: 2 columns on phones */
+      .stats-row { grid-template-columns: repeat(2, 1fr); gap: .7rem; }
+      .stat-box { padding: .8rem .7rem; }
+      .stat-box .num { font-size: 1.6rem; }
+      .stat-box .lbl { font-size: .68rem; letter-spacing: .5px; }
+
+      .card { padding: 1.1rem; border-radius: 14px; }
+      .card-title { font-size: 1.02rem; }
+      .card-sub { font-size: .8rem; }
+
+      .form-grid { grid-template-columns: 1fr; gap: .75rem; }
+      .field.full { grid-column: 1; }
+      .field input, .field select { font-size: .9rem; padding: .65rem .85rem; }
+
+      .btn { padding: .65rem 1.1rem; font-size: .85rem; }
+      .btn-sm { padding: .4rem .85rem; font-size: .76rem; }
+
+      /* Tables already wrapped in .table-wrap — just tune cells */
+      .table-wrap { margin: 0 -.5rem; padding: 0 .5rem; }
+      table { font-size: .82rem; }
+      th, td { padding: .55rem .7rem; white-space: nowrap; }
+      th { font-size: .7rem; }
+      /* Make injected JS tables scroll horizontally too */
+      #pdfListWrap, #testListWrap, #attHistoryWrap,
+      #reportTableWrap, #contentListWrap, #studentTableWrap {
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+      }
+
+      /* Teacher mgmt item */
+      .teacher-card-item {
+        flex-wrap: wrap; gap: .5rem;
+        padding: .7rem .85rem;
+      }
+
+      .hint { font-size: .76rem; padding: .6rem .85rem; }
+      .alert { font-size: .82rem; }
+    }
+
+    /* ── RESPONSIVE / SMALL MOBILE ── */
+    @media (max-width: 420px) {
+      .nav { padding: .5rem .6rem; }
+      .logo { font-size: .95rem; }
+      .page { padding: .85rem .55rem; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .stat-box .num { font-size: 1.4rem; }
+      .card { padding: .95rem; }
+      .card-title { font-size: .96rem; }
+      .btn { padding: .55rem .95rem; font-size: .8rem; }
+      /* Hide teacher panel link on very small screens to save space */
+      .nav a[href$="/teach"] { display: none; }
+    }
+
+    /* Final mobile guardrails for dense admin controls */
+    @media (max-width: 768px) {
+      .dash-body, .main-content, .page, .card, .form-grid,
+      .teacher-card-item, .student-filter-bar {
+        min-width: 0;
+      }
+      .card, .teacher-card-item, .hint, .alert {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+      .card > div[style*="display:flex"],
+      .teacher-card-item,
+      .student-filter-bar {
+        flex-wrap: wrap !important;
+      }
+      input, select, textarea, button {
+        max-width: 100%;
+      }
+      .sidebar {
+        height: calc(100dvh - 52px);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .nav { min-height: 48px; }
+      .nav > div:first-child {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .logo {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .nav > div:last-child {
+        flex: 0 0 auto;
+      }
+      .admin-badge {
+        max-width: 112px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .sidebar {
+        top: 48px;
+        height: calc(100dvh - 48px);
+      }
+      .sidebar-overlay { top: 48px; }
+      .stats-row { gap: .55rem; }
+      .stat-box { border-radius: 12px; }
+      .table-wrap { border-radius: 10px; }
+    }
+</style>
+<!-- Shared role / content-type access rules -->
+<script src="/content-access.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════
+     MAIN NAV
+═══════════════════════════════ -->
+<nav class="nav">
+  <div style="display:flex;align-items:center;gap:.65rem;justify-content:flex-start;">
+    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" type="button">
+      <span></span><span></span><span></span>
+    </button>
+    <a href="/" class="logo">The NewTown <span>Classes</span></a>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem;">
+    <span class="admin-badge">🛡 Admin Panel</span>
+    <a href="/teach" style="color:rgba(255,255,255,.75);font-size:.82rem;font-weight:600;text-decoration:none;padding:.3rem .75rem;border:1px solid rgba(255,255,255,.2);border-radius:8px;transition:all .2s;" onmouseover="this.style.color='#a78bfa'" onmouseout="this.style.color='rgba(255,255,255,.75)'">👨‍🏫 Teacher Panel</a>
+    <button id="logoutBtn" onclick="adminLogout()">Sign Out</button>
+  </div>
+</nav>
+
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ═══════════════════════════════
+     PAGE CONTENT
+═══════════════════════════════ -->
+<div id="mainContent" style="display:none;opacity:0;transition:opacity .3s;">
+<div class="dash-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Dashboard</div>
+      <div class="sidebar-item active" data-section="overview" onclick="switchAdminTab('overview')">
+        <span class="icon">📊</span> Overview
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Students</div>
+      <div class="sidebar-item" data-section="add-student" onclick="switchAdminTab('add-student')">
+        <span class="icon">➕</span> Add Student
+      </div>
+      <div class="sidebar-item" data-section="bulk-import" onclick="switchAdminTab('bulk-import')">
+        <span class="icon">📥</span> Bulk Import
+      </div>
+      <div class="sidebar-item" data-section="reset-password" onclick="switchAdminTab('reset-password')">
+        <span class="icon">🔑</span> Reset Password
+      </div>
+      <div class="sidebar-item" data-section="all-students" onclick="switchAdminTab('all-students')">
+        <span class="icon">📋</span> All Students
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Content &amp; Teaching</div>
+      <div class="sidebar-item" data-section="upload-material" onclick="switchAdminTab('upload-material')">
+        <span class="icon">📄</span> Upload Material
+      </div>
+      <div class="sidebar-item" data-section="teachers" onclick="switchAdminTab('teachers')">
+        <span class="icon">👨‍🏫</span> Teachers
+      </div>
+      <div class="sidebar-item" data-section="tests" onclick="switchAdminTab('tests')">
+        <span class="icon">✏️</span> Class Tests
+      </div>
+      <div class="sidebar-item" data-section="live-classes" onclick="switchAdminTab('live-classes')">
+        <span class="icon">🔴</span> Live Classes
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Operations</div>
+      <div class="sidebar-item" data-section="attendance" onclick="switchAdminTab('attendance')">
+        <span class="icon">📋</span> Attendance
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+  <div class="page">
+
+  <!-- ════════════════ OVERVIEW (Stats) ════════════════ -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="num" id="totalStudents">—</div>
+        <div class="lbl">Total Students</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="class11Count">—</div>
+        <div class="lbl">Class 11</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="class12Count">—</div>
+        <div class="lbl">Class 12</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="otherCount">—</div>
+        <div class="lbl">Foundation</div>
+      </div>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-title" style="justify-content:center;">👋 Welcome to the Admin Panel</div>
+      <p class="card-sub" style="margin-bottom:0;">Use the sidebar on the left to manage students, teachers, content, attendance, tests, and live classes.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════ ADD STUDENT ════════════════ -->
+  <div class="tab-content" id="tab-add-student">
+  <!-- ─── ADD NEW STUDENT ─── -->
+  <div class="card">
+    <div class="card-title">➕ Add New Student Account</div>
+    <p class="card-sub">Create login credentials for a new student. Share the Student ID and password with them directly.</p>
+
+    <div class="hint">
+      <strong>Student ID format:</strong> Use a consistent format like <strong>NTC-2026-001</strong> (Year + 3-digit number).
+      The student will use this ID (not email) to log in.
+    </div>
+
+    <form id="addStudentForm">
+      <div class="form-grid">
+        <div class="field">
+          <label>Student Full Name *</label>
+          <input type="text" id="newName" placeholder="e.g. Aryan Sharma" required/>
+        </div>
+        <div class="field">
+          <label>Student ID *</label>
+          <input type="text" id="newStudentId" placeholder="e.g. NTC-2026-001" required/>
+        </div>
+        <div class="field">
+          <label>Password *</label>
+          <input type="text" id="newPassword" placeholder="Min 6 characters" required minlength="6"/>
+        </div>
+        <div class="field">
+          <label>Class *</label>
+          <select id="newClass" required>
+            <option value="" disabled selected>Select class</option>
+            <option value="11">Class 11</option>
+            <option value="12">Class 12</option>
+            <option value="10">Class 10</option>
+            <option value="9">Class 9</option>
+            <option value="8">Class 8</option>
+            <option value="7">Class 7</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Board *</label>
+          <select id="newBoard" required>
+            <option value="" disabled selected>Select board</option>
+            <option value="CBSE">CBSE</option>
+            <option value="ICSE">ICSE</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Enrolled Subjects *</label>
+          <div class="chip-group" id="newSubjectsGroup">
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Physics"/> Physics</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Chemistry"/> Chemistry</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Maths"/> Maths</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Biology"/> Biology</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Computer"/> Computer Science</label>
+          </div>
+          <p style="font-size:.72rem;color:#90a4ae;margin-top:.4rem;">
+            Pick only the subjects this student is enrolled in. They'll be shown as tags on the student card.
+          </p>
+        </div>
+        <div class="field">
+          <label>Enrollment Type *</label>
+          <select id="newEnrollmentType" required>
+            <option value="normal" selected>Normal (Regular class)</option>
+          </select>
+          <p style="font-size:.72rem;color:#90a4ae;margin-top:.3rem;">
+            Controls which extra content the student can see. Normal = class content only.
+            Class 10: Normal / Foundation. Class 11–12: Normal / JEE / NEET.
+          </p>
+        </div>
+        <div class="field">
+          <label>Parent Phone</label>
+          <input type="tel" id="newPhone" placeholder="e.g. 9876543210"/>
+        </div>
+      </div>
+
+      <hr class="divider"/>
+
+      <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary" id="addStudentBtn">Create Student Account</button>
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('addStudentForm').reset()">Clear</button>
+      </div>
+
+      <div id="addStudentMsg" class="alert"></div>
+    </form>
+  </div>
+  </div><!-- /tab-add-student -->
+
+  <!-- ════════════════ BULK IMPORT ════════════════ -->
+  <div class="tab-content" id="tab-bulk-import">
+  <!-- ─── BULK IMPORT STUDENTS ─── -->
+  <div class="card" id="bulkImportCard">
+    <div class="card-title">📥 Bulk Import Students (XLSX / CSV)</div>
+    <p class="card-sub">
+      Upload a spreadsheet to create many student accounts at once. Existing accounts are skipped automatically.
+      Required columns: <strong>Student ID, Password, Student Name, Class, Board, Subjects, Enrollment Type, Parent Phone</strong>.
+      <br/>
+      <em>Subjects is a semicolon- or comma-separated list (e.g. <code>Physics;Chemistry;Maths</code>). Enrollment Type is one of <code>normal / foundation / jee / neet</code>.</em>
+    </p>
+
+    <div class="form-grid" style="grid-template-columns:1fr;">
+      <div class="field">
+        <label>Spreadsheet file (.xlsx, .xls, .csv)</label>
+        <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv"/>
+      </div>
+      <div class="field">
+        <label style="display:flex;gap:.5rem;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="bulkSkipNames" checked/>
+          <span>Skip these names (comma-separated, case-insensitive):</span>
+        </label>
+        <input type="text" id="bulkSkipList" value="Sayan Nath" placeholder="e.g. Sayan Nath, Test Student"/>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap;margin-top:.8rem;">
+      <button class="btn btn-outline" id="bulkPreviewBtn" type="button">👀 Preview rows</button>
+      <button class="btn btn-primary" id="bulkImportBtn" type="button" disabled>📥 Import All</button>
+      <button class="btn btn-outline" id="bulkClearBtn" type="button">Clear</button>
+    </div>
+
+    <div id="bulkPreview" style="margin-top:1rem;display:none;"></div>
+    <div id="bulkProgress" style="margin-top:1rem;display:none;"></div>
+    <div id="bulkMsg" class="alert"></div>
+  </div>
+
+  <!-- SheetJS — used only by the bulk importer above. Loaded lazily so the rest of the panel isn't slowed down. -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  </div><!-- /tab-bulk-import -->
+
+  <!-- ════════════════ RESET PASSWORD ════════════════ -->
+  <div class="tab-content" id="tab-reset-password">
+  <!-- ─── RESET PASSWORD ─── -->
+  <div class="card">
+    <div class="card-title">🔑 Reset Student Password</div>
+    <p class="card-sub">Enter the Student ID and set a new password for that account.</p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Student ID</label>
+        <input type="text" id="resetStudentId" placeholder="e.g. NTC-2026-001"/>
+      </div>
+      <div class="field">
+        <label>New Password</label>
+        <input type="text" id="resetPassword" placeholder="Min 6 characters" minlength="6"/>
+      </div>
+    </div>
+    <div style="margin-top:1rem;">
+      <button class="btn btn-primary" onclick="resetPassword()">Reset Password</button>
+    </div>
+    <div id="resetMsg" class="alert"></div>
+  </div>
+  </div><!-- /tab-reset-password -->
+
+  <!-- ════════════════ UPLOAD MATERIAL ════════════════ -->
+  <div class="tab-content" id="tab-upload-material">
+  <!-- ─── UPLOAD CHAPTER MATERIAL ─── -->
+  <div class="card">
+    <div class="card-title">📄 Upload Chapter Material</div>
+    <p class="card-sub">Upload PDFs or images for chapters. Students will see them in their dashboard.</p>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Class *</label>
+        <select id="pdfClass" required>
+          <option value="" disabled selected>Select class</option>
+          <option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+          <option value="10">Class 10</option>
+          <option value="9">Class 9</option>
+          <option value="8">Class 8</option>
+          <option value="7">Class 7</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Subject *</label>
+        <select id="pdfSubject" required>
+          <option value="" disabled selected>Select subject</option>
+          <option value="Physics">Physics</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Biology">Biology</option>
+          <option value="Computer">Computer Science</option>
+          <option value="English">English</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Chapter Name *</label>
+        <input type="text" id="pdfChapterName" placeholder="e.g. Chapter 1 – Physical World"/>
+      </div>
+      <div class="field">
+        <label>Category *</label>
+        <select id="pdfCategory" required style="padding:.65rem .9rem;background:#f5f7ff;border:1px solid rgba(0,48,135,.12);border-radius:10px;font-family:inherit;font-size:.9rem;width:100%;">
+          <option value="chapterwise">📝 Chapterwise Test</option>
+          <option value="module">📚 Module Test</option>
+          <option value="mock">🎯 Mock Test</option>
+          <option value="notes">📖 Chapter Notes</option>
+        </select>
+        <p style="font-size:.72rem;color:#90a4ae;margin-top:.3rem;">Students will see this PDF only on the matching sidebar tab.</p>
+      </div>
+      <div class="field">
+        <label>File Type *</label>
+        <select id="pdfFileType" style="padding:.65rem .9rem;background:#f5f7ff;border:1px solid rgba(0,48,135,.12);border-radius:10px;font-family:inherit;font-size:.9rem;width:100%;">
+          <option value="pdf">PDF Document</option>
+          <option value="image">Image (JPG / PNG)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Content Type *</label>
+        <select id="pdfContentType" required style="padding:.65rem .9rem;background:#f5f7ff;border:1px solid rgba(0,48,135,.12);border-radius:10px;font-family:inherit;font-size:.9rem;width:100%;">
+          <option value="regular" selected>Regular</option>
+        </select>
+        <p style="font-size:.72rem;color:#90a4ae;margin-top:.3rem;">
+          Regular = visible to all students of this class. Foundation / JEE / NEET = visible only to
+          students enrolled in that type.
+        </p>
+      </div>
+      <div class="field">
+        <label>Target Board</label>
+        <select id="pdfTargetBoard" style="padding:.65rem .9rem;background:#f5f7ff;border:1px solid rgba(0,48,135,.12);border-radius:10px;font-family:inherit;font-size:.9rem;width:100%;">
+          <option value="" selected>All Boards</option>
+          <option value="CBSE">CBSE only</option>
+          <option value="ICSE">ICSE only</option>
+        </select>
+        <p style="font-size:.72rem;color:#90a4ae;margin-top:.3rem;">
+          Show this chapter only to students of the chosen board. The Subject above is matched
+          against each student's enrolled subjects automatically.
+        </p>
+      </div>
+      <div class="field full">
+        <label>Google Drive Share Link *</label>
+        <input type="text" id="pdfDriveLink" placeholder="Paste Google Drive share link here…"
+          style="padding:.65rem .9rem;background:#f5f7ff;border:1px solid rgba(0,48,135,.12);border-radius:10px;font-family:inherit;font-size:.9rem;width:100%;"/>
+        <p style="font-size:.76rem;color:#90a4ae;margin-top:.4rem;">
+          How: Open file in Google Drive → Right-click → <em>Share</em> → &ldquo;Anyone with the link&rdquo; → Copy link
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="pdfUploadBtn" onclick="uploadChapterPdf()">💾 Save Chapter</button>
+      <button class="btn btn-outline" onclick="loadPdfList()">↻ Refresh List</button>
+    </div>
+    <div id="pdfUploadMsg" class="alert"></div>
+
+    <!-- Uploaded PDFs list -->
+    <hr class="divider"/>
+    <div style="font-weight:700;color:#003087;margin-bottom:.75rem;">📚 Uploaded Chapter PDFs</div>
+    <div id="pdfListWrap">
+      <div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>
+    </div>
+  </div>
+  </div><!-- /tab-upload-material -->
+
+  <!-- ════════════════ ALL STUDENTS ════════════════ -->
+  <div class="tab-content" id="tab-all-students">
+  <!-- ─── STUDENT LIST ─── -->
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.2rem; flex-wrap:wrap; gap:.75rem;">
+      <div>
+        <div class="card-title">📋 All Students</div>
+        <p class="card-sub" style="margin-bottom:0;">All registered student accounts</p>
+      </div>
+      <div class="student-filter-bar">
+        <input type="text" id="searchInput" placeholder="Search name, ID or subject…"
+          oninput="filterStudents()"/>
+        <select id="filterBoard" onchange="filterStudents()">
+          <option value="">All Boards</option>
+          <option value="CBSE">CBSE</option>
+          <option value="ICSE">ICSE</option>
+        </select>
+        <select id="filterSubject" onchange="filterStudents()">
+          <option value="">All Subjects</option>
+          <option value="Physics">Physics</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="Maths">Maths</option>
+          <option value="Biology">Biology</option>
+          <option value="Computer">Computer Science</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadStudents()">↻ Refresh</button>
+        <button class="btn btn-outline btn-sm" id="downloadCredsBtn" type="button"
+          title="Download all student login credentials as an Excel file (admin-only file — keep secure)">
+          ⬇ Download Credentials
+        </button>
+      </div>
+    </div>
+
+    <div style="font-size:.74rem;color:#90a4ae;margin:0 0 .5rem;display:flex;align-items:center;gap:.4rem;">
+      <span style="font-size:.95rem;">↔️</span> Swipe / scroll horizontally to see all columns
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Student ID</th>
+            <th>Name</th>
+            <th>Class</th>
+            <th>Board</th>
+            <th>Subjects</th>
+            <th>Enrollment</th>
+            <th>Phone</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="studentTableBody">
+          <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">⏳</div>Loading students…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /tab-all-students -->
+
+  <!-- ════════════════ TEACHERS ════════════════ -->
+  <div class="tab-content" id="tab-teachers">
+  <!-- ─── TEACHER MANAGEMENT ─── -->
+  <div class="card">
+    <div class="card-title">👨‍🏫 Teacher Management</div>
+    <p class="card-sub">Create teacher accounts. Teachers can log in at <strong>teacher-login.html</strong>, take attendance, and publish tests.</p>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Teacher Full Name *</label>
+        <input type="text" id="teacherName" placeholder="e.g. Priya Sharma"/>
+      </div>
+      <div class="field">
+        <label>Teacher Email *</label>
+        <input type="email" id="teacherEmail" placeholder="e.g. priya@gmail.com"/>
+      </div>
+      <div class="field">
+        <label>Password *</label>
+        <input type="text" id="teacherPassword" placeholder="Min 6 characters"/>
+      </div>
+      <div class="field">
+        <label>Subject</label>
+        <select id="teacherSubject">
+          <option value="Physics">Physics</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Biology">Biology</option>
+          <option value="Computer">Computer Science</option>
+          <option value="English">English</option>
+          <option value="All Subjects">All Subjects</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Phone</label>
+        <input type="tel" id="teacherPhone" placeholder="e.g. 9876543210"/>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="createTeacherBtn" onclick="createTeacher()">➕ Create Teacher Account</button>
+      <button class="btn btn-outline" onclick="loadTeacherList()">↻ Refresh List</button>
+    </div>
+    <div id="teacherMsg" class="alert"></div>
+
+    <hr class="divider"/>
+    <div style="font-weight:700;color:#003087;margin-bottom:.75rem;">📋 Teacher Accounts</div>
+    <div id="teacherListWrap"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></div>
+  </div>
+  </div><!-- /tab-teachers -->
+
+  <!-- ════════════════ ATTENDANCE ════════════════ -->
+  <div class="tab-content" id="tab-attendance">
+  <!-- ─── ATTENDANCE MANAGEMENT ─── -->
+  <div class="card">
+    <div class="card-title">📋 Student Attendance</div>
+    <p class="card-sub">Mark daily attendance, view history, and generate monthly reports. Share alerts to parents via WhatsApp or SMS.</p>
+
+    <!-- Mark Attendance -->
+    <div class="form-grid">
+      <div class="field">
+        <label>Class *</label>
+        <select id="attClass" onchange="loadAttStudents()">
+          <option value="">Select class</option>
+          <option value="7">Class 7</option>
+          <option value="8">Class 8</option>
+          <option value="9">Class 9</option>
+          <option value="10">Class 10</option>
+          <option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Date *</label>
+        <input type="date" id="attDate"/>
+      </div>
+      <div class="field">
+        <label>Subject</label>
+        <select id="attSubject">
+          <option value="">Optional</option>
+          <option>Physics</option><option>Chemistry</option>
+          <option>Mathematics</option><option>Biology</option>
+          <option value="Computer">Computer Science</option>
+          <option>English</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Summary chips -->
+    <div id="attSummary" style="display:none;margin-top:1rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:.85rem;font-weight:600;">
+      <span id="attSumP" style="padding:.4rem .9rem;border-radius:8px;background:#dcfce7;color:#166534;">Present: 0</span>
+      <span id="attSumA" style="padding:.4rem .9rem;border-radius:8px;background:#fff1f2;color:#991b1b;">Absent: 0</span>
+    </div>
+
+    <!-- Student list for marking -->
+    <div id="attStudentList" style="margin-top:1rem;">
+      <div style="text-align:center;padding:2rem;color:#90a4ae;">Select a class to load students</div>
+    </div>
+
+    <div style="margin-top:1.2rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="submitAtt()">Submit Attendance</button>
+      <button class="btn btn-outline" style="background:#25D366;color:#fff;border:none;" onclick="shareAttWA()">WhatsApp Parents</button>
+      <button class="btn btn-outline" style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:none;" onclick="shareAttSMS()">SMS Parents</button>
+    </div>
+    <div id="attMsg" class="alert"></div>
+
+    <hr class="divider"/>
+
+    <!-- Attendance History -->
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem;">
+      <div style="font-weight:700;color:#003087;">Attendance History</div>
+      <div style="display:flex;gap:.5rem;align-items:center;">
+        <select id="histClass" onchange="loadAttHistory()" style="padding:.4rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:8px;font-family:inherit;font-size:.84rem;">
+          <option value="">All Classes</option>
+          <option value="7">Class 7</option>
+          <option value="8">Class 8</option><option value="9">Class 9</option>
+          <option value="10">Class 10</option><option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadAttHistory()">Refresh</button>
+      </div>
+    </div>
+    <div id="historyWrap"><div style="text-align:center;padding:2rem;color:#90a4ae;">Loading...</div></div>
+
+    <hr class="divider"/>
+
+    <!-- Monthly Report -->
+    <div style="font-weight:700;color:#003087;margin-bottom:.75rem;">Monthly Attendance Report</div>
+    <div class="form-grid" style="margin-bottom:1rem;">
+      <div class="field">
+        <label>Class *</label>
+        <select id="reportClass">
+          <option value="">Select class</option>
+          <option value="7">Class 7</option>
+          <option value="8">Class 8</option><option value="9">Class 9</option>
+          <option value="10">Class 10</option><option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Month *</label>
+        <input type="month" id="reportMonth"/>
+      </div>
+      <div class="field" style="justify-content:flex-end;">
+        <button class="btn btn-primary btn-sm" onclick="genMonthlyReport()" style="align-self:flex-end;">Generate Report</button>
+      </div>
+    </div>
+    <div id="reportWrap"></div>
+  </div>
+  </div><!-- /tab-attendance -->
+
+  <!-- ════════════════ CLASS TESTS ════════════════ -->
+  <div class="tab-content" id="tab-tests">
+  <!-- ─── PUBLISHED TESTS MANAGEMENT ─── -->
+  <div class="card" id="onlineTestCard">
+    <div class="card-title">📚 Class Test</div>
+    <p class="card-sub">Manage tests published by teachers — activate/deactivate, delete, or view student results. Tests are created from the Teacher Panel.</p>
+
+    <div style="margin-top:1.2rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-outline" onclick="loadTestList()">↻ Refresh List</button>
+    </div>
+
+    <div id="testListWrap" style="margin-top:1rem;"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></div>
+
+    <!-- Results Modal -->
+    <div id="testResultsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;overflow-y:auto;padding:2rem 1rem;">
+      <div style="background:#fff;border-radius:20px;max-width:700px;margin:0 auto;padding:2rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+          <h2 id="resultsModalTitle" style="color:#003087;font-size:1.2rem;">Test Results</h2>
+          <button onclick="document.getElementById('testResultsModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#546e7a;">✕</button>
+        </div>
+        <div id="resultsModalBody"></div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /tab-tests -->
+
+  <!-- ════════════════ LIVE CLASSES ════════════════ -->
+  <div class="tab-content" id="tab-live-classes">
+  <!-- ═══════════════════════════
+       LIVE CLASSES MANAGEMENT
+  ═══════════════════════════ -->
+  <div class="card" style="margin-top:0;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+      <div>
+        <div class="card-title" style="margin:0;">🔴 Live Classes Management</div>
+        <p class="card-sub" style="margin:.2rem 0 0;">View, cancel, or reschedule all live classes.</p>
+      </div>
+      <button class="btn btn-outline" onclick="loadAdminClasses()" style="font-size:.82rem;">⟳ Refresh</button>
+    </div>
+
+    <!-- Filter bar -->
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap;margin-bottom:1rem;padding:.75rem;background:#f5f7ff;border-radius:10px;">
+      <select id="adminLcFilter" onchange="loadAdminClasses()" style="border:1px solid rgba(0,48,135,.15);border-radius:8px;padding:.35rem .7rem;font-family:inherit;font-size:.83rem;color:#003087;">
+        <option value="all">All Classes</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="cancelled">Cancelled</option>
+        <option value="ended">Ended</option>
+        <option value="recorded">📼 Recorded only</option>
+        <option value="ended_norec">Ended · no recording</option>
+      </select>
+      <select id="adminLcGrade" onchange="loadAdminClasses()" style="border:1px solid rgba(0,48,135,.15);border-radius:8px;padding:.35rem .7rem;font-family:inherit;font-size:.83rem;color:#003087;">
+        <option value="">All Grades</option>
+        <option value="7">Class 7</option>
+        <option value="8">Class 8</option>
+        <option value="9">Class 9</option>
+        <option value="10">Class 10</option>
+        <option value="11">Class 11</option>
+        <option value="12">Class 12</option>
+      </select>
+    </div>
+
+    <div id="lcAdminList"><div style="color:#90a4ae;font-size:.88rem;">Loading…</div></div>
+  </div>
+
+  <!-- Reschedule Modal -->
+  <div id="rescheduleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:none;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.8rem;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.2);">
+      <h3 style="font-family:'Syne',sans-serif;color:#003087;margin-bottom:1.2rem;">📅 Reschedule Class</h3>
+      <input type="hidden" id="rsClassId"/>
+      <div style="display:flex;flex-direction:column;gap:.8rem;">
+        <div>
+          <label style="font-size:.82rem;font-weight:600;color:#546e7a;display:block;margin-bottom:.3rem;">New Date</label>
+          <input id="rsDate" type="date" style="width:100%;border:1px solid rgba(0,48,135,.2);border-radius:8px;padding:.5rem .8rem;font-family:inherit;font-size:.9rem;"/>
+        </div>
+        <div>
+          <label style="font-size:.82rem;font-weight:600;color:#546e7a;display:block;margin-bottom:.3rem;">New Time (IST)</label>
+          <input id="rsTime" type="time" style="width:100%;border:1px solid rgba(0,48,135,.2);border-radius:8px;padding:.5rem .8rem;font-family:inherit;font-size:.9rem;"/>
+        </div>
+        <div>
+          <label style="font-size:.82rem;font-weight:600;color:#546e7a;display:block;margin-bottom:.3rem;">Duration (minutes)</label>
+          <input id="rsDuration" type="number" value="60" min="15" step="15" style="width:100%;border:1px solid rgba(0,48,135,.2);border-radius:8px;padding:.5rem .8rem;font-family:inherit;font-size:.9rem;"/>
+        </div>
+      </div>
+      <div id="rsMsg" style="font-size:.82rem;margin-top:.7rem;"></div>
+      <div style="display:flex;gap:.7rem;margin-top:1.2rem;">
+        <button onclick="submitReschedule()" style="flex:1;background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border:none;padding:.7rem;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;">Save</button>
+        <button onclick="closeReschedule()" style="flex:1;background:none;border:1px solid rgba(0,48,135,.2);color:#003087;padding:.7rem;border-radius:10px;font-family:inherit;font-weight:600;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
+  </div><!-- /tab-live-classes -->
+
+</div><!-- /page -->
+  </main><!-- /main-content -->
+</div><!-- /dash-body -->
+</div><!-- /mainContent -->
+
+
+<!-- ═══════════════════════════════
+     ADMIN SIDEBAR / TAB SWITCHER
+═══════════════════════════════ -->
+<script>
+  // Switch the admin panel between sections.
+  // The sidebar is mirrored from the teacher / student dashboards
+  // so that long pages no longer require endless scrolling.
+  window.switchAdminTab = function(tab) {
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.section === tab);
+    });
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    var target = document.getElementById('tab-' + tab);
+    if (target) target.classList.add('active');
+    // Close mobile sidebar after a tap
+    var sb = document.getElementById('sidebar');
+    var ov = document.getElementById('sidebarOverlay');
+    if (sb) sb.classList.remove('open');
+    if (ov) ov.classList.remove('open');
+    // Scroll the main content to the top so the user always lands at
+    // the start of the section they just opened.
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
+    catch (_e) { window.scrollTo(0, 0); }
+  };
+
+  // Mobile hamburger
+  document.addEventListener('DOMContentLoaded', function () {
+    var menuToggle = document.getElementById('menuToggle');
+    var sidebar    = document.getElementById('sidebar');
+    var overlay    = document.getElementById('sidebarOverlay');
+    if (menuToggle) {
+      menuToggle.addEventListener('click', function () {
+        if (sidebar) sidebar.classList.toggle('open');
+        if (overlay) overlay.classList.toggle('open');
+      });
+    }
+    if (overlay) {
+      overlay.addEventListener('click', function () {
+        if (sidebar) sidebar.classList.remove('open');
+        overlay.classList.remove('open');
+      });
+    }
+  });
+</script>
+
+
+<!-- ═══════════════════════════════
+     FIREBASE + LOGIC
+═══════════════════════════════ -->
+<script type="module">
+  import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword,
+           signOut, onAuthStateChanged,
+           updatePassword }                         from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, doc,
+           setDoc, getDoc, getDocs,
+           updateDoc, deleteDoc, query,
+           orderBy }                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { FIREBASE_CONFIG, initAppCheck }          from "/firebase-config.js";
+
+  const app  = initializeApp(FIREBASE_CONFIG);
+  await initAppCheck(app);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+
+  // ── Google Drive helpers ──
+  // Admin uploads file to Google Drive, shares with "Anyone with the link", pastes URL here.
+  // We extract the file ID and build an embeddable preview URL.
+  function extractDriveId(link) {
+    const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/id=([a-zA-Z0-9_-]+)/);
+    return m ? m[1] : null;
+  }
+  function drivePreviewUrl(fileId, fileType) {
+    return fileType === 'image'
+      ? 'https://drive.google.com/uc?export=view&id=' + fileId
+      : 'https://drive.google.com/file/d/' + fileId + '/preview';
+  }
+
+  // ── Helpers ──
+  const toEmail  = id => id.trim().toLowerCase().replace(/\s+/g,'') + '@ntcportal.local';
+  const $ = id => document.getElementById(id);
+
+  let allStudents = [];
+
+  // ── Auth state ──
+  onAuthStateChanged(auth, async user => {
+    if (user) {
+      // Verify this user is an admin
+      const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+      if (!adminSnap.exists() || !adminSnap.data().isAdmin) {
+        await signOut(auth);
+        window.location.href = '/login/admin';
+        return;
+      }
+      $('mainContent').style.display   = 'block';
+      setTimeout(() => { $('mainContent').style.opacity = '1'; }, 50);
+      $('logoutBtn').style.display     = 'block';
+      loadStudents();
+      loadPdfList();
+      loadTestList();
+      loadTeacherList();
+      loadAttHistory();
+    } else {
+      window.location.href = '/login/admin';
+    }
+  });
+
+  // ── Admin logout ──
+  window.adminLogout = async () => { await signOut(auth); window.location.href = '/login/admin'; };
+
+  // ── Keep enrollmentType dropdown in sync with selected class ──
+  function refreshEnrollmentTypeOptions() {
+    const cls = $('newClass') && $('newClass').value;
+    const sel = $('newEnrollmentType');
+    if (!cls || !sel || !window.ContentAccess) return;
+    const prev = sel.value;
+    window.ContentAccess.populateSelect(sel, cls, 'enrollment',
+      window.ContentAccess.validEnrollmentTypesForClass(cls).includes(prev) ? prev : 'normal');
+  }
+  if ($('newClass')) $('newClass').addEventListener('change', refreshEnrollmentTypeOptions);
+
+  // ── Keep contentType dropdown in sync with selected class ──
+  function refreshContentTypeOptions() {
+    const cls = $('pdfClass') && $('pdfClass').value;
+    const sel = $('pdfContentType');
+    if (!cls || !sel || !window.ContentAccess) return;
+    const prev = sel.value;
+    window.ContentAccess.populateSelect(sel, cls, 'content',
+      window.ContentAccess.validContentTypesForClass(cls).includes(prev) ? prev : 'regular');
+  }
+  if ($('pdfClass')) $('pdfClass').addEventListener('change', refreshContentTypeOptions);
+
+  // ── Add new student ──
+  $('addStudentForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn      = $('addStudentBtn');
+    const name     = $('newName').value.trim();
+    const sid      = $('newStudentId').value.trim().toUpperCase();
+    const password = $('newPassword').value;
+    const cls      = $('newClass').value;
+    const board    = $('newBoard') ? $('newBoard').value : '';
+    const subjects = Array.from(document.querySelectorAll('input[name="newSubjects"]:checked')).map(c => c.value);
+    const enrollmentType = window.ContentAccess
+      ? window.ContentAccess.normalizeEnrollmentType($('newEnrollmentType') ? $('newEnrollmentType').value : 'normal')
+      : 'normal';
+    // Validate class ↔ enrollmentType combo
+    if (window.ContentAccess) {
+      const err = window.ContentAccess.validateEnrollment(cls, enrollmentType);
+      if (err) { showMsg('addStudentMsg','error','❌ ' + err); return; }
+    }
+    // Validate new fields
+    if (!board)            { showMsg('addStudentMsg','error','❌ Please select a Board (CBSE / ICSE).'); return; }
+    if (!subjects.length)  { showMsg('addStudentMsg','error','❌ Please select at least one enrolled subject.'); return; }
+    const phone    = $('newPhone').value.trim();
+    const email    = toEmail(sid);
+
+    btn.innerHTML = '<span class="spinner"></span> Creating…';
+    btn.disabled  = true;
+    clearMsg('addStudentMsg');
+
+    try {
+      // Use Firebase REST API to create user without signing out admin
+      const res  = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_CONFIG.apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, returnSecureToken: true })
+      });
+      const data = await res.json();
+      if (data.error) {
+        if (data.error.message === 'EMAIL_EXISTS') throw new Error('This Student ID already has an account.');
+        throw new Error(data.error.message);
+      }
+
+      const uid   = data.localId;
+
+      // Save student profile in Firestore (use ADMIN's token — only admins can write to students collection)
+      const adminToken = await auth.currentUser.getIdToken();
+      const fsRes = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ fields: {
+          studentId:      { stringValue: sid },
+          name:           { stringValue: name },
+          class:          { stringValue: cls },
+          board:          { stringValue: board },
+          subjects:       { arrayValue: { values: subjects.map(s => ({ stringValue: s })) } },
+          enrollmentType: { stringValue: enrollmentType },   // role for content access
+          phone:          { stringValue: phone },
+          email:          { stringValue: email },
+          password:       { stringValue: password },   // stored for password-reset flow
+          uid:            { stringValue: uid },
+          createdAt:      { stringValue: new Date().toISOString() }
+        }})
+      });
+      const fsData = await fsRes.json();
+      if (fsData.error) throw new Error('Auth account created but profile save failed: ' + fsData.error.message + '. Check Firestore rules.');
+
+      showMsg('addStudentMsg', 'success',
+        `✅ Account created for ${name}!\n\nStudent ID: ${sid}\nPassword: ${password}\nClass: ${cls}\n\nShare these credentials with the student.`);
+      $('addStudentForm').reset();
+      loadStudents();
+    } catch (err) {
+      showMsg('addStudentMsg', 'error', '❌ ' + err.message);
+    } finally {
+      btn.innerHTML = 'Create Student Account';
+      btn.disabled  = false;
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  //  BULK IMPORT STUDENTS — reads .xlsx/.csv and creates accounts
+  // ════════════════════════════════════════════════════════════════
+  let _bulkRows = [];   // parsed rows ready to import
+  const ALLOWED_SUBJECTS = ['Physics','Chemistry','Maths','Biology','Computer'];
+
+  function _bulkEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+      { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+    ));
+  }
+
+  // Normalise a row from the spreadsheet into the exact shape our addStudent flow uses.
+  function _bulkNormalize(raw) {
+    // Accept multiple possible header spellings
+    const get = (...keys) => {
+      for (const k of keys) {
+        if (raw[k] != null && String(raw[k]).trim() !== '') return String(raw[k]).trim();
+      }
+      return '';
+    };
+    const sid      = get('Student ID','StudentID','studentId').toUpperCase();
+    const password = get('Password','password');
+    const name     = get('Student Name','Name','name');
+    let cls        = get('Class','class');
+    cls = (cls.match(/\d+/) || [''])[0];   // "Class 9" → "9"
+    let board      = get('Board','board').toUpperCase();
+    if (board === 'ISC') board = 'ICSE';   // ISC = senior secondary ICSE
+    const subjRaw  = get('Subjects','Subject Enrolled','subjects');
+    const subjects = subjRaw.split(/[;,]/).map(s => s.trim()).filter(Boolean)
+      .map(s => s.toLowerCase() === 'mathematics' ? 'Maths'
+              : s.toLowerCase() === 'computer science' ? 'Computer'
+              : s)
+      .filter(s => ALLOWED_SUBJECTS.includes(s));
+    let et = get('Enrollment Type','EnrollmentType','enrollmentType').toLowerCase();
+    if (!['normal','foundation','jee','neet'].includes(et)) et = 'normal';
+    const phone = get('Parent Phone','Parents/Guardian Number','phone').replace(/\D/g, '').slice(-10);
+
+    return { sid, password, name, cls, board, subjects, enrollmentType: et, phone };
+  }
+
+  function _bulkValidate(rec) {
+    const errs = [];
+    if (!rec.sid) errs.push('Student ID missing');
+    if (!rec.password || rec.password.length < 6) errs.push('Password must be ≥6 chars');
+    if (!rec.name) errs.push('Name missing');
+    if (!['7','8','9','10','11','12'].includes(rec.cls)) errs.push('Class invalid');
+    if (!['CBSE','ICSE'].includes(rec.board)) errs.push('Board must be CBSE or ICSE');
+    if (!rec.subjects.length) errs.push('No valid subjects');
+    if (window.ContentAccess) {
+      const e = window.ContentAccess.validateEnrollment(rec.cls, rec.enrollmentType);
+      if (e) errs.push(e);
+    }
+    return errs;
+  }
+
+  async function _readSpreadsheet(file) {
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(buf, { type: 'array' });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(ws, { defval: '' });
+  }
+
+  document.getElementById('bulkPreviewBtn').addEventListener('click', async () => {
+    clearMsg('bulkMsg');
+    const fileInput = document.getElementById('bulkFile');
+    const file = fileInput.files[0];
+    if (!file) { showMsg('bulkMsg','error','Pick a .xlsx or .csv file first.'); return; }
+    if (typeof XLSX === 'undefined') {
+      showMsg('bulkMsg','error','Spreadsheet library still loading — try again in a second.'); return;
+    }
+
+    try {
+      const rawRows = await _readSpreadsheet(file);
+      const skipList = (document.getElementById('bulkSkipList').value || '')
+        .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const useSkipList = document.getElementById('bulkSkipNames').checked;
+
+      _bulkRows = rawRows.map(r => {
+        const rec = _bulkNormalize(r);
+        const errs = _bulkValidate(rec);
+        const skipped = useSkipList && skipList.includes(rec.name.toLowerCase());
+        return { ...rec, errs, skipped, status: skipped ? 'skip-list' : (errs.length ? 'invalid' : 'ready') };
+      });
+
+      const ready    = _bulkRows.filter(r => r.status === 'ready').length;
+      const skipped  = _bulkRows.filter(r => r.status === 'skip-list').length;
+      const invalid  = _bulkRows.filter(r => r.status === 'invalid').length;
+
+      const wrap = document.getElementById('bulkPreview');
+      wrap.style.display = 'block';
+      wrap.innerHTML = `
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;font-size:.85rem;">
+          <span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:.2rem .7rem;border-radius:6px;font-weight:700;">✓ Ready: ${ready}</span>
+          <span style="background:#fef9c3;color:#854d0e;border:1px solid #fde68a;padding:.2rem .7rem;border-radius:6px;font-weight:700;">⏭ Skip list: ${skipped}</span>
+          <span style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:.2rem .7rem;border-radius:6px;font-weight:700;">✗ Invalid: ${invalid}</span>
+        </div>
+        <div style="overflow-x:auto;border:1px solid rgba(0,48,135,.1);border-radius:10px;max-height:420px;">
+          <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+            <thead style="background:#f5f7ff;position:sticky;top:0;">
+              <tr>
+                <th style="padding:.5rem .7rem;text-align:left;">#</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Status</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Student ID</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Name</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Cls</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Board</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Type</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Subjects</th>
+                <th style="padding:.5rem .7rem;text-align:left;">Issues</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${_bulkRows.map((r, i) => {
+                const bg = r.status === 'ready' ? '#fff'
+                         : r.status === 'skip-list' ? '#fefce8' : '#fee2e2';
+                const icon = r.status === 'ready' ? '✓'
+                           : r.status === 'skip-list' ? '⏭' : '✗';
+                return `<tr style="background:${bg};border-top:1px solid #f1f5f9;">
+                  <td style="padding:.45rem .7rem;color:#90a4ae;">${i+1}</td>
+                  <td style="padding:.45rem .7rem;font-weight:700;">${icon}</td>
+                  <td style="padding:.45rem .7rem;font-family:ui-monospace,Menlo,monospace;color:#003087;">${_bulkEsc(r.sid)}</td>
+                  <td style="padding:.45rem .7rem;">${_bulkEsc(r.name)}</td>
+                  <td style="padding:.45rem .7rem;">${_bulkEsc(r.cls)}</td>
+                  <td style="padding:.45rem .7rem;">${_bulkEsc(r.board)}</td>
+                  <td style="padding:.45rem .7rem;">${_bulkEsc(r.enrollmentType)}</td>
+                  <td style="padding:.45rem .7rem;font-size:.74rem;color:#546e7a;">${_bulkEsc(r.subjects.join(', '))}</td>
+                  <td style="padding:.45rem .7rem;color:#dc2626;font-size:.74rem;">${_bulkEsc(r.errs.join('; '))}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById('bulkImportBtn').disabled = (ready === 0);
+      showMsg('bulkMsg','success', `Loaded ${_bulkRows.length} rows. ${ready} ready to import.`);
+    } catch (e) {
+      showMsg('bulkMsg','error','Couldn\'t read file: ' + e.message);
+    }
+  });
+
+  document.getElementById('bulkClearBtn').addEventListener('click', () => {
+    document.getElementById('bulkFile').value = '';
+    document.getElementById('bulkPreview').style.display = 'none';
+    document.getElementById('bulkProgress').style.display = 'none';
+    document.getElementById('bulkPreview').innerHTML = '';
+    document.getElementById('bulkProgress').innerHTML = '';
+    _bulkRows = [];
+    document.getElementById('bulkImportBtn').disabled = true;
+    clearMsg('bulkMsg');
+  });
+
+  document.getElementById('bulkImportBtn').addEventListener('click', async () => {
+    const ready = _bulkRows.filter(r => r.status === 'ready');
+    if (!ready.length) { showMsg('bulkMsg','error','Nothing to import.'); return; }
+    if (!confirm(`Create ${ready.length} student account(s)?\n\nExisting accounts (same Student ID) will be skipped automatically — no duplicates.`)) return;
+
+    const importBtn = document.getElementById('bulkImportBtn');
+    importBtn.disabled = true;
+    const progWrap = document.getElementById('bulkProgress');
+    progWrap.style.display = 'block';
+    progWrap.innerHTML = '<div style="font-weight:700;color:#003087;margin-bottom:.5rem;">Importing…</div><div id="bulkLog" style="font-family:ui-monospace,Menlo,monospace;font-size:.78rem;background:#0f172a;color:#e2e8f0;padding:.8rem 1rem;border-radius:8px;max-height:300px;overflow-y:auto;line-height:1.55;"></div>';
+    const log = document.getElementById('bulkLog');
+    const append = (msg, color) => {
+      const line = document.createElement('div');
+      if (color) line.style.color = color;
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    };
+
+    let created = 0, alreadyExists = 0, failed = 0;
+    const adminToken = await auth.currentUser.getIdToken();
+
+    for (let i = 0; i < ready.length; i++) {
+      const r = ready[i];
+      const email = toEmail(r.sid);
+      append(`[${i+1}/${ready.length}] ${r.sid} — ${r.name}`);
+
+      try {
+        // 1. Try to create the auth account (use REST so admin stays signed in)
+        const signUpRes = await fetch(
+          `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_CONFIG.apiKey}`,
+          { method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ email, password: r.password, returnSecureToken: true }) }
+        );
+        const signUp = await signUpRes.json();
+
+        if (signUp.error) {
+          if (signUp.error.message === 'EMAIL_EXISTS') {
+            append(`   ⏭ Already exists — skipping`, '#fbbf24');
+            r.status = 'exists';
+            alreadyExists++;
+            continue;
+          }
+          throw new Error(signUp.error.message);
+        }
+
+        const uid = signUp.localId;
+
+        // 2. Save profile to Firestore using ADMIN token
+        const fsRes = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
+          { method:'PATCH',
+            headers:{'Content-Type':'application/json', Authorization:`Bearer ${adminToken}`},
+            body: JSON.stringify({ fields: {
+              studentId:      { stringValue: r.sid },
+              name:           { stringValue: r.name },
+              class:          { stringValue: r.cls },
+              board:          { stringValue: r.board },
+              subjects:       { arrayValue: { values: r.subjects.map(s => ({ stringValue: s })) } },
+              enrollmentType: { stringValue: r.enrollmentType },
+              phone:          { stringValue: r.phone },
+              email:          { stringValue: email },
+              password:       { stringValue: r.password },
+              uid:            { stringValue: uid },
+              createdAt:      { stringValue: new Date().toISOString() }
+            }})
+          }
+        );
+        const fsData = await fsRes.json();
+        if (fsData.error) throw new Error('Auth created but Firestore write failed: ' + fsData.error.message);
+
+        append(`   ✅ Created`, '#86efac');
+        r.status = 'created';
+        created++;
+      } catch (err) {
+        append(`   ❌ ${err.message}`, '#fca5a5');
+        r.status = 'failed';
+        r.failError = err.message;
+        failed++;
+      }
+    }
+
+    append('');
+    append(`────────────────────────────`);
+    append(`Done. Created: ${created} · Already existed: ${alreadyExists} · Failed: ${failed}`,
+           failed ? '#fca5a5' : '#86efac');
+
+    showMsg('bulkMsg', failed ? 'error' : 'success',
+      `Import finished — ${created} created, ${alreadyExists} skipped (existed), ${failed} failed.`);
+
+    importBtn.disabled = (created === 0);
+    if (created > 0) loadStudents();
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  //  DOWNLOAD STUDENT CREDENTIALS — exports all students as XLSX
+  //  Includes the password field, so this is admin-only output.
+  //  Uses SheetJS (already loaded for the bulk importer).
+  // ════════════════════════════════════════════════════════════════
+  document.getElementById('downloadCredsBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('downloadCredsBtn');
+    const origLabel = btn.innerHTML;
+    btn.innerHTML = '⏳ Preparing…';
+    btn.disabled = true;
+
+    try {
+      if (typeof XLSX === 'undefined') {
+        throw new Error('Spreadsheet library still loading — try again in a second.');
+      }
+
+      // Fetch fresh data including password (allStudents in memory doesn't include it)
+      const adminToken = await auth.currentUser.getIdToken();
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      const docs = data.documents || [];
+      if (!docs.length) throw new Error('No students found.');
+
+      // Map Firestore docs → flat rows in the same column order as our import file
+      const rows = docs.map(d => {
+        const f = d.fields || {};
+        const subjArr = (f.subjects?.arrayValue?.values || [])
+          .map(v => v.stringValue).filter(Boolean);
+        return {
+          'Student ID':      f.studentId?.stringValue      || '',
+          'Password':        f.password?.stringValue       || '',
+          'Student Name':    f.name?.stringValue           || '',
+          'Class':           f.class?.stringValue          || '',
+          'Board':           f.board?.stringValue          || '',
+          'Subjects':        subjArr.join(';'),
+          'Enrollment Type': f.enrollmentType?.stringValue || 'normal',
+          'Parent Phone':    f.phone?.stringValue          || '',
+          'Email':           f.email?.stringValue          || '',
+          'Created At':      (f.createdAt?.stringValue || '').slice(0, 10)
+        };
+      });
+
+      // Sort: class ascending, then name
+      rows.sort((a, b) => {
+        const ca = parseInt(a['Class']) || 99;
+        const cb = parseInt(b['Class']) || 99;
+        if (ca !== cb) return ca - cb;
+        return (a['Student Name'] || '').toLowerCase().localeCompare((b['Student Name'] || '').toLowerCase());
+      });
+
+      // Build workbook
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows, { header: [
+        'Student ID','Password','Student Name','Class','Board','Subjects',
+        'Enrollment Type','Parent Phone','Email','Created At'
+      ]});
+      // Column widths
+      ws['!cols'] = [
+        { wch: 16 }, { wch: 14 }, { wch: 28 }, { wch: 8 }, { wch: 8 },
+        { wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 32 }, { wch: 12 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Login Credentials');
+
+      // Summary sheet — counts by class
+      const counts = {};
+      rows.forEach(r => { const c = r['Class'] || '—'; counts[c] = (counts[c] || 0) + 1; });
+      const summaryRows = [
+        ['The NewTown Classes — Student Credentials Export'],
+        ['Generated:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST'],
+        ['Total students:', rows.length],
+        [],
+        ['Class', 'Count']
+      ];
+      Object.keys(counts).sort((a,b)=>(parseInt(a)||99)-(parseInt(b)||99))
+        .forEach(c => summaryRows.push(['Class ' + c, counts[c]]));
+      summaryRows.push([]);
+      summaryRows.push(['⚠ This file contains plaintext passwords — keep it secure.']);
+      summaryRows.push(['  Do not share by email or upload to public storage.']);
+      const sm = XLSX.utils.aoa_to_sheet(summaryRows);
+      sm['!cols'] = [{ wch: 30 }, { wch: 30 }];
+      XLSX.utils.book_append_sheet(wb, sm, 'Summary');
+
+      // Filename with today's date
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `NewtownClasses_StudentCredentials_${today}.xlsx`);
+    } catch (err) {
+      alert('❌ Couldn\'t download: ' + err.message);
+    } finally {
+      btn.innerHTML = origLabel;
+      btn.disabled = false;
+    }
+  });
+
+  // ── Reset password ──
+  window.resetPassword = async () => {
+    const sid     = $('resetStudentId').value.trim().toUpperCase();
+    const newPass = $('resetPassword').value;
+    if (!sid || !newPass || newPass.length < 6) {
+      showMsg('resetMsg', 'error', 'Please enter a Student ID and a new password (min 6 chars).');
+      return;
+    }
+    clearMsg('resetMsg');
+
+    try {
+      // Step 1: Find student in Firestore by studentId (admin token)
+      const adminToken = await auth.currentUser.getIdToken();
+      const qRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents:runQuery?key=${FIREBASE_CONFIG.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({
+            structuredQuery: {
+              from: [{ collectionId: 'students' }],
+              where: { fieldFilter: { field: { fieldPath: 'studentId' }, op: 'EQUAL', value: { stringValue: sid } } },
+              limit: 1
+            }
+          })
+        }
+      );
+      const rows = await qRes.json();
+      if (!rows[0]?.document) throw new Error('Student ID not found. Make sure the student account exists.');
+
+      const fields        = rows[0].document.fields;
+      const uid           = fields.uid?.stringValue;
+      const studentEmail  = fields.email?.stringValue;
+      const oldPassword   = fields.password?.stringValue;
+
+      if (!oldPassword) throw new Error('Stored password not found. This student was created before the latest update — delete and recreate their account.');
+
+      // Step 2: Sign in as student via REST (does NOT log out admin — uses fetch, not SDK)
+      const signInRes = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_CONFIG.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: studentEmail, password: oldPassword, returnSecureToken: true })
+        }
+      );
+      const signInData = await signInRes.json();
+      if (signInData.error) throw new Error('Could not verify student credentials: ' + signInData.error.message);
+      const studentToken = signInData.idToken;
+
+      // Step 3: Update Firebase Auth password using student's own token
+      const updateRes = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_CONFIG.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: studentToken, password: newPass, returnSecureToken: false })
+        }
+      );
+      const updateData = await updateRes.json();
+      if (updateData.error) throw new Error('Auth password update failed: ' + updateData.error.message);
+
+      // Step 4: Update stored password in Firestore using admin token
+      await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=password`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({ fields: { password: { stringValue: newPass } } })
+        }
+      );
+
+      showMsg('resetMsg', 'success', `✅ Password successfully reset for ${sid}.\nNew password: ${newPass}`);
+      $('resetStudentId').value = '';
+      $('resetPassword').value  = '';
+    } catch (err) {
+      showMsg('resetMsg', 'error', '❌ ' + err.message);
+    }
+  };
+
+  // ── Load all students ──
+  window.loadStudents = async () => {
+    const tbody = $('studentTableBody');
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr>';
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const data = await res.json();
+      allStudents = (data.documents || []).map(d => {
+        const f = d.fields || {};
+        const subjArr = (f.subjects?.arrayValue?.values || [])
+          .map(v => v.stringValue).filter(Boolean);
+        return {
+          studentId: f.studentId?.stringValue || '',
+          name:      f.name?.stringValue      || '',
+          class:     f.class?.stringValue     || '',
+          board:     f.board?.stringValue     || '',
+          subjects:  subjArr,
+          // Missing enrollmentType → treated as 'normal' by helpers below
+          enrollmentType: f.enrollmentType?.stringValue || 'normal',
+          phone:     f.phone?.stringValue     || '—',
+          uid:       f.uid?.stringValue       || '',
+          createdAt: f.createdAt?.stringValue || ''
+        };
+      });
+      updateStats();
+      renderTable(allStudents);
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">❌ Error loading students: ${err.message}</div></td></tr>`;
+    }
+  };
+
+  // Map subject → tag-class for the subjects column
+  const SUBJECT_TAG_CLASS = {
+    Physics:   'tag-violet',
+    Chemistry: 'tag-amber',
+    Maths:     'tag-indigo',
+    Biology:   'tag-green',
+    Computer:  'tag-teal'
+  };
+  // Map board → tag-class
+  const BOARD_TAG_CLASS  = { CBSE: 'tag-blue', ICSE: 'tag-rose' };
+
+  function updateStats() {
+    $('totalStudents').textContent = allStudents.length;
+    $('class11Count').textContent  = allStudents.filter(s => s.class === '11').length;
+    $('class12Count').textContent  = allStudents.filter(s => s.class === '12').length;
+    $('otherCount').textContent    = allStudents.filter(s => s.class !== '11' && s.class !== '12').length;
+  }
+
+  // Map enrollmentType → colored tag class for the table
+  const ENROLLMENT_TAG_CLASS = { normal: 'tag-gray', foundation: 'tag-blue', jee: 'tag-sky', neet: 'tag-green' };
+
+  // Sort priority for enrollment types within a class
+  const ENROLLMENT_RANK = { normal: 0, foundation: 1, jee: 2, neet: 3 };
+
+  // Sort: class (numeric asc) → enrollmentType (normal → foundation → jee → neet)
+  // → name (A-Z). Unknown classes sink to the bottom.
+  function sortStudentsForTable(list) {
+    const normEt = v => (window.ContentAccess
+      ? window.ContentAccess.normalizeEnrollmentType(v)
+      : (v || 'normal'));
+    return list.slice().sort((a, b) => {
+      const ca = parseInt(a.class, 10); const cb = parseInt(b.class, 10);
+      const aClass = Number.isFinite(ca) ? ca : 999;
+      const bClass = Number.isFinite(cb) ? cb : 999;
+      if (aClass !== bClass) return aClass - bClass;
+      const ea = ENROLLMENT_RANK[normEt(a.enrollmentType)] ?? 99;
+      const eb = ENROLLMENT_RANK[normEt(b.enrollmentType)] ?? 99;
+      if (ea !== eb) return ea - eb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }
+
+  function renderTable(students) {
+    const tbody = $('studentTableBody');
+    if (!students.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎓</div>No students match. Try clearing filters.</div></td></tr>';
+      return;
+    }
+
+    const sorted = sortStudentsForTable(students);
+    let currentClass = null;
+    const rows = [];
+
+    sorted.forEach(s => {
+      // Insert a group-header row each time the class changes
+      const clsLabel = s.class ? `Class ${s.class}` : 'Other';
+      if (s.class !== currentClass) {
+        currentClass = s.class;
+        const countInGroup = sorted.filter(x => x.class === s.class).length;
+        rows.push(`
+          <tr class="group-header">
+            <td colspan="8" style="background:#eef2ff;color:#003087;font-weight:700;font-size:.78rem;letter-spacing:.4px;text-transform:uppercase;padding:.55rem .9rem;border-top:2px solid rgba(0,48,135,.15);">
+              ${clsLabel} &middot; ${countInGroup} student${countInGroup === 1 ? '' : 's'}
+            </td>
+          </tr>`);
+      }
+
+      const et = window.ContentAccess
+        ? window.ContentAccess.normalizeEnrollmentType(s.enrollmentType)
+        : (s.enrollmentType || 'normal');
+      const etLabel = (window.ContentAccess && window.ContentAccess.ENROLLMENT_LABELS[et]) || et;
+      const tagCls = ENROLLMENT_TAG_CLASS[et] || 'tag-gray';
+
+      // Board tag (fallback to gray if value not in map)
+      const boardCls  = BOARD_TAG_CLASS[s.board] || 'tag-gray';
+      const boardCell = s.board ? `<span class="tag ${boardCls}">${s.board}</span>` : `<span class="tag tag-gray">—</span>`;
+
+      // Subjects: ONLY the subjects the student is enrolled in (not all 5)
+      const subjCell = (s.subjects && s.subjects.length)
+        ? s.subjects.map(sub =>
+            `<span class="tag ${SUBJECT_TAG_CLASS[sub] || 'tag-gray'}" style="margin:1px 2px;">${sub}</span>`
+          ).join('')
+        : `<span class="tag tag-gray">—</span>`;
+
+      rows.push(`
+      <tr>
+        <td><strong>${s.studentId}</strong></td>
+        <td>${s.name}</td>
+        <td><span class="tag tag-blue">Class ${s.class}</span></td>
+        <td>${boardCell}</td>
+        <td style="min-width:240px;white-space:normal;">${subjCell}</td>
+        <td><span class="tag ${tagCls}">${etLabel}</span></td>
+        <td>${s.phone}</td>
+        <td>
+          <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.uid}', '${s.name}')">Delete</button>
+        </td>
+      </tr>`);
+    });
+
+    tbody.innerHTML = rows.join('');
+  }
+
+  // ── Search + Board/Subject filter ──
+  window.filterStudents = () => {
+    const q       = ($('searchInput').value || '').toLowerCase();
+    const fBoard  = ($('filterBoard')   ? $('filterBoard').value   : '') || '';
+    const fSubj   = ($('filterSubject') ? $('filterSubject').value : '') || '';
+    renderTable(allStudents.filter(s => {
+      const subjStr = (s.subjects || []).join(' ').toLowerCase();
+      const matchesQ = !q ||
+        s.studentId.toLowerCase().includes(q) ||
+        s.name.toLowerCase().includes(q) ||
+        subjStr.includes(q);
+      const matchesBoard = !fBoard || s.board === fBoard;
+      const matchesSubj  = !fSubj  || (s.subjects || []).indexOf(fSubj) !== -1;
+      return matchesQ && matchesBoard && matchesSubj;
+    }));
+  };
+
+  // ── Delete student ──
+  window.deleteStudent = async (uid, name) => {
+    if (!confirm(`Delete account for "${name}"? This cannot be undone.`)) return;
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ localId: uid }) });
+      allStudents = allStudents.filter(s => s.uid !== uid);
+      updateStats();
+      renderTable(allStudents);
+    } catch (err) { alert('Error: ' + err.message); }
+  };
+
+  // ── Utility ──
+  // ══════════════════════════════════════
+  //  PDF UPLOAD & MANAGEMENT
+  // ══════════════════════════════════════
+
+  // ── Friendly label for each category value (must match student-dashboard sidebar data-section) ──
+  const CHAPTER_CATEGORY_LABELS = {
+    chapterwise: '📝 Chapterwise Test',
+    module:      '📚 Module Test',
+    mock:        '🎯 Mock Test',
+    notes:       '📖 Chapter Notes'
+  };
+
+  window.uploadChapterPdf = async () => {
+    const cls       = $('pdfClass').value;
+    const subject   = $('pdfSubject').value;
+    const chapter   = $('pdfChapterName').value.trim();
+    const driveLink = $('pdfDriveLink').value.trim();
+    const fileType  = $('pdfFileType').value;
+    const category  = $('pdfCategory').value || 'notes';
+    const contentType = window.ContentAccess
+      ? window.ContentAccess.normalizeContentType($('pdfContentType') ? $('pdfContentType').value : 'regular')
+      : 'regular';
+    const targetBoard = ($('pdfTargetBoard') ? $('pdfTargetBoard').value : '') || '';
+
+    if (!cls || !subject || !chapter || !driveLink) {
+      showMsg('pdfUploadMsg','error','❌ Please fill all fields and paste the Google Drive link.');
+      return;
+    }
+    // Validate class ↔ contentType combo (e.g. can't tag class-10 PDF as "jee")
+    if (window.ContentAccess) {
+      const err = window.ContentAccess.validateContentType(cls, contentType);
+      if (err) { showMsg('pdfUploadMsg','error','❌ ' + err); return; }
+    }
+    const fileId = extractDriveId(driveLink);
+    if (!fileId) {
+      showMsg('pdfUploadMsg','error','❌ Invalid Google Drive link. Make sure you copied the full share URL.');
+      return;
+    }
+
+    const viewUrl    = drivePreviewUrl(fileId, fileType);
+    const timestamp  = Date.now();
+    const docId      = cls + '_' + subject + '_' + timestamp;
+    const adminToken = await auth.currentUser.getIdToken();
+
+    try {
+      await fetch(
+        'https://firestore.googleapis.com/v1/projects/' + FIREBASE_CONFIG.projectId + '/databases/(default)/documents/chapters/' + docId + '?key=' + FIREBASE_CONFIG.apiKey,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+          body: JSON.stringify({ fields: {
+            class:       { stringValue: cls },
+            subject:     { stringValue: subject },
+            chapterName: { stringValue: chapter },
+            pdfUrl:      { stringValue: viewUrl },
+            fileType:    { stringValue: fileType },
+            category:    { stringValue: category },
+            contentType: { stringValue: contentType },   // role-based content tag
+            targetBoard: { stringValue: targetBoard },   // CBSE / ICSE / '' (any)
+            docId:       { stringValue: docId },
+            uploadedAt:  { stringValue: new Date().toISOString() }
+          }})
+        }
+      );
+      const catLabel = CHAPTER_CATEGORY_LABELS[category] || category;
+      showMsg('pdfUploadMsg','success', `✅ "${chapter}" saved under ${catLabel} for Class ${cls} – ${subject}`);
+      $('pdfClass').value = ''; $('pdfSubject').value = '';
+      $('pdfChapterName').value = ''; $('pdfDriveLink').value = '';
+      if ($('pdfTargetBoard')) $('pdfTargetBoard').value = '';
+      // Keep the last-used category so repeated uploads don't force re-select.
+      loadPdfList();
+    } catch (err) {
+      showMsg('pdfUploadMsg','error','❌ Failed to save: ' + err.message);
+    }
+  };
+
+  window.loadPdfList = async () => {
+    const wrap = $('pdfListWrap');
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const res  = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/chapters?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const data = await res.json();
+      const docs = (data.documents || []).map(d => ({
+        docId:       d.fields?.docId?.stringValue       || d.name.split('/').pop(),
+        class:       d.fields?.class?.stringValue       || '',
+        subject:     d.fields?.subject?.stringValue     || '',
+        chapterName: d.fields?.chapterName?.stringValue || '',
+        pdfUrl:      d.fields?.pdfUrl?.stringValue      || '',
+        category:    d.fields?.category?.stringValue    || 'notes',
+        // Missing contentType on legacy docs → 'regular'
+        contentType: d.fields?.contentType?.stringValue || 'regular',
+        storagePath: d.fields?.storagePath?.stringValue || ''
+      }));
+
+      if (!docs.length) {
+        wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📄</div>No PDFs uploaded yet.</div>';
+        return;
+      }
+
+      wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+        <thead><tr style="background:#f5f7ff;">
+          <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Chapter</th>
+          <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Category</th>
+          <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Class</th>
+          <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Subject</th>
+          <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Actions</th>
+        </tr></thead>
+        <tbody>${docs.map(d => `
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:.65rem 1rem;font-weight:600;">${d.chapterName}</td>
+            <td style="padding:.65rem 1rem;"><span class="tag tag-blue">${CHAPTER_CATEGORY_LABELS[d.category] || d.category}</span></td>
+            <td style="padding:.65rem 1rem;"><span class="tag tag-blue">Class ${d.class}</span></td>
+            <td style="padding:.65rem 1rem;"><span class="tag tag-sky">${d.subject}</span></td>
+            <td style="padding:.65rem 1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+              <a href="${d.pdfUrl}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">👁 View</a>
+              <button class="btn btn-danger btn-sm" onclick="deletePdf('${d.docId}','${d.chapterName}')">🗑 Delete</button>
+            </td>
+          </tr>`).join('')}
+        </tbody></table>`;
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state">❌ ${err.message}</div>`;
+    }
+  };
+
+  window.deletePdf = async (docId, name) => {
+    if (!confirm(`Remove "${name}" from the list? This cannot be undone.`)) return;
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      // Remove Firestore record (students will no longer see this chapter)
+      await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/chapters/${docId}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      loadPdfList();
+    } catch (err) { alert('Error: ' + err.message); }
+  };
+
+  // ── Load PDF list when admin logs in ──
+  const _origLoadStudents = window.loadStudents;
+  window.loadStudents = async () => {
+    await _origLoadStudents();
+    loadPdfList();
+  };
+
+  function showMsg(id, type, msg) {
+    const el = $(id);
+    el.className = `alert alert-${type}`;
+    el.style.whiteSpace = 'pre-line';
+    el.textContent = msg;
+  }
+  function clearMsg(id) { const el=$(id); el.className='alert'; el.textContent=''; }
+  function showError(id, msg) { $(id).textContent = msg; }
+
+  // ══════════════════════════════════════════════
+  //  ONLINE TEST MANAGEMENT
+  // ══════════════════════════════════════════════
+
+  let _testSectionCount = 0;
+  const _secQCount = {};
+
+  window.addTestSection = function() {
+    const si = _testSectionCount++;
+    _secQCount[si] = 0;
+    const wrap = document.getElementById('testSections');
+    const div = document.createElement('div');
+    div.id = 'tsec_' + si;
+    div.style.cssText = 'border:1px solid rgba(0,48,135,.12);border-radius:14px;padding:1.2rem;margin-bottom:1rem;background:#f9fbff;';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+        <strong style="color:#003087;">Section ${si + 1}</strong>
+        <button onclick="document.getElementById('tsec_${si}').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.9rem;font-weight:600;">✕ Remove</button>
+      </div>
+      <div class="field-grid">
+        <div class="field full">
+          <label>Section Title</label>
+          <input type="text" id="stitle_${si}" placeholder="e.g. Section A – MCQ (2 marks each)" style="width:100%;"/>
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="stype_${si}">
+            <option value="mcq">MCQ (Auto-graded)</option>
+            <option value="subjective">Subjective (Manual)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Marks per Question</label>
+          <input type="number" id="smarks_${si}" value="2" min="1" max="20" style="width:100%;"/>
+        </div>
+      </div>
+      <div id="sqwrap_${si}" style="margin-top:.8rem;"></div>
+      <button onclick="addTestQuestion(${si})" class="btn btn-outline" style="margin-top:.5rem;font-size:.82rem;padding:.4rem .9rem;">＋ Add Question</button>
+    `;
+    wrap.appendChild(div);
+  };
+
+  window.addTestQuestion = function(si) {
+    const qi = _secQCount[si]++;
+    const type = document.getElementById('stype_' + si)?.value || 'mcq';
+    const wrap = document.getElementById('sqwrap_' + si);
+    const div = document.createElement('div');
+    div.id = `tq_${si}_${qi}`;
+    div.style.cssText = 'background:#fff;border:1px solid rgba(0,48,135,.08);border-radius:10px;padding:1rem;margin-bottom:.6rem;';
+    if (type === 'mcq') {
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+          <strong style="color:#546e7a;font-size:.85rem;">Q.${qi + 1}</strong>
+          <button onclick="document.getElementById('tq_${si}_${qi}').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.82rem;">✕</button>
+        </div>
+        <input type="text" id="qt_${si}_${qi}" placeholder="Question text…" style="width:100%;margin-bottom:.6rem;padding:.5rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:8px;font-family:inherit;font-size:.88rem;"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-bottom:.6rem;">
+          <input type="text" id="qa_${si}_${qi}" placeholder="(A) Option A" style="padding:.42rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:7px;font-family:inherit;font-size:.84rem;"/>
+          <input type="text" id="qb_${si}_${qi}" placeholder="(B) Option B" style="padding:.42rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:7px;font-family:inherit;font-size:.84rem;"/>
+          <input type="text" id="qc_${si}_${qi}" placeholder="(C) Option C" style="padding:.42rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:7px;font-family:inherit;font-size:.84rem;"/>
+          <input type="text" id="qd_${si}_${qi}" placeholder="(D) Option D" style="padding:.42rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:7px;font-family:inherit;font-size:.84rem;"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;font-size:.84rem;flex-wrap:wrap;">
+          <strong style="color:#003087;">Correct Answer:</strong>
+          ${['a','b','c','d'].map(o => `<label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;"><input type="radio" name="cr_${si}_${qi}" value="${o}"/> <strong>${o.toUpperCase()}</strong></label>`).join('')}
+        </div>`;
+    } else {
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+          <strong style="color:#546e7a;font-size:.85rem;">Q.${qi + 1} (Subjective)</strong>
+          <button onclick="document.getElementById('tq_${si}_${qi}').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.82rem;">✕</button>
+        </div>
+        <input type="text" id="qt_${si}_${qi}" placeholder="Question text…" style="width:100%;padding:.5rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:8px;font-family:inherit;font-size:.88rem;"/>`;
+    }
+    wrap.appendChild(div);
+  };
+
+  window.saveTest = async function() {
+    const cls  = $('testClass').value;
+    const subj = $('testSubject').value;
+    const name = $('testName').value.trim();
+    if (!cls || !subj || !name) {
+      showMsg('testMsg','error','❌ Fill in Class, Subject, and Test Name first.');
+      return;
+    }
+
+    // Collect sections from DOM
+    const sections = [];
+    let totalMarks = 0;
+    document.querySelectorAll('[id^="tsec_"]').forEach(secEl => {
+      const si = secEl.id.split('_')[1];
+      const title    = document.getElementById(`stitle_${si}`)?.value.trim() || `Section ${+si+1}`;
+      const type     = document.getElementById(`stype_${si}`)?.value || 'mcq';
+      const marksPerQ= parseInt(document.getElementById(`smarks_${si}`)?.value) || 2;
+      const questions = [];
+      document.querySelectorAll(`[id^="tq_${si}_"]`).forEach(qEl => {
+        const parts = qEl.id.split('_');
+        if (parts.length !== 3) return;
+        const qi   = parts[2];
+        const text = document.getElementById(`qt_${si}_${qi}`)?.value.trim();
+        if (!text) return;
+        if (type === 'mcq') {
+          const cr = document.querySelector(`input[name="cr_${si}_${qi}"]:checked`);
+          questions.push({
+            num: questions.length + 1, text,
+            a: document.getElementById(`qa_${si}_${qi}`)?.value.trim() || '',
+            b: document.getElementById(`qb_${si}_${qi}`)?.value.trim() || '',
+            c: document.getElementById(`qc_${si}_${qi}`)?.value.trim() || '',
+            d: document.getElementById(`qd_${si}_${qi}`)?.value.trim() || '',
+            correct: cr ? cr.value : 'a'
+          });
+        } else {
+          questions.push({ num: questions.length + 1, text });
+        }
+      });
+      if (questions.length > 0) {
+        totalMarks += marksPerQ * questions.length;
+        sections.push({ title, type, marksPerQ, questions });
+      }
+    });
+
+    if (sections.length === 0) {
+      showMsg('testMsg','error','❌ Add at least one section with questions.'); return;
+    }
+    const totalQ = sections.reduce((a,s) => a + s.questions.length, 0);
+    const btn = $('testMsg').previousElementSibling.querySelector('.btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    const testId = cls + '_' + subj.replace(/\s+/g,'') + '_' + Date.now();
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const saveRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+          body: JSON.stringify({ fields: {
+            class:      { stringValue: cls },
+            subject:    { stringValue: subj },
+            testName:   { stringValue: name },
+            sections:   { stringValue: JSON.stringify(sections) },
+            totalMarks: { integerValue: String(totalMarks) },
+            totalQ:     { integerValue: String(totalQ) },
+            isActive:   { booleanValue: true },
+            createdAt:  { stringValue: new Date().toISOString() },
+            testId:     { stringValue: testId },
+            timeLimit:  { integerValue: String(parseInt($('testTimeLimit').value) || 60) }
+          }})
+        }
+      );
+      if (!saveRes.ok) {
+        const errText = await saveRes.text();
+        throw new Error('Firestore error: ' + errText);
+      }
+      showMsg('testMsg','success', `✅ "${name}" published! ${totalQ} questions · ${totalMarks} marks`);
+      $('testClass').value = ''; $('testSubject').value = ''; $('testName').value = ''; $('testTimeLimit').value = '60';
+      document.getElementById('testSections').innerHTML = '';
+      _testSectionCount = 0; Object.keys(_secQCount).forEach(k => delete _secQCount[k]);
+      setTimeout(() => loadTestList(), 800);
+    } catch (err) {
+      showMsg('testMsg','error','❌ ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Publish Test'; }
+    }
+  };
+
+  window.loadTestList = async function() {
+    const wrap = $('testListWrap');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
+        { headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      const json = await res.json();
+      console.log('loadTestList response:', JSON.stringify(json).substring(0,500));
+      const docs = (json.documents || []).map(d => {
+        const f = d.fields || {};
+        return {
+          testId: f.testId?.stringValue || '',
+          testName: f.testName?.stringValue || '',
+          class: f.class?.stringValue || '',
+          subject: f.subject?.stringValue || '',
+          totalMarks: parseInt(f.totalMarks?.integerValue || '0'),
+          totalQ: parseInt(f.totalQ?.integerValue || '0'),
+          isActive: f.isActive?.booleanValue !== false,
+          timeLimit: parseInt(f.timeLimit?.integerValue || '60'),
+          createdAt: f.createdAt?.stringValue || ''
+        };
+      }).filter(d => d.testId);
+      if (docs.length === 0) {
+        wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div>No tests created yet.</div>'; return;
+      }
+
+      // Arrange tests by Class → Subject with group headers (numeric-aware
+      // class sort: 1,2,…10,11), each group sorted by test name.
+      const _classNum = c => { const m = String(c||'').match(/\d+/); return m ? parseInt(m[0],10) : 9999; };
+      const _gmap = new Map();
+      docs.forEach(d => {
+        const key = (d.class||'—') + '||' + (d.subject||'—');
+        if (!_gmap.has(key)) _gmap.set(key, { class: d.class||'—', subject: d.subject||'—', items: [] });
+        _gmap.get(key).items.push(d);
+      });
+      const _groups = Array.from(_gmap.values());
+      _groups.forEach(g => g.items.sort((a,b)=>String(a.testName||'').localeCompare(String(b.testName||''))));
+      _groups.sort((a,b)=> (_classNum(a.class)-_classNum(b.class)) || String(a.subject||'').localeCompare(String(b.subject||'')));
+
+      wrap.innerHTML = _groups.map(g => `
+        <div style="margin-bottom:1.1rem;">
+          <div style="display:flex;align-items:center;gap:.5rem;font-weight:700;color:#003087;font-size:.84rem;padding:.45rem .2rem;margin-bottom:.5rem;border-bottom:2px solid rgba(0,48,135,.12);">
+            Class ${g.class} · ${g.subject}
+            <span style="background:#003087;color:#fff;border-radius:999px;font-size:.68rem;padding:.05rem .5rem;">${g.items.length}</span>
+          </div>
+          ${g.items.map(d => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.1rem;background:#f9fbff;border-radius:12px;margin-bottom:.5rem;border:1px solid rgba(0,48,135,.08);flex-wrap:wrap;gap:.5rem;">
+              <div>
+                <strong style="color:#003087;">${d.testName}</strong>
+                <div style="font-size:.79rem;color:#546e7a;margin-top:.15rem;">${d.totalQ||'?'} Q · ${d.totalMarks||'?'} marks · ⏱ ${d.timeLimit||60} min · <span style="color:${d.isActive?'#059669':'#dc2626'}">${d.isActive?'🟢 Active':'🔴 Inactive'}</span></div>
+              </div>
+              <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
+                <button onclick="viewTestResults('${d.testId}')" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(0,48,135,.2);background:#fff;cursor:pointer;color:#003087;font-family:inherit;">📊 Results</button>
+                <button onclick="toggleTest('${d.testId}',${!d.isActive})" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(0,48,135,.2);background:#fff;cursor:pointer;color:#003087;font-family:inherit;">${d.isActive?'⏸ Deactivate':'▶ Activate'}</button>
+                <button onclick="deleteTest('${d.testId}')" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(239,68,68,.3);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
+              </div>
+            </div>`).join('')}
+        </div>`).join('');
+    } catch(err) {
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div>${err.message}</div>`;
+    }
+  };
+
+  window.toggleTest = async function(testId, active) {
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const docUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}`;
+
+      const fields = { isActive: { booleanValue: active } };
+      let maskParams = 'updateMask.fieldPaths=isActive';
+
+      // On reactivation (not on deactivation), bump activeCycle so students
+      // who already attempted in the previous cycle can take it again.
+      if (active) {
+        const curRes = await fetch(docUrl, { headers: { Authorization: 'Bearer ' + adminToken } });
+        const curDoc = await curRes.json();
+        const curCycle = parseInt(curDoc.fields?.activeCycle?.integerValue || '1');
+        fields.activeCycle = { integerValue: String(curCycle + 1) };
+        maskParams += '&updateMask.fieldPaths=activeCycle';
+      }
+
+      await fetch(
+        docUrl + '&' + maskParams,
+        { method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+          body: JSON.stringify({ fields })
+        }
+      );
+      loadTestList();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.deleteTest = async function(testId) {
+    if (!confirm('Delete this test? Students cannot recover it.')) return;
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      loadTestList();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.viewTestResults = async function(testId) {
+    const modal = document.getElementById('testResultsModal');
+    const body  = document.getElementById('resultsModalBody');
+    const title = document.getElementById('resultsModalTitle');
+    body.innerHTML = '<div style="text-align:center;padding:2rem;">⏳ Loading results…</div>';
+    modal.style.display = 'block';
+
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+
+      // Load all students for name lookup (handles old results with missing names)
+      const studentsRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
+        { headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      const studentsJson = await studentsRes.json();
+      const studentMap = {};  // uid → { name, class, studentId }
+      (studentsJson.documents || []).forEach(d => {
+        const f = d.fields || {};
+        const uid = f.uid?.stringValue || '';
+        if (uid) studentMap[uid] = {
+          name:  f.name?.stringValue || '',
+          class: f.class?.stringValue || '',
+          studentId: f.studentId?.stringValue || ''
+        };
+      });
+
+      const resSnap = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/testResults?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
+        { headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      const resJson = await resSnap.json();
+      const results = (resJson.documents || []).map(d => {
+        const f = d.fields || {};
+        const uid = f.uid?.stringValue || '';
+        const stu = studentMap[uid] || {};
+        return {
+          testId:       f.testId?.stringValue || '',
+          studentName:  f.studentName?.stringValue || stu.name || '',
+          studentId:    f.studentId?.stringValue || stu.studentId || '',
+          studentClass: f.studentClass?.stringValue || stu.class || '',
+          score:        parseInt(f.score?.integerValue || '0'),
+          totalMarks:   parseInt(f.totalMarks?.integerValue || '0'),
+          pct:          parseInt(f.pct?.integerValue || '0'),
+          submittedAt:  f.submittedAt?.stringValue || ''
+        };
+      }).filter(r => r.testId === testId)
+        .sort((a,b) => (b.submittedAt||'') > (a.submittedAt||'') ? 1 : -1);
+
+      // Load test name
+      const testRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}`,
+        { headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      const testJson = await testRes.json();
+      const test = {};
+      if (testJson.fields) {
+        const tf = testJson.fields;
+        test.testName = tf.testName?.stringValue || testId;
+        test.totalMarks = parseInt(tf.totalMarks?.integerValue || '0');
+      }
+      title.textContent = `📊 Results – ${test.testName || testId}`;
+
+      if (results.length === 0) {
+        body.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">No submissions yet.</div>'; return;
+      }
+
+      body.innerHTML = `
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+            <thead>
+              <tr style="background:#f0f4ff;">
+                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">#</th>
+                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Student</th>
+                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Class</th>
+                <th style="padding:.6rem 1rem;text-align:center;color:#003087;">Score</th>
+                <th style="padding:.6rem 1rem;text-align:center;color:#003087;">%</th>
+                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${results.map((r, idx) => {
+                const pct = r.totalMarks > 0 ? Math.round(r.score / r.totalMarks * 100) : 0;
+                const col = pct >= 80 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
+                return `<tr style="border-bottom:1px solid rgba(0,48,135,.07);">
+                  <td style="padding:.6rem 1rem;color:#90a4ae;font-size:.78rem;">${idx+1}</td>
+                  <td style="padding:.6rem 1rem;font-weight:600;">${r.studentName || r.studentId || '—'}</td>
+                  <td style="padding:.6rem 1rem;">Class ${r.studentClass||'?'}</td>
+                  <td style="padding:.6rem 1rem;text-align:center;font-weight:700;color:${col};">${r.score}/${r.totalMarks}</td>
+                  <td style="padding:.6rem 1rem;text-align:center;color:${col};">${pct}%</td>
+                  <td style="padding:.6rem 1rem;font-size:.78rem;color:#546e7a;">${r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN') : '—'}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:1rem;font-size:.82rem;color:#546e7a;">${results.length} submission${results.length!==1?'s':''} · Average: ${results.length ? Math.round(results.reduce((a,r)=>a+(r.score||0),0)/results.length) : 0}/${test.totalMarks||'?'} marks</div>`;
+    } catch(err) {
+      body.innerHTML = `<div style="color:#ef4444;">${err.message}</div>`;
+    }
+  };
+
+  // Auto-load test list on page ready (handled inside onAuthStateChanged)
+
+  // ══════════════════════════════════════════════
+  //  TEACHER MANAGEMENT
+  // ══════════════════════════════════════════════
+
+  window.createTeacher = async function() {
+    const name     = $('teacherName').value.trim();
+    const email    = $('teacherEmail').value.trim();
+    const password = $('teacherPassword').value;
+    const subject  = $('teacherSubject').value;
+    const phone    = $('teacherPhone').value.trim();
+    const btn      = $('createTeacherBtn');
+
+    if (!name || !email || !password) {
+      showMsg('teacherMsg', 'error', '❌ Name, email and password are required.'); return;
+    }
+    if (password.length < 6) {
+      showMsg('teacherMsg', 'error', '❌ Password must be at least 6 characters.'); return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Creating…';
+    clearMsg('teacherMsg');
+
+    try {
+      // Create Firebase Auth account for teacher via REST (doesn't sign out admin)
+      const signUpRes = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, returnSecureToken: true }) }
+      );
+      const signUpData = await signUpRes.json();
+      if (signUpData.error) {
+        if (signUpData.error.message === 'EMAIL_EXISTS') throw new Error('An account with this email already exists.');
+        throw new Error(signUpData.error.message);
+      }
+
+      const uid        = signUpData.localId;
+      const adminToken = await auth.currentUser.getIdToken();
+
+      // Save teacher profile to Firestore (teachers/{uid})
+      const fsRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/teachers/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+          body: JSON.stringify({ fields: {
+            uid:       { stringValue: uid },
+            name:      { stringValue: name },
+            email:     { stringValue: email },
+            password:  { stringValue: password },
+            subject:   { stringValue: subject },
+            phone:     { stringValue: phone },
+            createdAt: { stringValue: new Date().toISOString() }
+          }})
+        }
+      );
+      const fsData = await fsRes.json();
+      if (fsData.error) throw new Error('Account created but profile save failed: ' + fsData.error.message + '. Check Firestore rules for teachers collection.');
+
+      showMsg('teacherMsg', 'success',
+        `✅ Teacher account created!\n\nName: ${name}\nEmail: ${email}\nPassword: ${password}\nSubject: ${subject}\n\nShare these login credentials with the teacher. They log in at teacher-login.html.`);
+      $('teacherName').value = ''; $('teacherEmail').value = ''; $('teacherPassword').value = '';
+      $('teacherPhone').value = '';
+      loadTeacherList();
+    } catch (err) {
+      showMsg('teacherMsg', 'error', '❌ ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '➕ Create Teacher Account';
+    }
+  };
+
+  window.loadTeacherList = async function() {
+    const wrap = $('teacherListWrap');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/teachers?key=${FIREBASE_CONFIG.apiKey}&pageSize=100`,
+        { headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      const data = await res.json();
+      const docs = (data.documents || []).map(d => {
+        const f = d.fields || {};
+        return {
+          uid:     f.uid?.stringValue     || d.name.split('/').pop(),
+          name:    f.name?.stringValue    || '',
+          email:   f.email?.stringValue   || '',
+          subject: f.subject?.stringValue || '',
+          phone:   f.phone?.stringValue   || '—',
+        };
+      });
+
+      if (!docs.length) {
+        wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">👨‍🏫</div>No teacher accounts yet. Add one above.</div>'; return;
+      }
+
+      wrap.innerHTML = docs.map(t => `
+        <div class="teacher-card-item">
+          <div>
+            <strong style="color:#003087;">${t.name}</strong>
+            <div style="font-size:.79rem;color:#546e7a;margin-top:.1rem;">${t.email} · ${t.subject} · 📞 ${t.phone}</div>
+          </div>
+          <button onclick="deleteTeacher('${t.uid}','${t.name}')" class="btn btn-danger btn-sm">🗑 Delete</button>
+        </div>`).join('');
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state">❌ ${err.message}</div>`;
+    }
+  };
+
+  window.deleteTeacher = async function(uid, name) {
+    if (!confirm(`Remove teacher account for "${name}"? They will no longer be able to log in.`)) return;
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/teachers/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      loadTeacherList();
+    } catch (err) { alert('Error: ' + err.message); }
+  };
+
+  // ══════════════════════════════════════════════
+  //  ATTENDANCE MANAGEMENT (Admin)
+  // ══════════════════════════════════════════════
+  let _attMarks = {};
+  let _attStudentsList = [];
+  let _lastAtt = null;
+
+  // Set today's date as default
+  setTimeout(() => {
+    const attDateEl = $('attDate');
+    if (attDateEl) attDateEl.value = new Date().toISOString().split('T')[0];
+    const reportMonthEl = $('reportMonth');
+    if (reportMonthEl) reportMonthEl.value = new Date().toISOString().slice(0,7);
+    loadAttHistory();
+  }, 500);
+
+  async function adminFsGet(path) {
+    const adminToken = await auth.currentUser.getIdToken();
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
+      { headers: { Authorization: 'Bearer ' + adminToken } }
+    );
+    return res.json();
+  }
+  async function adminFsPatch(path, fields) {
+    const adminToken = await auth.currentUser.getIdToken();
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}`,
+      { method:'PATCH', headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
+        body: JSON.stringify({ fields }) }
+    );
+    return res.json();
+  }
+  async function adminFsDelete(path) {
+    const adminToken = await auth.currentUser.getIdToken();
+    return fetch(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}`,
+      { method:'DELETE', headers:{Authorization:'Bearer '+adminToken} }
+    );
+  }
+
+  // Load students for attendance marking
+  window.loadAttStudents = async function() {
+    const cls = $('attClass').value;
+    const wrap = $('attStudentList');
+    _attMarks = {};
+    if (!cls) { wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Select a class to load students</div>'; $('attSummary').style.display='none'; return; }
+    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading students...</div>';
+
+    try {
+      const json = await adminFsGet('students');
+      _attStudentsList = (json.documents||[]).map(d => {
+        const f = d.fields||{};
+        return { uid: f.uid?.stringValue||'', name: f.name?.stringValue||'', studentId: f.studentId?.stringValue||'',
+          class: f.class?.stringValue||'', phone: f.phone?.stringValue||'' };
+      }).filter(s => s.uid && s.class === cls).sort((a,b) => a.name.localeCompare(b.name));
+
+      if (!_attStudentsList.length) {
+        wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">No students in Class ' + cls + '</div>';
+        $('attSummary').style.display='none'; return;
+      }
+
+      _attStudentsList.forEach(s => { _attMarks[s.uid] = 'P'; });
+
+      wrap.innerHTML = _attStudentsList.map(s => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem;background:#f9fbff;border-radius:12px;border:1px solid rgba(0,48,135,.07);margin-bottom:.4rem;">
+          <div>
+            <div style="font-weight:600;color:#003087;font-size:.92rem;">${s.name || s.studentId}</div>
+            <div style="font-size:.75rem;color:#90a4ae;">${s.studentId}${s.phone ? ' · ' + s.phone : ''}</div>
+          </div>
+          <div style="display:flex;gap:.4rem;">
+            <button class="att-p-btn" data-uid="${s.uid}" onclick="markAttAdmin('${s.uid}','P',this)" style="padding:.32rem .9rem;border-radius:8px;border:1.5px solid #10b981;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;background:#dcfce7;color:#166534;">P</button>
+            <button class="att-a-btn" data-uid="${s.uid}" onclick="markAttAdmin('${s.uid}','A',this)" style="padding:.32rem .9rem;border-radius:8px;border:1.5px solid #f87171;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;background:transparent;color:#991b1b;opacity:.45;">A</button>
+          </div>
+        </div>`).join('');
+
+      updateAttSummaryAdmin();
+      $('attSummary').style.display = 'flex';
+    } catch(e) { wrap.innerHTML = `<div style="color:#ef4444;">Error: ${e.message}</div>`; }
+  };
+
+  window.markAttAdmin = function(uid, status, btn) {
+    _attMarks[uid] = status;
+    const row = btn.parentElement;
+    const pBtn = row.querySelector('.att-p-btn');
+    const aBtn = row.querySelector('.att-a-btn');
+    if (status === 'P') {
+      pBtn.style.background = '#dcfce7'; pBtn.style.opacity = '1';
+      aBtn.style.background = 'transparent'; aBtn.style.opacity = '.45';
+    } else {
+      aBtn.style.background = '#fff1f2'; aBtn.style.opacity = '1';
+      pBtn.style.background = 'transparent'; pBtn.style.opacity = '.45';
+    }
+    updateAttSummaryAdmin();
+  };
+
+  function updateAttSummaryAdmin() {
+    const vals = Object.values(_attMarks);
+    $('attSumP').textContent = 'Present: ' + vals.filter(v=>v==='P').length;
+    $('attSumA').textContent = 'Absent: ' + vals.filter(v=>v==='A').length;
+  }
+
+  window.submitAtt = async function() {
+    const cls  = $('attClass').value;
+    const date = $('attDate').value;
+    const subj = $('attSubject').value;
+    if (!cls || !date) { showMsg('attMsg','error','Please select class and date.'); return; }
+    if (!Object.keys(_attMarks).length) { showMsg('attMsg','error','No students to mark.'); return; }
+
+    const records = _attStudentsList.map(s => ({
+      uid: s.uid, name: s.name || s.studentId, studentId: s.studentId, phone: s.phone || '',
+      status: _attMarks[s.uid] || 'P'
+    }));
+
+    const docId = `${cls}_${date}_${Date.now()}`;
+    try {
+      const result = await adminFsPatch(`attendance/${docId}`, {
+        class:   { stringValue: cls },
+        date:    { stringValue: date },
+        subject: { stringValue: subj },
+        teacher: { stringValue: 'Admin' },
+        records: { stringValue: JSON.stringify(records) },
+        savedAt: { stringValue: new Date().toISOString() }
+      });
+      if (result.error) throw new Error(result.error.message);
+      _lastAtt = { cls, date, subj, records, teacher: 'Admin' };
+      const p = records.filter(r=>r.status==='P').length;
+      const a = records.filter(r=>r.status==='A').length;
+      showMsg('attMsg','success',`Attendance saved! Present: ${p}, Absent: ${a}`);
+      loadAttHistory();
+    } catch(e) { showMsg('attMsg','error','Error: ' + e.message); }
+  };
+
+  window.shareAttWA = function() {
+    if (!_lastAtt) { showMsg('attMsg','error','Submit attendance first.'); return; }
+    const absentList = _lastAtt.records.filter(r => r.status === 'A');
+    if (!absentList.length) { showMsg('attMsg','success','No absentees to notify!'); return; }
+    let opened = 0;
+    absentList.forEach(s => {
+      const phone = (s.phone||'').replace(/[^0-9]/g,'');
+      if (phone.length >= 10) {
+        const msg = encodeURIComponent(`*The NewTown Classes – Absence Notice*\n\nDear Parent,\nYour child *${s.name}* was marked *ABSENT* today.\nDate: ${_lastAtt.date}\nClass: ${_lastAtt.cls}${_lastAtt.subj ? '\nSubject: '+_lastAtt.subj : ''}\n\nPlease ensure regular attendance.\n— The NewTown Classes`);
+        const num = phone.length === 10 ? '91' + phone : phone;
+        window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
+        opened++;
+      }
+    });
+    if (opened) showMsg('attMsg','success',`WhatsApp opened for ${opened} absent student(s).`);
+    else showMsg('attMsg','error','No valid phone numbers found for absent students.');
+  };
+
+  window.shareAttSMS = function() {
+    if (!_lastAtt) { showMsg('attMsg','error','Submit attendance first.'); return; }
+    const absentList = _lastAtt.records.filter(r => r.status === 'A');
+    if (!absentList.length) { showMsg('attMsg','success','No absentees to notify!'); return; }
+    let opened = 0;
+    absentList.forEach(s => {
+      const phone = (s.phone||'').replace(/[^0-9]/g,'');
+      if (phone.length >= 10) {
+        const msg = encodeURIComponent(`The NewTown Classes: Your child ${s.name} was marked ABSENT on ${_lastAtt.date}. Class: ${_lastAtt.cls}. Please ensure regular attendance.`);
+        const num = phone.length === 10 ? '+91' + phone : '+' + phone;
+        window.open(`sms:${num}?body=${msg}`, '_blank');
+        opened++;
+      }
+    });
+    if (opened) showMsg('attMsg','success',`SMS opened for ${opened} absent student(s).`);
+    else showMsg('attMsg','error','No valid phone numbers found for absent students.');
+  };
+
+  window.loadAttHistory = async function() {
+    const wrap = $('historyWrap');
+    if (!wrap) return;
+    wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Loading...</div>';
+    const filterCls = $('histClass')?.value || '';
+    try {
+      const json = await adminFsGet('attendance');
+      let docs = (json.documents||[]).map(d => {
+        const f = d.fields||{};
+        return { id: d.name?.split('/').pop()||'', class: f.class?.stringValue||'', date: f.date?.stringValue||'',
+          subject: f.subject?.stringValue||'', teacher: f.teacher?.stringValue||'',
+          records: JSON.parse(f.records?.stringValue||'[]'), savedAt: f.savedAt?.stringValue||'' };
+      }).filter(d => !filterCls || d.class === filterCls)
+        .sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
+
+      if (!docs.length) { wrap.innerHTML='<div style="text-align:center;padding:2rem;color:#90a4ae;">No attendance records yet.</div>'; return; }
+
+      wrap.innerHTML = docs.map(d => {
+        const p = d.records.filter(r=>r.status==='P').length;
+        const a = d.records.filter(r=>r.status==='A').length;
+        const absentNames = d.records.filter(r=>r.status==='A').map(r=>r.name).join(', ');
+        return `
+          <div style="border:1px solid rgba(0,48,135,.09);border-radius:14px;padding:1rem 1.2rem;margin-bottom:.75rem;background:#f9fbff;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
+              <div style="flex:1;">
+                <strong style="color:#003087;">Class ${d.class} — ${d.date}</strong>
+                <div style="font-size:.78rem;color:#546e7a;margin-top:.15rem;">${d.subject||''}${d.subject?' · ':''}${d.teacher}</div>
+                <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap;">
+                  <span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#dcfce7;color:#166534;">P: ${p}</span>
+                  <span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#fff1f2;color:#991b1b;">A: ${a}</span>
+                </div>
+                ${absentNames ? `<div style="font-size:.78rem;color:#dc2626;margin-top:.3rem;">Absent: ${absentNames}</div>` : ''}
+              </div>
+              <button onclick="deleteAttAdmin('${d.id}')" class="btn btn-danger btn-sm">Delete</button>
+            </div>
+          </div>`;
+      }).join('');
+    } catch(e) { wrap.innerHTML=`<div style="color:#ef4444;">${e.message}</div>`; }
+  };
+
+  window.deleteAttAdmin = async function(docId) {
+    if (!confirm('Delete this attendance record? This cannot be undone.')) return;
+    try {
+      await adminFsDelete(`attendance/${docId}`);
+      showMsg('attMsg','success','Record deleted.');
+      loadAttHistory();
+    } catch(e) { showMsg('attMsg','error','Delete failed: ' + e.message); }
+  };
+
+  window.genMonthlyReport = async function() {
+    const cls   = $('reportClass').value;
+    const month = $('reportMonth').value;
+    const wrap  = $('reportWrap');
+    if (!cls || !month) { wrap.innerHTML = '<div style="color:#991b1b;font-size:.88rem;margin-top:.5rem;">Select class and month.</div>'; return; }
+
+    wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Generating report...</div>';
+    try {
+      const json = await adminFsGet('attendance');
+      const docs = (json.documents||[]).map(d => {
+        const f = d.fields||{};
+        return { class: f.class?.stringValue||'', date: f.date?.stringValue||'',
+          records: JSON.parse(f.records?.stringValue||'[]') };
+      }).filter(d => d.class === cls && d.date.startsWith(month));
+
+      if (!docs.length) { wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">No attendance data for this class/month.</div>'; return; }
+
+      const workingDays = docs.length;
+      const studentMap = {};
+      docs.forEach(d => {
+        d.records.forEach(r => {
+          const key = r.uid || r.studentId || r.name;
+          if (!studentMap[key]) studentMap[key] = { name: r.name, studentId: r.studentId||'', present: 0, absent: 0 };
+          if (r.status === 'P') studentMap[key].present++;
+          else studentMap[key].absent++;
+        });
+      });
+
+      const students = Object.values(studentMap).sort((a,b) => a.name.localeCompare(b.name));
+      const monthName = new Date(month + '-01').toLocaleDateString('en-IN', { month:'long', year:'numeric' });
+
+      wrap.innerHTML = `
+        <div style="margin-bottom:1rem;">
+          <strong style="color:#003087;">Class ${cls} — ${monthName}</strong>
+          <div style="font-size:.82rem;color:#546e7a;margin-top:.2rem;">Working days: ${workingDays} | Students: ${students.length}</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:.84rem;">
+            <thead><tr style="background:#f0f4ff;">
+              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">#</th>
+              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Student</th>
+              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">ID</th>
+              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Present</th>
+              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Absent</th>
+              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Working Days</th>
+            </tr></thead>
+            <tbody>
+              ${students.map((s,i) => `
+                <tr style="border-bottom:1px solid rgba(0,48,135,.06);">
+                  <td style="padding:.55rem .8rem;color:#90a4ae;">${i+1}</td>
+                  <td style="padding:.55rem .8rem;font-weight:600;">${s.name}</td>
+                  <td style="padding:.55rem .8rem;font-size:.78rem;color:#546e7a;">${s.studentId}</td>
+                  <td style="padding:.55rem .8rem;"><span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#dcfce7;color:#166534;">${s.present}</span></td>
+                  <td style="padding:.55rem .8rem;"><span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#fff1f2;color:#991b1b;">${s.absent}</span></td>
+                  <td style="padding:.55rem .8rem;">${workingDays}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch(e) { wrap.innerHTML = `<div style="color:#ef4444;">${e.message}</div>`; }
+  };
+
+  // ════════════════════════════════════════
+  //  LIVE CLASSES — Admin Logic
+  // ════════════════════════════════════════
+  import {
+    fetchClasses, updateClass,
+    fmtClassTime, classTimeStatus, STATUS_BADGE, toScheduledTs,
+    detectRecordingSource, isLikelyRecordingUrl, attachRecording,
+    recordingSourceBadge
+  } from './live-classes.js';
+
+  window.loadAdminClasses = async function() {
+    const wrap   = document.getElementById('lcAdminList');
+    if (!wrap) return;
+    const filter = document.getElementById('adminLcFilter')?.value || 'all';
+    const grade  = document.getElementById('adminLcGrade')?.value  || '';
+    wrap.innerHTML = '<div style="color:#90a4ae;font-size:.85rem;padding:.5rem 0;">Loading…</div>';
+    try {
+      const token   = await auth.currentUser.getIdToken();
+      let classes   = await fetchClasses(token);
+
+      // Apply filters
+      if (filter !== 'all') classes = classes.filter(c => {
+        const ended = classTimeStatus(c.scheduledTs, c.durationMins) === 'ended' || c.status === 'ended';
+        if (filter === 'ended')       return ended;
+        if (filter === 'recorded')    return !!c.recordingUrl;
+        if (filter === 'ended_norec') return ended && !c.recordingUrl;
+        return c.status === filter;
+      });
+      if (grade) classes = classes.filter(c => String(c.classGrade) === grade);
+
+      if (!classes.length) {
+        wrap.innerHTML = '<div style="color:#90a4ae;font-size:.88rem;padding:.8rem 0;">No classes found for the selected filter.</div>';
+        return;
+      }
+
+      wrap.innerHTML = `
+        <div style="overflow-x:auto;">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Class Name</th>
+                <th>Teacher</th>
+                <th>Subject</th>
+                <th>Grade</th>
+                <th>Scheduled</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Recording</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${classes.map(c => {
+                const tStatus = classTimeStatus(c.scheduledTs, c.durationMins);
+                const isEnded = c.status === 'ended' || tStatus === 'ended';
+                const badge   = c.status === 'cancelled' ? STATUS_BADGE.cancelled
+                              : isEnded                  ? STATUS_BADGE.ended
+                              : STATUS_BADGE[tStatus]    || STATUS_BADGE.scheduled;
+                const safeName = (c.className || '').replace(/'/g,'');
+
+                // Recording column content
+                let recCell;
+                if (c.recordingUrl) {
+                  recCell = `<div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-start;">
+                    ${recordingSourceBadge(c.recordingSource || 'other')}
+                    <a href="${c.recordingUrl}" target="_blank" rel="noopener noreferrer" style="font-size:.74rem;font-weight:600;color:#1d4ed8;text-decoration:none;">▶ Watch</a>
+                    <div style="display:flex;gap:.25rem;">
+                      <button onclick="adminEditRecording('${c.id}')" style="background:none;border:1px solid #cbd5e1;color:#0f172a;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-family:inherit;cursor:pointer;">✎</button>
+                      <button onclick="adminRemoveRecording('${c.id}')" style="background:none;border:1px solid #e5e7eb;color:#6b7280;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-family:inherit;cursor:pointer;">✕</button>
+                    </div>
+                  </div>`;
+                } else if (isEnded) {
+                  recCell = `<div style="display:flex;flex-direction:column;gap:.3rem;">
+                    ${c.zoomMeetingId ? `<button onclick="adminPullRecording('${c.id}','${c.zoomMeetingId}')" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;padding:.25rem .6rem;border-radius:6px;font-size:.72rem;font-family:inherit;font-weight:600;cursor:pointer;">📼 Get cloud</button>` : ''}
+                    <button onclick="adminAddRecording('${c.id}')" style="background:#fff;border:1px solid #cbd5e1;color:#0f172a;padding:.25rem .6rem;border-radius:6px;font-size:.72rem;font-family:inherit;cursor:pointer;">+ Paste link</button>
+                  </div>`;
+                } else {
+                  recCell = `<span style="color:#9ca3af;font-size:.78rem;">—</span>`;
+                }
+
+                return `<tr>
+                  <td style="font-weight:600;color:#1e293b;">${c.className}</td>
+                  <td>${c.teacherName || '—'}</td>
+                  <td>${c.subject}</td>
+                  <td>Class ${c.classGrade}</td>
+                  <td style="font-size:.82rem;">${fmtClassTime(c.scheduledTs)}</td>
+                  <td>${c.durationMins} min</td>
+                  <td>${badge}</td>
+                  <td>${recCell}</td>
+                  <td>
+                    <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+                      ${c.status === 'scheduled' ? `
+                        <button onclick="openReschedule('${c.id}','${c.date || ''}','${c.time || ''}',${c.durationMins})"
+                          style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;">
+                          📅 Reschedule
+                        </button>
+                        <button onclick="adminCancelClass('${c.id}')"
+                          style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;">
+                          ✕ Cancel
+                        </button>` : ''}
+                      ${c.status === 'cancelled' ? `
+                        <button onclick="adminRestoreClass('${c.id}')"
+                          style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;">
+                          ↩ Restore
+                        </button>` : ''}
+                        <button onclick="adminDeleteClass('${c.id}','${safeName}')"
+                          style="background:#fff0f0;color:#b91c1c;border:1px solid #fca5a5;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;font-weight:700;">
+                          🗑 Delete
+                        </button>
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch(e) {
+      wrap.innerHTML = `<div style="color:#ef4444;font-size:.85rem;">${e.message}</div>`;
+    }
+  };
+
+  window.adminCancelClass = async function(classId) {
+    if (!confirm('Cancel this live class? Students will no longer see it as active.')) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await updateClass(token, classId, { status: 'cancelled' });
+      await loadAdminClasses();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.adminRestoreClass = async function(classId) {
+    if (!confirm('Restore this class to scheduled status?')) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await updateClass(token, classId, { status: 'scheduled' });
+      await loadAdminClasses();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.adminDeleteClass = async function(classId, className) {
+    if (!confirm(`⚠️ Permanently delete "${className}"?\n\nThis will remove it from the database entirely and cannot be undone.`)) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res   = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/liveClasses/${classId}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok && res.status !== 204) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error?.message || `Delete failed (${res.status})`);
+      }
+      await loadAdminClasses();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  // ════════════════════════════════════════
+  //  RECORDINGS — Admin actions
+  // ════════════════════════════════════════
+  window.adminPullRecording = async function(classId, meetingId) {
+    if (!meetingId) { alert('No Zoom meeting ID on this class — paste link manually instead.'); return; }
+    if (!confirm('Fetch this class\'s recording from Zoom Cloud?\n\n(If recorded recently, processing may take 5–30 min.)')) return;
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/.netlify/functions/fetch-zoom-recording', {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ idToken, meetingId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 202) { alert('⏳ ' + (data.message || 'Recording still processing.')); return; }
+      if (!res.ok) throw new Error(data.error || `Fetch failed (HTTP ${res.status})`);
+      await attachRecording(idToken, classId, {
+        recordingUrl     : data.recordingUrl,
+        recordingPassword: data.recordingPassword || '',
+        recordingSource  : data.recordingSource || 'zoom_cloud'
+      });
+      alert('✅ Recording attached.');
+      await loadAdminClasses();
+    } catch(e) { alert('❌ ' + e.message); }
+  };
+
+  window.adminAddRecording = async function(classId) {
+    const url = prompt('Paste recording URL\n\nSupported: Zoom share link, YouTube (unlisted), Google Drive, or any direct video URL.');
+    if (!url) return;
+    if (!isLikelyRecordingUrl(url.trim())) { alert('That URL doesn\'t look valid.'); return; }
+    const pwd = prompt('Optional viewer password (leave blank if none):') || '';
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await attachRecording(token, classId, {
+        recordingUrl     : url.trim(),
+        recordingPassword: pwd.trim(),
+        recordingSource  : detectRecordingSource(url.trim())
+      });
+      await loadAdminClasses();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.adminEditRecording = function(classId) { return window.adminAddRecording(classId); };
+
+  window.adminRemoveRecording = async function(classId) {
+    if (!confirm('Remove this recording link? Students will no longer see it.')) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await updateClass(token, classId, {
+        recordingUrl: '', recordingPassword: '', recordingSource: '', recordingAddedAt: 0
+      });
+      await loadAdminClasses();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.openReschedule = function(classId, date, time, duration) {
+    document.getElementById('rsClassId').value = classId;
+    document.getElementById('rsDate').value    = date;
+    document.getElementById('rsTime').value    = time;
+    document.getElementById('rsDuration').value = duration;
+    document.getElementById('rsMsg').textContent = '';
+    document.getElementById('rescheduleModal').style.display = 'flex';
+  };
+  window.closeReschedule = function() {
+    document.getElementById('rescheduleModal').style.display = 'none';
+  };
+  window.submitReschedule = async function() {
+    const classId  = document.getElementById('rsClassId').value;
+    const date     = document.getElementById('rsDate').value;
+    const time     = document.getElementById('rsTime').value;
+    const duration = parseInt(document.getElementById('rsDuration').value) || 60;
+    const msgEl    = document.getElementById('rsMsg');
+    if (!date || !time) { msgEl.textContent = '⚠️ Please fill date and time.'; msgEl.style.color='#dc2626'; return; }
+    msgEl.textContent = 'Saving…'; msgEl.style.color='#546e7a';
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await updateClass(token, classId, {
+        date, time, durationMins: duration,
+        scheduledTs: toScheduledTs(date, time),
+        status: 'scheduled'
+      });
+      closeReschedule();
+      await loadAdminClasses();
+    } catch(e) { msgEl.textContent = '❌ ' + e.message; msgEl.style.color='#dc2626'; }
+  };
+
+  // Load admin classes on page load
+  window.addEventListener('load', () => setTimeout(loadAdminClasses, 1500));
+
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MODERN ENHANCEMENTS — 2026 (purely additive)
+     To revert: delete this <style> block.
+     ════════════════════════════════════════════════════════════════ -->
+<style>
+  body { animation: ntcFadeIn .55s ease both; }
+  @keyframes ntcFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  ::selection { background: rgba(14,165,233,.22); color: #003087; }
+
+  /* Glass card surface upgrade */
+  .card, .stat-box {
+    backdrop-filter: blur(8px) saturate(115%);
+    -webkit-backdrop-filter: blur(8px) saturate(115%);
+    transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease, border-color .25s ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .card:hover, .stat-box:hover {
+      transform: translateY(-3px);
+      box-shadow:
+        0 18px 45px -16px rgba(0,48,135,.18),
+        0 6px 18px -8px rgba(14,165,233,.12);
+    }
+  }
+
+  /* Sticky nav blur boost */
+  .nav, nav { backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); }
+
+  /* Stat numbers: gentle pop on hover */
+  .num { transition: transform .25s ease; }
+  .stat-box:hover .num { transform: scale(1.06); }
+
+  /* Admin badge: subtle glow */
+  .admin-badge { box-shadow: 0 4px 14px -4px rgba(14,165,233,.35); }
+
+  /* Primary button: gradient sweep */
+  .btn-primary {
+    background-size: 200% 100% !important;
+    background-image: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #1a56db 100%) !important;
+    background-position: 0% 50%;
+    transition: background-position .55s ease, transform .2s ease, box-shadow .25s ease !important;
+  }
+  .btn-primary:hover { background-position: 100% 50%; transform: translateY(-1px); box-shadow: 0 8px 22px -8px rgba(14,165,233,.5) !important; }
+
+  /* Other buttons: subtle lift */
+  .btn-outline, .btn-danger {
+    transition: transform .2s ease, box-shadow .25s ease, filter .2s ease;
+  }
+  .btn-outline:hover, .btn-danger:hover { transform: translateY(-1px); filter: brightness(1.04); }
+
+  /* Inputs: focus glow */
+  .field input:focus, .field select:focus, .field textarea:focus,
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    box-shadow:
+      0 0 0 3px rgba(14,165,233,.12),
+      0 4px 16px -6px rgba(14,165,233,.22);
+  }
+
+  /* Chips: tap feedback */
+  .chip-check, .chip-group > * {
+    transition: transform .18s ease, box-shadow .2s ease, background-color .2s ease;
+  }
+  .chip-check:hover { transform: translateY(-1px); }
+
+  /* Empty state: gentle float */
+  .empty-icon { animation: ntcFloat 3.5s ease-in-out infinite; }
+  @keyframes ntcFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+
+  /* Spinner */
+  .spinner { filter: drop-shadow(0 4px 12px rgba(14,165,233,.25)); }
+
+  /* Modern scrollbar (desktop) */
+  @media (hover: hover) {
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: rgba(0,48,135,.04); }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0ea5e9, #1a56db); border-radius: 10px; border: 2px solid rgba(255,255,255,.4); }
+    ::-webkit-scrollbar-thumb:hover { filter: brightness(1.1); }
+  }
+
+  /* Mobile polish */
+  @media (max-width: 768px) {
+    .btn-primary, .btn-outline, .btn-danger { min-height: 44px; }
+    body { padding-bottom: env(safe-area-inset-bottom, 0); }
+    .card:hover, .stat-box:hover { transform: none; }
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    body, .empty-icon, .card, .stat-box, .btn-primary, .chip-check { animation: none !important; transition: none !important; }
+  }
+
+  /* ── Tighter mobile typography & spacing for the admin panel ── */
+  @media (max-width: 768px) {
+    .page { padding: .85rem .75rem !important; }
+    .card { padding: 1rem !important; border-radius: 12px !important; }
+    .card-title { font-size: 1rem !important; line-height: 1.25 !important; margin-bottom: .25rem !important; }
+    .card-sub { font-size: .76rem !important; line-height: 1.45 !important; margin-bottom: 1rem !important; }
+    h1, .nav h1 { font-size: 1rem !important; line-height: 1.25 !important; }
+    h2 { font-size: .95rem !important; line-height: 1.3 !important; }
+    h3 { font-size: .9rem !important; line-height: 1.3 !important; }
+    .btn { padding: .55rem 1rem !important; font-size: .8rem !important; border-radius: 10px !important; }
+    .btn-sm { padding: .4rem .75rem !important; font-size: .72rem !important; border-radius: 8px !important; }
+    .field { gap: .35rem !important; }
+    .field label, .lbl { font-size: .76rem !important; }
+    .field input, .field select, .field textarea {
+      font-size: .85rem !important; padding: .55rem .75rem !important; border-radius: 10px !important;
+    }
+    .alert { font-size: .8rem !important; padding: .65rem .85rem !important; }
+    .chip-check { font-size: .76rem !important; padding: .35rem .7rem !important; }
+    .stats-row { gap: .65rem !important; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important; }
+    .stat-box { padding: .85rem !important; border-radius: 12px !important; }
+    .stat-box .num { font-size: 1.4rem !important; }
+    .stat-box .lbl { font-size: .68rem !important; }
+    .admin-badge { font-size: .65rem !important; padding: .2rem .55rem !important; }
+    .group-header { font-size: .82rem !important; }
+    .empty-state h3 { font-size: 1rem !important; }
+    .empty-state p { font-size: .8rem !important; }
+    .empty-icon { font-size: 2.5rem !important; }
+  }
+  @media (max-width: 480px) {
+    .page { padding: .7rem .55rem !important; }
+    .card { padding: .85rem !important; }
+    .card-title { font-size: .92rem !important; }
+    .card-sub { font-size: .72rem !important; }
+    .btn { padding: .5rem .85rem !important; font-size: .76rem !important; }
+    .btn-sm { padding: .35rem .65rem !important; font-size: .68rem !important; }
+    .field input, .field select, .field textarea { font-size: .8rem !important; padding: .5rem .65rem !important; }
+    .stat-box .num { font-size: 1.2rem !important; }
+    .stat-box .lbl { font-size: .62rem !important; }
+  }
+</style>
+
+</body>
+</html>
+                   

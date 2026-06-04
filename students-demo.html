@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Students – Board / Subjects Demo</title>
+  <link rel="icon" href="favicon.ico?v=2" sizes="any">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'DM Sans',sans-serif; background:#f5f7ff; color:#111827; min-height:100vh; }
+
+    .nav { background:rgba(0,48,135,.97); padding:.8rem 2rem; display:flex; align-items:center; justify-content:space-between; }
+    .logo { font-family:'Syne',sans-serif; font-weight:800; font-size:1.3rem; color:#fff; text-decoration:none; }
+    .logo span { color:#0ea5e9; }
+    .badge { background:rgba(14,165,233,.2); border:1px solid rgba(14,165,233,.4); color:#0ea5e9; font-size:.75rem; font-weight:700; padding:.25rem .75rem; border-radius:50px; }
+
+    .page { max-width:1100px; margin:0 auto; padding:2rem 1.5rem; }
+    @media (max-width:640px) { .page { padding:1.2rem .85rem; } }
+    .card { background:#fff; border:1px solid rgba(0,48,135,.08); border-radius:20px; padding:2rem; margin-bottom:1.5rem; box-shadow:0 2px 16px rgba(0,0,0,.05); }
+    @media (max-width:640px) { .card { padding:1.1rem; border-radius:14px; } }
+    .card-title { font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:800; color:#003087; margin-bottom:.4rem; }
+    .card-sub { font-size:.88rem; color:#546e7a; margin-bottom:1.5rem; }
+
+    /* Filter bar */
+    .filter-bar { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin-bottom:1.4rem; }
+    .filter-bar input, .filter-bar select {
+      padding:.55rem .9rem; border:1px solid rgba(0,48,135,.12); border-radius:10px;
+      font-family:inherit; font-size:.88rem; background:#f5f7ff; color:#111827; outline:none; transition:border-color .2s;
+      min-height:40px;
+    }
+    .filter-bar input:focus, .filter-bar select:focus { border-color:rgba(14,165,233,.5); box-shadow:0 0 0 3px rgba(14,165,233,.08); }
+    .filter-bar input  { flex:2 1 220px; min-width:0; }
+    .filter-bar select { flex:1 1 140px; min-width:0; }
+    @media (max-width:540px) {
+      .filter-bar input  { flex:1 1 100%; }
+      .filter-bar select { flex:1 1 calc(50% - .3rem); }
+    }
+
+    /* Student card grid */
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:1rem; }
+    @media (max-width:380px) {
+      .grid { grid-template-columns:1fr; }
+    }
+    .student-card {
+      background:#fff; border:1px solid rgba(0,48,135,.08); border-radius:16px; padding:1.2rem;
+      box-shadow:0 1px 4px rgba(0,0,0,.04); transition:transform .15s, box-shadow .15s;
+    }
+    .student-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,48,135,.08); }
+    .student-name { font-family:'Syne',sans-serif; font-weight:800; font-size:1.05rem; color:#003087; margin-bottom:.65rem; }
+
+    .meta-row { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.85rem; }
+    .tag {
+      display:inline-block; padding:.22rem .7rem; border-radius:50px;
+      font-size:.72rem; font-weight:700; letter-spacing:.2px;
+    }
+    .tag-blue   { background:#dbeafe; color:#1d4ed8; }
+    .tag-rose   { background:#ffe4e6; color:#be123c; }
+    .tag-green  { background:#dcfce7; color:#166534; }
+    .tag-sky    { background:#e0f2fe; color:#0284c7; }
+    .tag-gray   { background:#f3f4f6; color:#6b7280; }
+    .tag-amber  { background:#fef3c7; color:#b45309; }
+    .tag-violet { background:#ede9fe; color:#6d28d9; }
+    .tag-teal   { background:#ccfbf1; color:#0f766e; }
+    .tag-indigo { background:#e0e7ff; color:#4338ca; }
+
+    .subj-label { font-size:.7rem; font-weight:700; color:#90a4ae; text-transform:uppercase; letter-spacing:.5px; margin-bottom:.4rem; }
+    .subj-tags { display:flex; flex-wrap:wrap; gap:.3rem; }
+
+    .empty { grid-column:1/-1; text-align:center; padding:3rem 1rem; color:#90a4ae; }
+
+    .count-pill {
+      display:inline-block; padding:.25rem .8rem; border-radius:50px;
+      background:#eef2ff; color:#003087; font-size:.78rem; font-weight:700;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="logo">The NewTown <span>Classes</span></a>
+  <span class="badge">📋 Students Demo</span>
+</nav>
+
+<div class="page">
+  <div class="card">
+    <div class="card-title">Students</div>
+    <p class="card-sub">
+      Filter by Board, Enrollment Type or Subject. Each card shows the student's
+      <strong>board</strong>, <strong>enrollment type</strong> (Normal / Foundation / JEE / NEET) and
+      <strong>only the subjects they're actually enrolled in</strong> — never all five.
+    </p>
+
+    <div class="filter-bar">
+      <input type="text" id="searchInput" placeholder="Search by name or subject…" oninput="render()"/>
+      <select id="filterBoard" onchange="render()">
+        <option value="">All Boards</option>
+        <option value="CBSE">CBSE</option>
+        <option value="ICSE">ICSE</option>
+      </select>
+      <select id="filterEnroll" onchange="render()">
+        <option value="">All Enrollment Types</option>
+        <option value="normal">Normal</option>
+        <option value="foundation">Foundation</option>
+        <option value="jee">JEE</option>
+        <option value="neet">NEET</option>
+      </select>
+      <select id="filterSubject" onchange="render()">
+        <option value="">All Subjects</option>
+        <option value="Physics">Physics</option>
+        <option value="Chemistry">Chemistry</option>
+        <option value="Maths">Maths</option>
+        <option value="Biology">Biology</option>
+        <option value="Computer">Computer Science</option>
+      </select>
+      <span class="count-pill" id="countPill">5 students</span>
+    </div>
+
+    <div id="grid" class="grid"></div>
+  </div>
+</div>
+
+<script>
+  // ── Sample data — same five students from the spec, with enrollment type
+  //    in place of the old "stream" field (Stream === enrollmentType).
+  const students = [
+    { name: 'Riya',  board: 'CBSE', enrollmentType: 'neet',   subjects: ['Physics','Chemistry','Biology'] },
+    { name: 'Arjun', board: 'ICSE', enrollmentType: 'jee',    subjects: ['Physics','Chemistry','Maths'] },
+    { name: 'Sneha', board: 'CBSE', enrollmentType: 'normal', subjects: ['Maths','Computer'] },
+    { name: 'Dev',   board: 'ICSE', enrollmentType: 'neet',   subjects: ['Chemistry','Biology'] },
+    { name: 'Priya', board: 'CBSE', enrollmentType: 'jee',    subjects: ['Physics','Maths','Chemistry'] },
+  ];
+
+  const BOARD_TAG  = { CBSE: 'tag-blue',  ICSE: 'tag-rose'  };
+  const ENROLL_TAG = { normal: 'tag-gray', foundation: 'tag-blue', jee: 'tag-sky', neet: 'tag-green' };
+  const ENROLL_LABEL = { normal: 'Normal', foundation: 'Foundation', jee: 'JEE', neet: 'NEET' };
+  const SUBJECT_TAG = {
+    Physics:   'tag-violet',
+    Chemistry: 'tag-amber',
+    Maths:     'tag-indigo',
+    Biology:   'tag-green',
+    Computer:  'tag-teal'
+  };
+
+  function render() {
+    const q       = document.getElementById('searchInput').value.trim().toLowerCase();
+    const fBoard  = document.getElementById('filterBoard').value;
+    const fEnroll = document.getElementById('filterEnroll').value;
+    const fSubj   = document.getElementById('filterSubject').value;
+
+    const filtered = students.filter(s => {
+      const matchesQ = !q
+        || s.name.toLowerCase().includes(q)
+        || s.subjects.join(' ').toLowerCase().includes(q);
+      return matchesQ
+        && (!fBoard  || s.board          === fBoard)
+        && (!fEnroll || s.enrollmentType === fEnroll)
+        && (!fSubj   || s.subjects.indexOf(fSubj) !== -1);
+    });
+
+    const pill = document.getElementById('countPill');
+    pill.textContent = `${filtered.length} student${filtered.length === 1 ? '' : 's'}`;
+
+    const grid = document.getElementById('grid');
+    if (!filtered.length) {
+      grid.innerHTML = '<div class="empty">🎓 No students match your filters.</div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.map(s => `
+      <div class="student-card">
+        <div class="student-name">${s.name}</div>
+        <div class="meta-row">
+          <span class="tag ${BOARD_TAG[s.board]  || 'tag-gray'}">${s.board}</span>
+          <span class="tag ${ENROLL_TAG[s.enrollmentType] || 'tag-gray'}">${ENROLL_LABEL[s.enrollmentType] || s.enrollmentType}</span>
+        </div>
+        <div class="subj-label">Enrolled subjects</div>
+        <div class="subj-tags">
+          ${s.subjects.map(sub => `<span class="tag ${SUBJECT_TAG[sub] || 'tag-gray'}">${sub}</span>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  render();
+</script>
+
+</body>
+</html>

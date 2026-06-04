@@ -1,0 +1,19 @@
+{
+  "name": "The NewTown Classes",
+  "short_name": "NewTown Classes",
+  "description": "The NewTown Classes — coaching for Class 7 to 12, NEET, JEE and Foundation. Live classes, online tests, study notes and chapter-wise materials.",
+  "icons": [
+    { "src": "/android-chrome-192x192.png?v=2", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/android-chrome-512x512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/android-chrome-192x192.png?v=2", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/android-chrome-512x512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "theme_color": "#003087",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "en-IN",
+  "categories": ["education"]
+}

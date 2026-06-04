@@ -1,0 +1,275 @@
+rules_version = '2';
+
+// ════════════════════════════════════════════════════════════════════
+//  THE NEWTOWN CLASSES — Firestore Security Rules
+// ════════════════════════════════════════════════════════════════════
+//
+//  HOW TO DEPLOY THESE RULES
+//  ─────────────────────────
+//  Option A (recommended — keeps these rules in version control):
+//    1. Install the Firebase CLI:        npm install -g firebase-tools
+//    2. From the project root, run:      firebase login
+//    3. One-time init:                   firebase init firestore
+//         (when prompted, use the EXISTING firestore.rules — don't overwrite)
+//    4. Deploy:                          firebase deploy --only firestore:rules
+//
+//  Option B (no CLI):
+//    1. Open Firebase Console → Firestore Database → Rules tab
+//    2. Paste this entire file (everything below the comment block)
+//    3. Click Publish
+//
+//  Default-deny: anything not explicitly matched below is denied.
+// ════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ───────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isAdmin == true;
+    }
+    function isOwner() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isOwner == true;
+    }
+    function isTeacher() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+    function isStaff() {
+      return isAdmin() || isTeacher();
+    }
+    // True iff the incoming write only touches keys in `allowed`.
+    function onlyChanges(allowed) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    // ─── students/{uid} ─────────────────────────────────────────────
+    // Students can read their own profile.
+    // Staff can read all students (needed for attendance, reports, results).
+    // Only admin can create/delete students.
+    // Students may update ONLY their own photoUrl (so the dashboard's photo
+    // upload works); everything else (password, class, etc.) is admin-only.
+    match /students/{uid} {
+      allow get:    if isSignedIn() && (request.auth.uid == uid || isStaff());
+      allow list:   if isStaff();
+      allow create, delete: if isAdmin() || isOwner();
+      allow update: if isAdmin() || isOwner()
+                    || (request.auth.uid == uid && onlyChanges(['photoUrl']));
+
+      // ─── students/{uid}/offlineResults/{resultId} ─────────────────
+      // Marks for offline (in-class) tests, uploaded from the teacher
+      // portal (see saveOfflineMarks in teacher-dashboard.html, which
+      // writes to students/{uid}/offlineResults/{baseId}).
+      //
+      // Rules do NOT cascade into subcollections, so this needs its own
+      // match block — without it every write here hits the default-deny
+      // and the teacher portal shows "Missing or insufficient permissions."
+      //
+      // The student can read their own offline results; staff (teachers
+      // and admins) can read and write all of them.
+      match /offlineResults/{resultId} {
+        allow read:                   if isSignedIn() && (request.auth.uid == uid || isStaff());
+        allow create, update, delete: if isStaff();
+      }
+    }
+
+    // ─── teachers/{uid} ─────────────────────────────────────────────
+    // Teachers read their own profile; admin reads all.
+    // Any signed-in user can list teachers — students need this to pick a
+    // teacher in the "Ask a Doubt" chatbot. Sensitive write actions stay
+    // admin-only. (The teacher document already only stores name/subject/
+    // contact-style metadata, no passwords or private data.)
+    // Only admin can create/update/delete teachers.
+    match /teachers/{uid} {
+      allow get:    if isSignedIn();
+      allow list:   if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ─── admins/{uid} ───────────────────────────────────────────────
+    // An admin can read their own admin doc to verify their role.
+    // Nobody can write from the client — admins must be granted from
+    // the Firebase Console, the Admin SDK, or the first-time bootstrap
+    // script (which you should remove after running it once).
+    match /admins/{uid} {
+      allow get:    if isSignedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    // ─── chapters/{id}  (study material / PDFs) ─────────────────────
+    // Any signed-in user can read; only staff can write.
+    match /chapters/{id} {
+      allow read:   if isSignedIn();
+      allow create, update, delete: if isStaff();
+    }
+
+    // ─── tests/{id} ─────────────────────────────────────────────────
+    // Any signed-in user can read (students need to fetch a test to take it).
+    // Only staff can create/modify tests.
+    //
+    // ⚠️ NOTE: Because the dashboard grades client-side, tests currently
+    //   contain the correct-answer key in the document a student fetches.
+    //   That's an app-design issue, not a rules issue — Firestore rules
+    //   work at the document level, not the field level. Long-term, move
+    //   grading to a Cloud Function so students never see the answer key.
+    match /tests/{id} {
+      allow read:   if isSignedIn();
+      allow create, update, delete: if isStaff();
+    }
+
+    // ─── testResults/{id} ───────────────────────────────────────────
+    // Doc IDs are deterministic: `{testId}__{cycle}__{uid}` (see
+    // student-dashboard.html). We require the doc ID to end with the
+    // student's uid AND the `uid` field to match auth.uid, so a student
+    // cannot fabricate a result for somebody else.
+    //
+    // Students can read ONLY their own result. Staff can read/list all.
+    // Students can create their own once; updates/deletes are admin-only.
+    match /testResults/{id} {
+      allow get:    if isSignedIn() && (
+                       isStaff()
+                       || (resource.data.uid == request.auth.uid)
+                    );
+      allow list:   if isStaff();
+      allow create: if isSignedIn()
+                    && id.matches('.*__' + request.auth.uid + '$')
+                    && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── attendance/{id} ────────────────────────────────────────────
+    // Staff read/write. Students don't touch attendance from the client.
+    match /attendance/{id} {
+      allow read, write: if isStaff();
+    }
+
+    // ─── liveClasses/{id} ───────────────────────────────────────────
+    // Any signed-in user can read the schedule.
+    // Staff can create/update; only admin can delete.
+    match /liveClasses/{id} {
+      allow read:           if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete:         if isAdmin();
+    }
+
+    // ─── questionImages/{id} ────────────────────────────────────────
+    // Image references uploaded for test questions.
+    // Any signed-in user can read; only staff can write.
+    match /questionImages/{id} {
+      allow read:                   if isSignedIn();
+      allow create, update, delete: if isStaff();
+    }
+
+    // ─── supportRequests/{id}  (Ask-a-Doubt chatbot) ───────────────
+    // Created by a student when they click "Ask a Teacher" after the
+    // chatbot couldn't fully answer their question. Each doc:
+    //   { studentUid, studentId, studentName, teacherUid, subject,
+    //     question, chatHistory, status: 'pending'|'resolved',
+    //     createdAt, resolvedAt }
+    //
+    // - A student can create a request only with their own uid in
+    //   `studentUid` and only with status = 'pending'.
+    // - A student can read their own requests (to see status updates).
+    // - The assigned teacher (or any admin) can read and update the
+    //   request — typically to flip status to 'resolved'. Teachers
+    //   cannot edit the original question/history.
+    // - Only admin can delete.
+    match /supportRequests/{id} {
+      allow get:    if isSignedIn() && (
+                       isAdmin()
+                       || resource.data.studentUid == request.auth.uid
+                       || resource.data.teacherUid == request.auth.uid
+                    );
+      allow list:   if isAdmin()
+                    || (isTeacher() && resource.data.teacherUid == request.auth.uid);
+      allow create: if isSignedIn()
+                    && request.resource.data.studentUid == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.keys().hasAll(
+                         ['studentUid','studentId','studentName','teacherUid',
+                          'subject','question','chatHistory','status','createdAt']);
+      allow update: if (isAdmin()
+                        || (isTeacher() && resource.data.teacherUid == request.auth.uid))
+                    && onlyChanges(['status','resolvedAt','teacherNotes']);
+      allow delete: if isAdmin();
+    }
+
+    // Owner CMS: enquiries, admissions, accounts, batches, planning.
+    // Public website visitors may create one basic enquiry. Everything else is
+    // owner-only so centre accounts and money records stay private.
+    match /enquiries/{id} {
+      allow read, update, delete: if isOwner();
+      allow create: if isOwner()
+                    || (
+                      request.resource.data.keys().hasOnly(
+                        ['name','phone','email','course','currentClass',
+                         'message','status','source','createdAt'])
+                      && request.resource.data.keys().hasAll(
+                        ['name','phone','course','status','source','createdAt'])
+                      && request.resource.data.name is string
+                      && request.resource.data.phone is string
+                      && request.resource.data.course is string
+                      && request.resource.data.status == 'New'
+                      && request.resource.data.source == 'Website'
+                    );
+    }
+
+    match /admissions/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /payments/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /expenses/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /accounts/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /classSchedule/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /planner/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /meetings/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /attendanceRecords/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /assignments/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /studyMaterials/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /examPlans/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /broadcasts/{id} {
+      allow read, write: if isOwner();
+    }
+
+    // ─── DEFAULT DENY ───────────────────────────────────────────────
+    // Anything not matched above is denied. (No catch-all match block.)
+  }
+}

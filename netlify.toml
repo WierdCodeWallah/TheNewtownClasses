@@ -1,0 +1,80 @@
+# ════════════════════════════════════════════════════
+#  THE NEWTOWN CLASSES — Netlify Configuration
+# ════════════════════════════════════════════════════
+
+[build]
+  publish = "."
+
+# Clean public routes. Old .html URLs redirect to these names, and the clean
+# names rewrite back to the existing static files behind the scenes.
+[[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/student-login.html"
+  to = "/login/student"
+  status = 301
+
+[[redirects]]
+  from = "/teacher-login.html"
+  to = "/login/teacher"
+  status = 301
+
+[[redirects]]
+  from = "/admin-login.html"
+  to = "/login/admin"
+  status = 301
+
+[[redirects]]
+  from = "/cms-login.html"
+  to = "/login/cms"
+  status = 301
+
+[[redirects]]
+  from = "/student-dashboard.html"
+  to = "/learn"
+  status = 301
+
+[[redirects]]
+  from = "/teacher-dashboard.html"
+  to = "/teach"
+  status = 301
+
+[[redirects]]
+  from = "/admin-panel.html"
+  to = "/command-center"
+  status = 301
+
+[[redirects]]
+  from = "/cms-panel.html"
+  to = "/cms"
+  status = 301
+
+[[redirects]]
+  from = "/students-demo.html"
+  to = "/students-preview"
+  status = 301
+
+[[redirects]]
+  from = "/login/cms"
+  to = "/cms-login.html"
+  status = 200
+
+[[redirects]]
+  from = "/cms"
+  to = "/cms-panel.html"
+  status = 200
+
+# ── Tell Netlify the Firebase API key is intentionally public ──
+[build.environment]
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyB-aTXaWLduMaB9lw6lxGcOWzhzKcH2B0E"
+
+# ── Security headers ──
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"

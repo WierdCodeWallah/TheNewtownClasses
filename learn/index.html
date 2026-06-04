@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Learn Portal | The NewTown Classes</title>
+</head>
+<body>
+  <script>
+    var target = '/student-dashboard.html' + window.location.search + window.location.hash;
+    fetch(target)
+      .then(function (res) {
+        if (!res.ok) throw new Error('Could not load learn portal.');
+        return res.text();
+      })
+      .then(function (html) {
+        document.open();
+        document.write(html);
+        document.close();
+      })
+      .catch(function () {
+        document.body.textContent = 'Learn portal is unavailable. Please refresh.';
+      });
+  </script>
+</body>
+</html>

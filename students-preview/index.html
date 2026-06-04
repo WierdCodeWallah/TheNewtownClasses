@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Students Preview | The NewTown Classes</title>
+</head>
+<body>
+  <script>
+    fetch('/students-demo.html')
+      .then(function (res) {
+        if (!res.ok) throw new Error('Could not load students preview.');
+        return res.text();
+      })
+      .then(function (html) {
+        document.open();
+        document.write(html);
+        document.close();
+      })
+      .catch(function () {
+        document.body.textContent = 'Students preview is unavailable. Please refresh.';
+      });
+  </script>
+</body>
+</html>
