@@ -21,8 +21,8 @@
  *  shell on a deploy.
  * ════════════════════════════════════════════════════
  */
-const CACHE_VERSION = 'ntc-shell-v2';
-const SHELL = ['/', '/favicon.svg', '/logo.png'];
+const CACHE_VERSION = 'ntc-shell-v3';
+const SHELL = ['/', '/favicon.svg', '/assets/img/logo.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(

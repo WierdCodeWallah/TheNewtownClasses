@@ -54,7 +54,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: #fff url("logo-mark.png") center / 86% no-repeat;
+  background: #fff url("/assets/img/logo-mark.png") center / 86% no-repeat;
   box-shadow: 0 12px 30px -18px rgba(0,0,0,.55);
   flex: 0 0 auto;
 }
@@ -3404,7 +3404,7 @@ footer::after {
   width: 42px !important;
   height: 42px !important;
   border-radius: 50% !important;
-  background: #fff url("logo-mark.png") center / 86% no-repeat !important;
+  background: #fff url("/assets/img/logo-mark.png") center / 86% no-repeat !important;
   box-shadow: 0 12px 30px -18px rgba(0,0,0,.55) !important;
   flex: 0 0 auto !important;
 }

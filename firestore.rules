@@ -201,9 +201,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Owner CMS: enquiries, admissions, accounts, batches, planning.
-    // Public website visitors may create one basic enquiry. Everything else is
-    // owner-only so centre accounts and money records stay private.
+    // ─── enquiries/{id}  (website contact form) ────────────────────
+    // Public website visitors may create one basic enquiry from the
+    // contact form on the homepage. Reading/managing them is owner-only.
     match /enquiries/{id} {
       allow read, update, delete: if isOwner();
       allow create: if isOwner()
@@ -219,54 +219,6 @@ service cloud.firestore {
                       && request.resource.data.status == 'New'
                       && request.resource.data.source == 'Website'
                     );
-    }
-
-    match /admissions/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /payments/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /expenses/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /accounts/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /classSchedule/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /planner/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /meetings/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /attendanceRecords/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /assignments/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /studyMaterials/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /examPlans/{id} {
-      allow read, write: if isOwner();
-    }
-
-    match /broadcasts/{id} {
-      allow read, write: if isOwner();
     }
 
     // ─── DEFAULT DENY ───────────────────────────────────────────────

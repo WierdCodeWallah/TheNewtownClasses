@@ -28,11 +28,6 @@
   status = 301
 
 [[redirects]]
-  from = "/cms-login.html"
-  to = "/login/cms"
-  status = 301
-
-[[redirects]]
   from = "/student-dashboard.html"
   to = "/learn"
   status = 301
@@ -48,24 +43,9 @@
   status = 301
 
 [[redirects]]
-  from = "/cms-panel.html"
-  to = "/cms"
-  status = 301
-
-[[redirects]]
   from = "/students-demo.html"
   to = "/students-preview"
   status = 301
-
-[[redirects]]
-  from = "/login/cms"
-  to = "/cms-login.html"
-  status = 200
-
-[[redirects]]
-  from = "/cms"
-  to = "/cms-panel.html"
-  status = 200
 
 # ── Tell Netlify the Firebase API key is intentionally public ──
 [build.environment]

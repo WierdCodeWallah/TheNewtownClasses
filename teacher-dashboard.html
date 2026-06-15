@@ -25,7 +25,7 @@
   <!-- Mammoth.js for reading DOCX files -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <!-- Shared role-based content access helper -->
-  <script src="/content-access.js"></script>
+  <script src="/assets/js/content-access.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
@@ -994,7 +994,7 @@
   import { getAuth, signOut, onAuthStateChanged }           from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
   import { getFirestore, doc, getDoc, updateDoc, collection, query,
            where, orderBy, getDocs, serverTimestamp }       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { FIREBASE_CONFIG, initAppCheck }                  from "/firebase-config.js";
+  import { FIREBASE_CONFIG, initAppCheck }                  from "/assets/js/firebase-config.js";
 
   const app  = initializeApp(FIREBASE_CONFIG);
   await initAppCheck(app);
@@ -2550,7 +2550,7 @@
     openZoomJoin, STATUS_BADGE,
     detectRecordingSource, isLikelyRecordingUrl, attachRecording,
     recordingSourceBadge
-  } from './live-classes.js';
+  } from '/assets/js/live-classes.js';
 
   // Auto-load classes when tab is opened
   const _origSwitchTab = window.switchTab;

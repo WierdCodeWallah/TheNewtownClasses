@@ -1,5 +1,10 @@
 # ── Sensitive: never upload student credentials ──
+# Site is published from repo root (netlify publish="."), so any committed
+# file is publicly downloadable. Keep all credential spreadsheets out.
 Student_Login_Credentials.xlsx
+New_Students_Login_Credentials.xlsx
+Student_Login_Credentials_UPDATED.xlsx
+*.xlsx
 
 # ── Local editor / tooling settings ──
 .claude/

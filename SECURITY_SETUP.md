@@ -165,7 +165,7 @@ After steps 2–5 are done, run through this in a private/incognito browser wind
 
 - [ ] Hit `https://thenewtownclasses.com/student-login.html` → DevTools → Network → look for an `appcheck` request returning a token (App Check is wired in).
 - [ ] Sign in as a student. Network panel: any Firestore request that returns `403 Permission denied` is a rules misconfiguration; copy the request path back into Rules Playground to debug.
-- [ ] Open `https://thenewtownclasses.com/firebase-config.js` directly. Confirm: API key is the only one in there, no secrets, no admin tokens. ✓ (this is by design.)
+- [ ] Open `https://thenewtownclasses.com/assets/js/firebase-config.js` directly. Confirm: API key is the only one in there, no secrets, no admin tokens. ✓ (this is by design.)
 - [ ] In the Cloud Console API key page, confirm Application restrictions = Websites and the referrer list is set.
 - [ ] In Firebase App Check → APIs, confirm "Verified" is the dominant column for at least 24h before clicking **Enforce**.
 - [ ] In Cloud Console → Billing → Budgets & alerts, confirm the budget exists and you got a test email (you can manually trigger one from the budget detail page).
