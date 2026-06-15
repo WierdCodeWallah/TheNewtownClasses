@@ -456,7 +456,7 @@
     }
 </style>
 <!-- Shared role / content-type access rules -->
-<script src="/content-access.js"></script>
+<script src="/assets/js/content-access.js"></script>
 </head>
 <body>
 
@@ -1180,7 +1180,7 @@
            setDoc, getDoc, getDocs,
            updateDoc, deleteDoc, query,
            orderBy }                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { FIREBASE_CONFIG, initAppCheck }          from "/firebase-config.js";
+  import { FIREBASE_CONFIG, initAppCheck }          from "/assets/js/firebase-config.js";
 
   const app  = initializeApp(FIREBASE_CONFIG);
   await initAppCheck(app);
@@ -2395,6 +2395,11 @@
         const stu = studentMap[uid] || {};
         return {
           testId:       f.testId?.stringValue || '',
+          uid,
+          // Exact Firestore doc id (`{testId}__{cycle}__{uid}`) — used to delete
+          // this specific result, and to re-allow a single student to retake.
+          docId:        (d.name || '').split('/').pop() || '',
+          cycleAttempted: parseInt(f.cycleAttempted?.integerValue || '1'),
           studentName:  f.studentName?.stringValue || stu.name || '',
           studentId:    f.studentId?.stringValue || stu.studentId || '',
           studentClass: f.studentClass?.stringValue || stu.class || '',
@@ -2435,12 +2440,16 @@
                 <th style="padding:.6rem 1rem;text-align:center;color:#003087;">Score</th>
                 <th style="padding:.6rem 1rem;text-align:center;color:#003087;">%</th>
                 <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Submitted</th>
+                <th style="padding:.6rem 1rem;text-align:center;color:#003087;">Actions</th>
               </tr>
             </thead>
             <tbody>
               ${results.map((r, idx) => {
                 const pct = r.totalMarks > 0 ? Math.round(r.score / r.totalMarks * 100) : 0;
                 const col = pct >= 80 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
+                // Escape the name for safe use inside a single-quoted JS string in onclick.
+                const nameArg = String(r.studentName || r.studentId || 'this student')
+                  .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');
                 return `<tr style="border-bottom:1px solid rgba(0,48,135,.07);">
                   <td style="padding:.6rem 1rem;color:#90a4ae;font-size:.78rem;">${idx+1}</td>
                   <td style="padding:.6rem 1rem;font-weight:600;">${r.studentName || r.studentId || '—'}</td>
@@ -2448,6 +2457,10 @@
                   <td style="padding:.6rem 1rem;text-align:center;font-weight:700;color:${col};">${r.score}/${r.totalMarks}</td>
                   <td style="padding:.6rem 1rem;text-align:center;color:${col};">${pct}%</td>
                   <td style="padding:.6rem 1rem;font-size:.78rem;color:#546e7a;">${r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN') : '—'}</td>
+                  <td style="padding:.6rem 1rem;text-align:center;white-space:nowrap;">
+                    <button onclick="reallowRetake('${testId}','${r.uid}','${nameArg}')" title="Clear this student's submission so they can take the test again. Classmates are not affected." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(14,165,233,.4);background:#fff;cursor:pointer;color:#0369a1;font-family:inherit;margin-right:.35rem;">↻ Re-allow</button>
+                    <button onclick="deleteTestResult('${r.docId}','${nameArg}','${testId}')" title="Permanently delete this student's result." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(239,68,68,.35);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
+                  </td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -2457,6 +2470,61 @@
     } catch(err) {
       body.innerHTML = `<div style="color:#ef4444;">${err.message}</div>`;
     }
+  };
+
+  // ── Re-allow ONE student to retake (e.g. they submitted by mistake) ──
+  // Surgical, per-student version of "Activate": we clear only this student's
+  // result for the test's CURRENT cycle (so their attempt-check passes again)
+  // and make sure the test is visible — WITHOUT bumping activeCycle, so every
+  // classmate who already submitted stays locked.
+  window.reallowRetake = async function(testId, uid, studentName) {
+    if (!uid) { alert('This submission has no linked student id, so it cannot be re-allowed. Use Delete instead.'); return; }
+    if (!confirm(`Allow ${studentName || 'this student'} to take this test again?\n\nTheir current submission will be cleared so they can re-attempt. Other students are NOT affected.`)) return;
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const base = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+
+      // 1. Read the test's current active cycle + active state.
+      const tRes = await fetch(`${base}/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + adminToken } });
+      const tDoc = await tRes.json();
+      if (!tDoc.fields) throw new Error('Test not found.');
+      const cycle    = parseInt(tDoc.fields.activeCycle?.integerValue || '1');
+      const isActive = tDoc.fields.isActive?.booleanValue !== false;
+
+      // 2. Delete this student's result for the current cycle (the attempt-blocker).
+      //    A 404 just means they had no submission this cycle — nothing to clear.
+      const rid = `${testId}__${cycle}__${uid}`;
+      const delRes = await fetch(`${base}/testResults/${rid}?key=${FIREBASE_CONFIG.apiKey}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } });
+      if (!delRes.ok && delRes.status !== 404) throw new Error('Could not clear submission: ' + (await delRes.text()));
+
+      // 3. Make sure the test is visible to students — but DON'T bump the cycle,
+      //    so classmates who already submitted this cycle remain locked.
+      if (!isActive) {
+        await fetch(`${base}/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=isActive`,
+          { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+            body: JSON.stringify({ fields: { isActive: { booleanValue: true } } }) });
+      }
+
+      alert(`✅ ${studentName || 'Student'} can now retake this test.`);
+      viewTestResults(testId);
+      loadTestList();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  // ── Permanently delete a single student's result ──
+  window.deleteTestResult = async function(docId, studentName, testId) {
+    if (!docId) { alert('Could not identify this result.'); return; }
+    if (!confirm(`Delete ${studentName || 'this student'}'s result permanently?\n\nThis removes their submission and score. This cannot be undone.`)) return;
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const delRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/testResults/${docId}?key=${FIREBASE_CONFIG.apiKey}`,
+        { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } }
+      );
+      if (!delRes.ok && delRes.status !== 404) throw new Error(await delRes.text());
+      viewTestResults(testId);
+      loadTestList();
+    } catch(e) { alert('Error: ' + e.message); }
   };
 
   // Auto-load test list on page ready (handled inside onAuthStateChanged)
@@ -2869,7 +2937,7 @@
     fmtClassTime, classTimeStatus, STATUS_BADGE, toScheduledTs,
     detectRecordingSource, isLikelyRecordingUrl, attachRecording,
     recordingSourceBadge
-  } from './live-classes.js';
+  } from '/assets/js/live-classes.js';
 
   window.loadAdminClasses = async function() {
     const wrap   = document.getElementById('lcAdminList');

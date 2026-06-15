@@ -23,7 +23,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <!-- Shared role-based content access helper -->
-  <script src="/content-access.js"></script>
+  <script src="/assets/js/content-access.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; -webkit-text-size-adjust: 100%; }
@@ -1286,7 +1286,7 @@ renderCards();
   import { getFirestore, doc, getDoc, setDoc,
            collection, query, where, getDocs,
            addDoc, serverTimestamp }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { FIREBASE_CONFIG, initAppCheck }              from "/firebase-config.js";
+  import { FIREBASE_CONFIG, initAppCheck }              from "/assets/js/firebase-config.js";
 
   const app  = initializeApp(FIREBASE_CONFIG);
   await initAppCheck(app);
@@ -1801,13 +1801,23 @@ renderCards();
               const typeLabel = isOffline ? (r.testType === 'subjective' ? 'SUBJECTIVE' : 'MCQ') : 'ONLINE';
               const dateMs = r.submittedMs || (r.testDate ? Date.parse(r.testDate) : 0);
               const gradeIcon = pct >= 80 ? '🏆' : pct >= 60 ? '👍' : pct >= 40 ? '📚' : '💪';
-              return `<div class="test-card" style="cursor:default;">
+              // Online results can be re-opened to the exact post-submission review
+              // page (question-by-question, correct option + unattempted shown).
+              // Offline results are teacher-uploaded scores with no answer key,
+              // so they stay non-clickable.
+              const reviewable = !isOffline && !!r.testId;
+              const testIdArg = String(r.testId).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+              const cardAttrs = reviewable
+                ? `style="cursor:pointer;" onclick="window.openResultReview('${testIdArg}', ${r.cycleAttempted || 1})" title="Tap to review your answers"`
+                : 'style="cursor:default;"';
+              return `<div class="test-card" ${cardAttrs}>
                 <div class="test-card-top"><div class="test-card-icon" style="background:${subColor(shownSubject)}">${gradeIcon}</div><span class="test-card-badge" style="background:${col};color:#fff;">${typeLabel} · ${pct}%</span></div>
                 <h3>${resultEscape(shownName)}</h3>
                 <p>${resultEscape(shownSubject || '')}${shownSubject ? ' · ' : ''}Class ${resultEscape(r.class)} · ${resultEscape(normalizeTopic(r))}</p>
                 <div class="test-card-footer" style="flex-direction:column;align-items:flex-start;gap:.25rem;">
                   <span class="test-card-meta"><strong style="color:${col};">${scoreText}</strong>${isOffline ? (r.remark ? ' &nbsp;·&nbsp; ' + resultEscape(r.remark) : '') : ' &nbsp;·&nbsp; ✓ ' + r.correctCount + ' &nbsp; ✗ ' + r.wrongCount + ' &nbsp; ⊘ ' + r.unattemptedCount}</span>
                   <span class="test-card-meta" style="font-size:.72rem;">📅 ${dateMs ? fmtDate(dateMs) : 'Date not available'}${isOffline && r.teacherName ? ' · Uploaded by ' + resultEscape(r.teacherName) : ''}</span>
+                  ${reviewable ? '<span class="test-card-meta" style="font-size:.72rem;color:#0ea5e9;font-weight:700;">🔍 Tap to review answers</span>' : ''}
                 </div>
               </div>`;
             }).join('') : '<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:#90a4ae;">No tests match this filter.</div>';
@@ -2617,6 +2627,118 @@ renderCards();
       } catch(e) { console.warn('KaTeX render error:', e); }
     }
 
+    // ── Re-open a past online result to the SAME review page shown right ──
+    // after submitting (score banner, stats, section breakdown, and the
+    // question-by-question review with the correct option + unattempted ones).
+    // Called from the "My Results" cards. We rebuild the params from two
+    // direct reads the student is allowed to make: their own testResults doc
+    // (stores answers + sectionScores) and the tests doc (the answer key).
+    window.openResultReview = async function(testId, cycleAttempted) {
+      const overlay = document.getElementById('onlineTestOverlay');
+      overlay.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+      // Review mode: no countdown, no submit bar, and _activeTest stays null so
+      // the auto-submit / fullscreen listeners and closeOnlineTest() treat this
+      // as a plain "close", not an in-progress test.
+      const timerEl = document.getElementById('otTimer');
+      if (timerEl) timerEl.style.display = 'none';
+      document.getElementById('otSubmitBar').style.display = 'none';
+      document.getElementById('otTitle').textContent = 'Loading review…';
+      document.getElementById('otMeta').textContent = '';
+      document.getElementById('otBody').innerHTML = '<div style="text-align:center;padding:3rem;color:#90a4ae;">⏳ Loading your submission…</div>';
+      overlay.scrollTop = 0;
+
+      try {
+        const token = await user.getIdToken();
+        const cycle = cycleAttempted || 1;
+        const rid = testId + '__' + cycle + '__' + user.uid;
+        const [testRes, resultRes] = await Promise.all([
+          fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}`,
+            { headers: { Authorization: 'Bearer ' + token } }),
+          fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/testResults/${rid}?key=${FIREBASE_CONFIG.apiKey}`,
+            { headers: { Authorization: 'Bearer ' + token } })
+        ]);
+        const testJson = await testRes.json();
+        const resultJson = await resultRes.json();
+        if (!resultJson.fields) throw new Error('We could not find your submission for this test.');
+        if (!testJson.fields)   throw new Error('This test is no longer available, so the answer review cannot be shown.');
+
+        const tf = testJson.fields;
+        const test = {
+          testName: tf.testName?.stringValue || '',
+          class: tf.class?.stringValue || '',
+          subject: tf.subject?.stringValue || '',
+          totalMarks: parseInt(tf.totalMarks?.integerValue || '0'),
+          totalQ: parseInt(tf.totalQ?.integerValue || '0'),
+          timeLimit: parseInt(tf.timeLimit?.integerValue || '60'),
+          testSection: tf.testSection?.stringValue || '',
+          negWrong: parseFloat(tf.negWrong?.doubleValue || tf.negWrong?.integerValue || '0'),
+          negUnattempted: parseFloat(tf.negUnattempted?.doubleValue || tf.negUnattempted?.integerValue || '0'),
+          activeCycle: parseInt(tf.activeCycle?.integerValue || '1')
+        };
+        const sections = JSON.parse(tf.sections?.stringValue || '[]');
+
+        const rf = resultJson.fields;
+        const intVal = (k, d = 0) => parseInt(rf[k]?.integerValue || String(d));
+        const numVal = (k, d = 0) => parseFloat(rf[k]?.doubleValue || rf[k]?.integerValue || String(d));
+        let answers = {}, sectionScores = [];
+        try { answers = JSON.parse(rf.answers?.stringValue || '{}') || {}; } catch(_) { answers = {}; }
+        try { sectionScores = JSON.parse(rf.sectionScores?.stringValue || '[]') || []; } catch(_) { sectionScores = []; }
+
+        const totalScore = intVal('rawScore', intVal('score'));
+        const totalMax   = intVal('maxScore', test.totalMarks);
+        const finalScore = numVal('finalScore', intVal('score'));
+        const totalNegWrongDeduction = numVal('negWrongDeduction');
+        const totalNegUnattemptedDeduction = numVal('negUnattemptedDeduction');
+        const totalNegDeduction = numVal('totalNegDeduction', totalNegWrongDeduction + totalNegUnattemptedDeduction);
+        const pct = intVal('pct', totalMax > 0 ? Math.round(finalScore / totalMax * 100) : 0);
+
+        // Older results were saved before sectionScores existed — rebuild the
+        // breakdown from the saved answers and the test's answer key.
+        if (!sectionScores.length) {
+          sectionScores = sections.map((sec, si) => {
+            let score = 0, max = 0, correct = 0, wrong = 0, unattempted = 0, negW = 0, negU = 0;
+            (sec.questions || []).forEach((q, qi) => {
+              if (sec.type !== 'mcq') return;
+              max += (sec.marksPerQ || 1);
+              const a = answers[`${si}_${qi}`];
+              if (a) {
+                if (a === q.correct) { score += (sec.marksPerQ || 1); correct++; }
+                else { wrong++; negW += (test.negWrong || 0); }
+              } else { unattempted++; negU += (test.negUnattempted || 0); }
+            });
+            return { sectionIndex: si, title: sec.title || `Section ${si+1}`, score, max,
+                     finalScore: Math.max(0, score - negW - negU), negWrong: negW,
+                     negUnattempted: negU, correct, wrong, unattempted };
+          });
+        }
+
+        _showTestResult({
+          test, sections, answers, sectionScores,
+          totalScore, totalMax, pct,
+          totalAttempted:   intVal('attempted'),
+          totalCorrect:     intVal('correctCount'),
+          totalWrong:       intVal('wrongCount'),
+          totalUnattempted: intVal('unattemptedCount'),
+          totalQuestions:   intVal('totalQuestions'),
+          finalScore, totalNegWrongDeduction, totalNegUnattemptedDeduction, totalNegDeduction
+        });
+
+        // _showTestResult rebuilds otBody but not the header — set it for review.
+        document.getElementById('otTitle').textContent = test.testName || 'Test Review';
+        document.getElementById('otMeta').textContent  = 'Your submission · Review only';
+      } catch(err) {
+        document.getElementById('otTitle').textContent = 'Review';
+        document.getElementById('otMeta').textContent  = '';
+        document.getElementById('otBody').innerHTML = `
+          <div style="max-width:520px;margin:3rem auto;padding:2rem;background:#fff;border-radius:16px;text-align:center;box-shadow:0 4px 20px rgba(0,48,135,.08);">
+            <div style="font-size:2.5rem;margin-bottom:.6rem;">😕</div>
+            <p style="color:#546e7a;font-size:.92rem;line-height:1.5;margin-bottom:1.5rem;">${err.message}</p>
+            <button onclick="closeOnlineTest()" style="background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border:none;padding:.7rem 2rem;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;">Close</button>
+          </div>`;
+      }
+    };
+
   } // end if (user)
 
   // ── Logout button ──
@@ -2636,7 +2758,7 @@ renderCards();
     fetchClasses, fmtClassTime, classTimeStatus, canJoinZoom,
     relativeJoinLabel, buildZoomJoinUrl, formatMeetingId,
     STATUS_BADGE, recordingSourceBadge
-  } from './live-classes.js';
+  } from '/assets/js/live-classes.js';
 
   function lcEscape(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
