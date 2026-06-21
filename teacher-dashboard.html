@@ -2594,12 +2594,9 @@
   function renderAttnStatus(sel, isOpen, today) {
     const wrap = $('attnStatusWrap');
     if (!wrap) return;
-    let dateLabel = today;
-    try { dateLabel = new Date(today + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (_e) {}
     wrap.innerHTML = `
       <div style="padding:1rem 1.15rem;border:1px solid rgba(0,48,135,.1);border-radius:14px;background:${isOpen ? '#ecfdf5' : '#f8fafc'};">
-        <div style="font-size:.8rem;color:#546e7a;">${dateLabel}</div>
-        <div style="font-size:.92rem;font-weight:700;margin-top:.4rem;color:${isOpen ? '#16a34a' : '#90a4ae'};">
+        <div style="font-size:.92rem;font-weight:700;color:${isOpen ? '#16a34a' : '#90a4ae'};">
           ${isOpen ? '🟢 Self-marking is OPEN' : '⚪ Self-marking is CLOSED'} for
           ${htmlEscape(sel.classes.map(c => 'Class ' + c).join(', '))} · ${htmlEscape(sel.boards.join(' & '))} · ${htmlEscape(sel.subject)}
         </div>
@@ -2704,12 +2701,7 @@
     const studioToday = $('studioToday');
     if (studioName) studioName.textContent = String(name).split('@')[0];
     if (studioToday) {
-      const today = new Date().toLocaleDateString('en-IN', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short'
-      });
-      studioToday.textContent = `${today} - Build tests, upload marks, run live classes, and clear student doubts from one focused workspace.`;
+      studioToday.textContent = 'Build tests, upload marks, run live classes, and clear student doubts from one focused workspace.';
     }
 
     try {
