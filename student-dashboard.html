@@ -525,6 +525,13 @@
     <aside class="sidebar" id="sidebar">
 
       <div class="sidebar-section">
+        <div class="sidebar-heading">Attendance</div>
+        <div class="sidebar-item" data-section="attendance" onclick="switchSection(this,'attendance');loadAttendance();">
+          <span class="icon">📅</span> My Attendance
+        </div>
+      </div>
+
+      <div class="sidebar-section">
         <div class="sidebar-heading">Tests &amp; MCQs</div>
         <div class="sidebar-item active" data-section="chapterwise" onclick="switchSection(this,'chapterwise')">
           <span class="icon">📝</span> Chapterwise Test
@@ -1101,6 +1108,140 @@
         }
       </style>
 
+      <!-- ═══════════════════════════════
+           MY ATTENDANCE SECTION
+      ══════════════════════════════ -->
+      <style>
+        #attendanceSection { --attn-ink:#0f2557; }
+        #attendanceSection .attn-card {
+          background:#fff; border:1px solid rgba(0,48,135,.08); border-radius:18px;
+          box-shadow:0 6px 24px rgba(15,37,87,.06);
+        }
+        /* Entrance — replays each time the section is opened */
+        #attendanceSection.attn-enter .attn-anim { opacity:0; animation:attnFadeUp .55s cubic-bezier(.22,1,.36,1) forwards; }
+        #attendanceSection.attn-enter .attn-anim:nth-child(1){ animation-delay:.02s; }
+        #attendanceSection.attn-enter .attn-anim:nth-child(2){ animation-delay:.10s; }
+        #attendanceSection.attn-enter .attn-anim:nth-child(3){ animation-delay:.18s; }
+        @keyframes attnFadeUp { from{opacity:0; transform:translateY(16px) scale(.99);} to{opacity:1; transform:none;} }
+
+        /* Gradient hero */
+        .attn-hero {
+          position:relative; overflow:hidden; border-radius:20px; padding:1.25rem 1.4rem; margin-bottom:1rem;
+          background:linear-gradient(120deg,#0033cc,#3b82f6,#06b6d4,#0033cc);
+          background-size:300% 300%; animation:attnGrad 12s ease infinite; color:#fff;
+          box-shadow:0 12px 30px rgba(0,51,135,.28);
+        }
+        @keyframes attnGrad { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        .attn-hero h2 { margin:0; font-size:1.3rem; font-weight:900; letter-spacing:-.01em; }
+        .attn-hero p  { margin:.3rem 0 0; font-size:.84rem; opacity:.92; }
+        .attn-hero::after{ content:""; position:absolute; right:-40px; top:-40px; width:160px; height:160px;
+          background:radial-gradient(circle,rgba(255,255,255,.25),transparent 70%); border-radius:50%; }
+
+        /* Controls */
+        .attn-controls { display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end; padding:1rem 1.1rem; margin-bottom:1rem; }
+        .attn-field { display:flex; flex-direction:column; gap:.35rem; }
+        .attn-label { font-size:.7rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+        .attn-select { border:1.5px solid rgba(0,48,135,.16); border-radius:12px; padding:.6rem .8rem; font-family:inherit; font-size:.9rem; min-width:170px; background:#fff; transition:border-color .2s, box-shadow .2s; }
+        .attn-select:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.15); }
+        .attn-nav-btn { border:1.5px solid rgba(0,48,135,.16); background:#fff; border-radius:12px; width:40px; height:40px; cursor:pointer; font-size:1.15rem; color:#003087; transition:transform .15s, background .2s, color .2s; }
+        .attn-nav-btn:hover { transform:scale(1.1); background:#003087; color:#fff; }
+        .attn-nav-btn:active { transform:scale(.92); }
+        #attnMonthLabel { font-weight:800; color:var(--attn-ink); min-width:150px; text-align:center; font-size:.95rem; }
+
+        /* Calendar grid + days */
+        .attn-grid-2 { display:grid; grid-template-columns:1.8fr 1fr; gap:1rem; align-items:start; }
+        #attnCalendarWrap, #attnTotalsWrap { padding:1.1rem 1.2rem; }
+        .attn-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:.4rem; }
+        .attn-wd { font-size:.68rem; font-weight:800; color:#94a3b8; text-align:center; padding:.3rem 0; text-transform:uppercase; }
+        .attn-day {
+          aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:13px;
+          background:#f1f5f9; color:#475569; font-size:.85rem; font-weight:600;
+          transition:transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s;
+          animation:attnPop .4s both;
+        }
+        @keyframes attnPop { 0%{opacity:0; transform:scale(.4);} 100%{opacity:1; transform:scale(1);} }
+        .attn-day:hover { transform:translateY(-3px) scale(1.08); box-shadow:0 8px 18px rgba(15,37,87,.16); z-index:1; }
+        .attn-day.is-present { background:linear-gradient(135deg,#34d399,#16a34a); color:#fff; font-weight:800; box-shadow:0 5px 14px rgba(22,163,74,.4); }
+        .attn-day.is-absent  { background:linear-gradient(135deg,#fb7185,#ef4444); color:#fff; font-weight:800; box-shadow:0 5px 14px rgba(239,68,68,.4); }
+        .attn-day.is-today   { box-shadow:0 0 0 2px #fff, 0 0 0 4px #2563eb; }
+
+        /* Mark button */
+        .attn-mark-btn {
+          position:relative; overflow:hidden; border:none; cursor:pointer; color:#fff; font-family:inherit;
+          font-weight:800; font-size:.9rem; padding:.7rem 1.3rem; border-radius:14px;
+          background:linear-gradient(135deg,#22c55e,#16a34a);
+          box-shadow:0 8px 20px rgba(22,163,74,.35); transition:transform .15s, box-shadow .2s;
+          animation:attnPulse 2.2s ease-in-out infinite;
+        }
+        .attn-mark-btn:hover { transform:translateY(-2px) scale(1.03); box-shadow:0 12px 26px rgba(22,163,74,.45); }
+        .attn-mark-btn:active { transform:scale(.96); }
+        .attn-mark-btn::after { content:""; position:absolute; top:0; left:-120%; width:60%; height:100%;
+          background:linear-gradient(120deg,transparent,rgba(255,255,255,.45),transparent); transform:skewX(-20deg);
+          animation:attnShine 2.6s ease-in-out infinite; }
+        @keyframes attnShine { 0%,60%{left:-120%;} 100%{left:160%;} }
+        @keyframes attnPulse { 0%,100%{box-shadow:0 8px 20px rgba(22,163,74,.35);} 50%{box-shadow:0 8px 26px rgba(22,163,74,.6);} }
+        .attn-pill { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem .9rem; border-radius:12px; font-weight:800; font-size:.85rem; }
+        .attn-pill.present { background:rgba(22,163,74,.12); color:#15803d; }
+        .attn-pill.absent  { background:rgba(239,68,68,.12); color:#dc2626; }
+        .attn-pill.closed  { background:#f1f5f9; color:#94a3b8; }
+
+        /* Totals */
+        .attn-total-row { display:flex; justify-content:space-between; align-items:center; padding:.6rem .2rem; border-bottom:1px solid rgba(15,37,87,.06); transition:background .2s; border-radius:8px; }
+        .attn-total-row:hover { background:#f8fafc; }
+
+        /* Mobile */
+        @media (max-width:760px){
+          .attn-grid-2 { grid-template-columns:1fr; }
+          .attn-controls { gap:.75rem; padding:.9rem; }
+          .attn-field, .attn-select { width:100%; min-width:0; }
+          #attnMarkWrap { width:100%; }
+          .attn-mark-btn { width:100%; }
+          .attn-hero { padding:1.1rem; }
+          .attn-hero h2 { font-size:1.15rem; }
+          .attn-cal-grid { gap:.3rem; }
+          .attn-day { border-radius:10px; font-size:.8rem; }
+        }
+        @media (prefers-reduced-motion:reduce){
+          #attendanceSection *, .attn-hero { animation:none !important; }
+        }
+      </style>
+      <div id="attendanceSection" style="display:none;">
+        <div class="attn-hero attn-anim">
+          <h2>📅 My Attendance</h2>
+          <p>Tap a subject to see your month at a glance — <strong>green</strong> means present, <strong>red</strong> means absent.</p>
+        </div>
+
+        <div class="attn-card attn-controls attn-anim">
+          <div class="attn-field">
+            <span class="attn-label">Subject</span>
+            <select id="attnStudentSubject" class="attn-select" onchange="renderAttendanceCalendar()">
+              <option value="">Select subject</option>
+            </select>
+          </div>
+          <div class="attn-field">
+            <span class="attn-label">Month</span>
+            <div style="display:flex;align-items:center;gap:.5rem;">
+              <button class="attn-nav-btn" onclick="attnChangeMonth(-1)" aria-label="Previous month">‹</button>
+              <span id="attnMonthLabel">—</span>
+              <button class="attn-nav-btn" onclick="attnChangeMonth(1)" aria-label="Next month">›</button>
+            </div>
+          </div>
+          <div style="flex:1;min-width:180px;display:flex;justify-content:flex-end;">
+            <div id="attnMarkWrap" style="text-align:right;"></div>
+          </div>
+        </div>
+
+        <div class="attn-grid-2 attn-anim">
+          <div id="attnCalendarWrap" class="attn-card">
+            <div style="text-align:center;padding:2rem;color:#94a3b8;">Select a subject to see your attendance calendar.</div>
+          </div>
+          <div id="attnTotalsWrap" class="attn-card">
+            <div style="font-weight:900;color:var(--attn-ink);margin-bottom:.8rem;font-size:1rem;">This Month</div>
+            <div id="attnTotalsList"><div style="color:#94a3b8;font-size:.85rem;">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
       <!-- TEST CARDS -->
       <div class="test-grid" id="testGrid"></div>
 
@@ -1141,6 +1282,7 @@ const sectionMeta = {
   results:     { title: 'My Test Results',   desc: 'Your online test scores from the last 30 days', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
   recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes you missed or want to revise', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
   chatbot:     { title: '💬 Ask a Doubt',     desc: 'Get instant answers, or connect with a teacher if you need more help', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
+  attendance:  { title: '📅 My Attendance',   desc: 'Mark yourself present when class is open, and track your monthly attendance', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📅' },
 };
 
 var currentSection  = 'chapterwise'; // var so module script can read it
@@ -1186,6 +1328,9 @@ function switchSection(el, section) {
   const lcSection  = document.getElementById('liveClassesSection');
   const recSection = document.getElementById('recordingsSection');
   const cbSection  = document.getElementById('chatbotSection');
+  const attSection = document.getElementById('attendanceSection');
+  // Attendance is its own panel; hide by default and re-show only in its branch.
+  if (attSection) attSection.style.display = 'none';
   // Chatbot uses a special full-viewport "no scroll" mode. Toggle the
   // body/main classes here so leaving the section restores normal scrolling.
   const _mainEl = document.querySelector('.main-content');
@@ -1231,6 +1376,23 @@ function switchSection(el, section) {
     document.getElementById('pageTitle').textContent = '💬 Ask a Doubt';
     document.getElementById('pageDesc').textContent  = 'Get instant answers, or connect with a teacher if you need more help';
     document.getElementById('breadcrumbSection').textContent = 'Ask a Doubt';
+  } else if (section === 'attendance') {
+    document.getElementById('testGrid').style.display = 'none';
+    const catSection = document.querySelector('.cat-section');
+    if (catSection) catSection.style.display = 'none';
+    if (lcSection)  lcSection.style.display  = 'none';
+    if (recSection) recSection.style.display = 'none';
+    if (cbSection)  cbSection.style.display  = 'none';
+    if (attSection) {
+      attSection.style.display = 'block';
+      // Replay the entrance animation each time the section is opened.
+      attSection.classList.remove('attn-enter');
+      void attSection.offsetWidth;
+      attSection.classList.add('attn-enter');
+    }
+    document.getElementById('pageTitle').textContent = '📅 My Attendance';
+    document.getElementById('pageDesc').textContent  = 'Mark yourself present when class is open, and track your monthly attendance';
+    document.getElementById('breadcrumbSection').textContent = 'My Attendance';
   } else {
     if (lcSection)  lcSection.style.display  = 'none';
     if (recSection) recSection.style.display = 'none';
@@ -1628,6 +1790,7 @@ renderCards();
                   pct: parseInt(f.pct?.integerValue || (totalMarks ? String(Math.round(score / totalMarks * 100)) : '0')),
                   remark: f.remark?.stringValue || '',
                   teacherName: f.teacherName?.stringValue || '',
+                  answerSheetUrl: f.answerSheetUrl?.stringValue || '',
                   cycleAttempted: 1
                 };
               });
@@ -1817,6 +1980,7 @@ renderCards();
                 <div class="test-card-footer" style="flex-direction:column;align-items:flex-start;gap:.25rem;">
                   <span class="test-card-meta"><strong style="color:${col};">${scoreText}</strong>${isOffline ? (r.remark ? ' &nbsp;·&nbsp; ' + resultEscape(r.remark) : '') : ' &nbsp;·&nbsp; ✓ ' + r.correctCount + ' &nbsp; ✗ ' + r.wrongCount + ' &nbsp; ⊘ ' + r.unattemptedCount}</span>
                   <span class="test-card-meta" style="font-size:.72rem;">📅 ${dateMs ? fmtDate(dateMs) : 'Date not available'}${isOffline && r.teacherName ? ' · Uploaded by ' + resultEscape(r.teacherName) : ''}</span>
+                  ${isOffline && r.answerSheetUrl ? `<a href="${resultEscape(r.answerSheetUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="font-size:.72rem;color:#dc2626;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem;">📄 View / Download Result PDF</a>` : ''}
                   ${reviewable ? '<span class="test-card-meta" style="font-size:.72rem;color:#0ea5e9;font-weight:700;">🔍 Tap to review answers</span>' : ''}
                 </div>
               </div>`;
@@ -2765,6 +2929,206 @@ renderCards();
       { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
     ));
   }
+
+  // ════════════════════════════════════════════
+  //  MY ATTENDANCE (student)
+  //  Reads students/{uid}/attendance/* and lets the student self-mark
+  //  present for today when the teacher has opened attendance for the
+  //  selected subject (attendanceControl/{class}__{subjectKey}).
+  // ════════════════════════════════════════════
+  function attnSubjectKeyS(s) {
+    return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/science/g, '').replace(/mathematics/g, 'maths').replace(/[^a-z0-9]+/g, '').trim();
+  }
+  function attnTodayStrS() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  const ATTN_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  // Authoritative class for attendance = the student's profile class (the
+  // ?class= URL param is only a display hint and can be wrong/defaulted).
+  function attnClassVal() { return (window._studentProfile && window._studentProfile.class) || studentClass || ''; }
+  function attnBoardVal() { return (window._studentProfile && window._studentProfile.board) || ''; }
+  let _attnRecords = [];               // [{date, subjectKey, subject, status}]
+  let _attnState = { subject: '', year: null, month: null };
+  let _attnSubjectsLoaded = false;
+
+  async function attnFetchRecords() {
+    _attnRecords = [];
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${user.uid}/attendance?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      _attnRecords = (json.documents || []).map(d => {
+        const f = d.fields || {};
+        return { date: f.date?.stringValue || '', subjectKey: f.subjectKey?.stringValue || '', subject: f.subject?.stringValue || '', status: f.status?.stringValue || '' };
+      }).filter(r => r.date && (r.status === 'present' || r.status === 'absent'));
+    } catch (e) { console.warn('attendance fetch failed:', e.message); }
+  }
+
+  window.loadAttendance = async function() {
+    const prof = window._studentProfile || {};
+    const sel = document.getElementById('attnStudentSubject');
+    if (sel && !_attnSubjectsLoaded) {
+      const subs = (prof.subjects && prof.subjects.length) ? prof.subjects : [];
+      sel.innerHTML = subs.length
+        ? subs.map(s => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('')
+        : '<option value="">No subjects assigned</option>';
+      _attnSubjectsLoaded = true;
+    }
+    const now = new Date();
+    if (_attnState.year === null) { _attnState.year = now.getFullYear(); _attnState.month = now.getMonth(); }
+    _attnState.subject = sel ? sel.value : '';
+    await attnFetchRecords();
+    window.renderAttendanceCalendar();
+  };
+
+  window.attnChangeMonth = function(delta) {
+    let m = _attnState.month + delta, y = _attnState.year;
+    if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+    _attnState.month = m; _attnState.year = y;
+    window.renderAttendanceCalendar();
+  };
+
+  window.renderAttendanceCalendar = async function() {
+    const sel = document.getElementById('attnStudentSubject');
+    _attnState.subject = sel ? sel.value : _attnState.subject;
+    const subject = _attnState.subject;
+    const { year, month } = _attnState;
+    const calWrap = document.getElementById('attnCalendarWrap');
+    const markWrap = document.getElementById('attnMarkWrap');
+    const monthLabel = document.getElementById('attnMonthLabel');
+    if (monthLabel) monthLabel.textContent = (year != null) ? `${ATTN_MONTHS[month]} ${year}` : '—';
+
+    // Monthly totals (all subjects) for the displayed month — present days only.
+    renderAttendanceTotals(year, month);
+
+    if (!subject) {
+      if (calWrap) calWrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Select a subject to see your attendance calendar.</div>';
+      if (markWrap) markWrap.innerHTML = '';
+      return;
+    }
+
+    const sk = attnSubjectKeyS(subject);
+    const today = attnTodayStrS();
+    const presentSet = new Set(_attnRecords.filter(r => r.subjectKey === sk && r.status === 'present').map(r => r.date));
+    const absentSet  = new Set(_attnRecords.filter(r => r.subjectKey === sk && r.status === 'absent').map(r => r.date));
+    const todayStatus = absentSet.has(today) ? 'absent' : (presentSet.has(today) ? 'present' : '');
+
+    // Calendar grid — green = present, red = absent
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const wd = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    let cells = wd.map(w => `<div class="attn-wd">${w}</div>`).join('');
+    for (let i = 0; i < firstDay; i++) cells += '<div></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const present = presentSet.has(ds);
+      const absent = absentSet.has(ds);
+      const isToday = ds === today;
+      const cls = `attn-day${present ? ' is-present' : absent ? ' is-absent' : ''}${isToday ? ' is-today' : ''}`;
+      const tip = present ? ' · Present' : absent ? ' · Absent' : '';
+      cells += `<div class="${cls}" title="${ds}${tip}" style="animation-delay:${d * 14}ms">${d}</div>`;
+    }
+    calWrap.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.85rem;">
+        <div style="font-weight:900;color:var(--attn-ink);font-size:1rem;">${subjectEscapeAttn(subject)} · ${ATTN_MONTHS[month]} ${year}</div>
+        <div style="font-size:.72rem;font-weight:800;display:flex;gap:.7rem;">
+          <span style="display:inline-flex;align-items:center;gap:.3rem;color:#16a34a;"><span style="width:11px;height:11px;background:linear-gradient(135deg,#34d399,#16a34a);border-radius:4px;display:inline-block;"></span>Present</span>
+          <span style="display:inline-flex;align-items:center;gap:.3rem;color:#ef4444;"><span style="width:11px;height:11px;background:linear-gradient(135deg,#fb7185,#ef4444);border-radius:4px;display:inline-block;"></span>Absent</span>
+        </div>
+      </div>
+      <div class="attn-cal-grid">${cells}</div>`;
+
+    // Mark-present control (today only, gated by teacher toggle)
+    if (markWrap) {
+      if (todayStatus === 'present') {
+        markWrap.innerHTML = '<span class="attn-pill present">✅ Present today</span>';
+      } else if (todayStatus === 'absent') {
+        markWrap.innerHTML = '<span class="attn-pill absent">❌ Absent today</span>';
+      } else {
+        markWrap.innerHTML = '<span class="attn-pill closed">Checking…</span>';
+        const open = await attnIsOpenToday(attnClassVal(), attnBoardVal(), sk, today);
+        if (absentSet.has(today) || presentSet.has(today)) return; // guard against race
+        markWrap.innerHTML = open
+          ? `<button class="attn-mark-btn" onclick="markAttendancePresent()">✔ Mark me present</button>`
+          : '<span class="attn-pill closed">⚪ Not open right now</span>';
+      }
+    }
+  };
+
+  function subjectEscapeAttn(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function renderAttendanceTotals(year, month) {
+    const list = document.getElementById('attnTotalsList');
+    if (!list) return;
+    const prof = window._studentProfile || {};
+    const subs = (prof.subjects && prof.subjects.length) ? prof.subjects : [];
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    if (!subs.length) { list.innerHTML = '<div style="color:#90a4ae;font-size:.85rem;">No subjects assigned.</div>'; return; }
+    const rows = subs.map(s => {
+      const sk = attnSubjectKeyS(s);
+      const present = _attnRecords.filter(r => r.subjectKey === sk && r.status === 'present' && r.date.startsWith(prefix)).length;
+      const absent  = _attnRecords.filter(r => r.subjectKey === sk && r.status === 'absent'  && r.date.startsWith(prefix)).length;
+      return `<div class="attn-total-row">
+        <span style="font-size:.88rem;color:#334155;font-weight:600;">${subjectEscapeAttn(s)}</span>
+        <span style="font-size:.9rem;font-weight:800;"><span style="color:#16a34a;">${present}P</span>${absent ? ` <span style="color:#ef4444;">${absent}A</span>` : ''}</span>
+      </div>`;
+    }).join('');
+    list.innerHTML = rows + '<div style="font-size:.7rem;color:#90a4ae;margin-top:.6rem;">P = present days · A = absent days (this month)</div>';
+  }
+
+  async function attnIsOpenToday(cls, board, subjectKey, today) {
+    if (!board) return false;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/attendanceControl/${cls}__${board}__${subjectKey}?key=${FIREBASE_CONFIG.apiKey}`,
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      if (!res.ok) return false;
+      const j = await res.json();
+      const f = j.fields || {};
+      return f.open?.booleanValue === true && f.openDate?.stringValue === today;
+    } catch (_e) { return false; }
+  }
+
+  window.markAttendancePresent = async function() {
+    const subject = _attnState.subject;
+    if (!subject) return;
+    const sk = attnSubjectKeyS(subject);
+    const today = attnTodayStrS();
+    const markWrap = document.getElementById('attnMarkWrap');
+    if (markWrap) markWrap.innerHTML = '<span style="color:#90a4ae;font-size:.82rem;">Marking…</span>';
+    try {
+      const token = await user.getIdToken();
+      const recordId = `${today}__${sk}`;
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${user.uid}/attendance/${recordId}?key=${FIREBASE_CONFIG.apiKey}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ fields: {
+            date: { stringValue: today }, subject: { stringValue: subject }, subjectKey: { stringValue: sk },
+            class: { stringValue: attnClassVal() }, board: { stringValue: attnBoardVal() },
+            status: { stringValue: 'present' }, markedAt: { stringValue: new Date().toISOString() }
+          } })
+        }
+      );
+      const j = await res.json();
+      if (j.error) {
+        if (markWrap) markWrap.innerHTML = '<span style="color:#ef4444;font-size:.82rem;">⚪ Attendance just closed — ask your teacher to reopen it.</span>';
+        return;
+      }
+      _attnRecords.push({ date: today, subjectKey: sk, subject, status: 'present' });
+      window.renderAttendanceCalendar();
+    } catch (e) {
+      if (markWrap) markWrap.innerHTML = `<span style="color:#ef4444;font-size:.82rem;">Error: ${e.message}</span>`;
+    }
+  };
 
   window.loadStudentClasses = async function() {
     const wrap = document.getElementById('lcStudentList');
@@ -5073,3 +5437,4 @@ renderCards();
 </body>
 </html>
       
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   

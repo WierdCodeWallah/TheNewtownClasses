@@ -49,6 +49,15 @@ service cloud.firestore {
     function onlyChanges(allowed) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
+    // True iff the teacher has opened attendance for this class+subject on
+    // the given date. The control doc id is `${class}__${subjectKey}`,
+    // written by the teacher portal (toggleAttendance in teacher-dashboard).
+    function isAttendanceOpen(cls, board, subjectKey, date) {
+      let cid = cls + '__' + board + '__' + subjectKey;
+      return exists(/databases/$(database)/documents/attendanceControl/$(cid))
+        && get(/databases/$(database)/documents/attendanceControl/$(cid)).data.open == true
+        && get(/databases/$(database)/documents/attendanceControl/$(cid)).data.openDate == date;
+    }
 
     // ─── students/{uid} ─────────────────────────────────────────────
     // Students can read their own profile.
@@ -77,6 +86,27 @@ service cloud.firestore {
       match /offlineResults/{resultId} {
         allow read:                   if isSignedIn() && (request.auth.uid == uid || isStaff());
         allow create, update, delete: if isStaff();
+      }
+
+      // ─── students/{uid}/attendance/{recordId} ─────────────────────
+      // Self-service attendance records. recordId is `${date}__${subjectKey}`.
+      // A student can mark themselves PRESENT only for their own uid, and
+      // only while the teacher has attendance open for that class+subject
+      // on that date (see isAttendanceOpen). Staff can read all and can
+      // edit/remove records (corrections). The student reads their own.
+      // Staff can set any status (e.g. mark absentees). A student can only
+      // create their own PRESENT record, and only while the teacher has
+      // attendance open for their class+board+subject on that date.
+      match /attendance/{recordId} {
+        allow read:   if isSignedIn() && (request.auth.uid == uid || isStaff());
+        allow create: if isStaff()
+                      || (request.auth.uid == uid
+                          && request.resource.data.status == 'present'
+                          && isAttendanceOpen(request.resource.data.class,
+                                              request.resource.data.board,
+                                              request.resource.data.subjectKey,
+                                              request.resource.data.date));
+        allow update, delete: if isStaff();
       }
     }
 
@@ -148,6 +178,17 @@ service cloud.firestore {
     // Staff read/write. Students don't touch attendance from the client.
     match /attendance/{id} {
       allow read, write: if isStaff();
+    }
+
+    // ─── attendanceControl/{id} ─────────────────────────────────────
+    // Per class+subject switch that lets students self-mark attendance.
+    // id = `${class}__${subjectKey}` (e.g. "10__physics").
+    // Any signed-in user can read it (students need to know if marking is
+    // open); only staff can flip it on/off (toggleAttendance in the
+    // teacher portal). It is also read by isAttendanceOpen() above.
+    match /attendanceControl/{id} {
+      allow read:                   if isSignedIn();
+      allow create, update, delete: if isStaff();
     }
 
     // ─── liveClasses/{id} ───────────────────────────────────────────
