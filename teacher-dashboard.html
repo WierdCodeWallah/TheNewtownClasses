@@ -817,7 +817,7 @@
   <div class="tab-content" id="tab-attendance">
     <div class="card">
       <div class="card-title">📅 Attendance</div>
-      <p class="card-sub">Choose board, subject and one or more classes. Turn attendance ON to let those students self-mark present for today, and/or load the students to mark absentees yourself. Present shows green and absent shows red on each student's calendar.</p>
+      <p class="card-sub">Choose board, subject and one or more classes, then load the students and tick who is <strong>present</strong> today. You can only pick from the subject(s) you teach. Present shows green on each student's calendar and counts towards their monthly total. Students cannot mark their own attendance.</p>
 
       <div class="field-grid">
         <div class="field">
@@ -852,26 +852,23 @@
       </div>
 
       <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary" onclick="toggleAttendance(true)">🟢 Turn ON for today</button>
-        <button class="btn btn-outline" onclick="toggleAttendance(false)">⚪ Turn OFF</button>
-        <button class="btn btn-outline" onclick="loadAttendanceStudents()">Load Students</button>
+        <button class="btn btn-primary" onclick="loadAttendanceStudents()">Load Students</button>
       </div>
 
-      <div id="attnStatusWrap" style="margin-top:1rem;"></div>
       <span id="attnMsg" class="alert" style="margin:.75rem 0 0;display:block;"></span>
     </div>
 
     <div class="card" id="attnStudentsCard" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
-        <div class="card-title" style="margin:0;">🧑‍🎓 Mark Absentees — Today</div>
+        <div class="card-title" style="margin:0;">🧑‍🎓 Mark Present — Today</div>
         <button class="btn btn-outline" onclick="loadAttendanceStudents()">⟳ Refresh</button>
       </div>
-      <p class="card-sub">Tick the students who are <strong>absent</strong> today, then Save. Ticked students show red on their calendar. Unticked students are left unchanged (they may still self-mark present).</p>
+      <p class="card-sub">Tick the students who are <strong>present</strong> today, then Save. Once a student is marked present for the day they're locked (🔒 <em>Already present given</em>) and can't be changed again. Present students show green on their calendar and count towards their attendance.</p>
       <div id="attnStudentsWrap" style="margin-top:1rem;">
         <div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>
       </div>
       <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary" onclick="saveAbsentees()">Save Absentees</button>
+        <button class="btn btn-primary" onclick="saveAttendance()">Save Attendance</button>
         <span id="attnSaveMsg" class="alert" style="margin:0;"></span>
       </div>
     </div>
@@ -2537,17 +2534,16 @@
 
   // ════════════════════════════════════════════
   //  ATTENDANCE (teacher)
-  //  • Open/close self-marking for MANY class+board combos at once for "today".
-  //    Control doc: attendanceControl/{class}__{board}__{subjectKey}
-  //  • Mark absentees directly: writes students/{uid}/attendance/{date}__{subjectKey}
-  //    with status 'absent' (shows red on the student's calendar).
+  //  Teachers mark who is PRESENT today; students can no longer self-mark.
+  //  Writes students/{uid}/attendance/{date}__{subjectKey} with status
+  //  'present' (shows green on the student's calendar and counts towards
+  //  their monthly total). Unticking a present student clears the record.
   // ════════════════════════════════════════════
   const attnSubjectKey = offlineSubjectKey;            // identical normalisation
   function attnTodayStr() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-  function attnControlId(cls, board, subject) { return `${cls}__${board}__${attnSubjectKey(subject)}`; }
 
   // Read the current selection from the UI.
   function attnSelection() {
@@ -2563,47 +2559,58 @@
     return true;
   }
 
-  let _attnStudents = [];   // loaded roster for absentee marking
-
-  // ── Turn self-marking ON/OFF for every selected class × board ──
-  window.toggleAttendance = async function(turnOn) {
-    const sel = attnSelection();
-    if (!attnValidate(sel)) return;
-    const today = attnTodayStr();
-    const combos = [];
-    sel.classes.forEach(cls => sel.boards.forEach(board => combos.push({ cls, board })));
-    try {
-      showMsg('attnMsg', 'info', `${turnOn ? 'Opening' : 'Closing'} attendance for ${combos.length} class/board combo(s)…`);
-      for (const { cls, board } of combos) {
-        const res = await fsPatch(`attendanceControl/${attnControlId(cls, board, sel.subject)}`, {
-          class: { stringValue: cls }, board: { stringValue: board },
-          subject: { stringValue: sel.subject }, subjectKey: { stringValue: attnSubjectKey(sel.subject) },
-          open: { booleanValue: !!turnOn }, openDate: { stringValue: today },
-          updatedBy: { stringValue: user.uid }, updatedByName: { stringValue: teacherProfile.name || user.email || 'Teacher' },
-          updatedAt: { stringValue: new Date().toISOString() }
-        });
-        if (res.error) throw new Error(res.error.message);
-      }
-      showMsg('attnMsg', 'success', turnOn
-        ? `Attendance OPEN for today — ${sel.classes.map(c => 'Class ' + c).join(', ')} · ${sel.boards.join('/')} · ${sel.subject}.`
-        : 'Attendance closed for the selected classes.');
-      renderAttnStatus(sel, turnOn, today);
-    } catch (e) { showMsg('attnMsg', 'error', 'Error: ' + e.message); }
-  };
-
-  function renderAttnStatus(sel, isOpen, today) {
-    const wrap = $('attnStatusWrap');
-    if (!wrap) return;
-    wrap.innerHTML = `
-      <div style="padding:1rem 1.15rem;border:1px solid rgba(0,48,135,.1);border-radius:14px;background:${isOpen ? '#ecfdf5' : '#f8fafc'};">
-        <div style="font-size:.92rem;font-weight:700;color:${isOpen ? '#16a34a' : '#90a4ae'};">
-          ${isOpen ? '🟢 Self-marking is OPEN' : '⚪ Self-marking is CLOSED'} for
-          ${htmlEscape(sel.classes.map(c => 'Class ' + c).join(', '))} · ${htmlEscape(sel.boards.join(' & '))} · ${htmlEscape(sel.subject)}
-        </div>
-      </div>`;
+  // The subject(s) this teacher teaches. Admin saves a `subjects` array on
+  // teachers/{uid} (e.g. ["Mathematics","Physics"]); older accounts may only
+  // have a single `subject` string — fall back to that. Empty list = no subjects.
+  function teacherSubjectsList() {
+    const prof = teacherProfile || {};
+    let list = Array.isArray(prof.subjects) ? prof.subjects.slice() : [];
+    if (!list.length) {
+      const single = String(teacherField('subject', 'subjects', 'subjectName', 'subjectTaught') || '');
+      if (single) list = single.split(',');
+    }
+    return list.map(s => String(s).trim()).filter(Boolean);
+  }
+  // A teacher can only mark attendance for the subject(s) they teach. With one
+  // subject the dropdown is locked to it; with several they pick which one;
+  // an "All Subjects" teacher keeps the full list.
+  function restrictAttnSubjectToTeacher() {
+    const sel = $('attnSubject');
+    if (!sel) return;
+    const subs = teacherSubjectsList();
+    if (!subs.length || subs.some(s => /^all/i.test(s))) return;   // unrestricted
+    // Reuse the existing option labels (e.g. "Computer" → "Computer Science").
+    const labelFor = (val) => {
+      const opt = Array.from(sel.options).find(o => o.value === val);
+      return opt ? opt.textContent : val;
+    };
+    const opts = subs.map(val =>
+      `<option value="${String(val).replace(/"/g, '&quot;')}">${htmlEscape(labelFor(val))}</option>`
+    );
+    if (subs.length === 1) {
+      sel.innerHTML = opts.join('');
+      sel.disabled = true;
+      sel.title = 'You can only mark attendance for ' + subs[0];
+    } else {
+      sel.innerHTML = '<option value="">Select subject</option>' + opts.join('');
+      sel.disabled = false;
+      sel.title = 'Choose which subject you are marking attendance for';
+      // If a roster is already on screen, reload it when the subject changes.
+      sel.onchange = function() {
+        const card = $('attnStudentsCard');
+        if (card && card.style.display === 'block') loadAttendanceStudents();
+      };
+    }
   }
 
-  // ── Load roster for absentee marking ──
+  let _attnStudents = [];   // loaded roster for present marking
+
+  // Tick / untick every student at once (header "select all" box).
+  window.attnToggleAll = function(master) {
+    document.querySelectorAll('[data-attn-present]').forEach(b => { b.checked = master.checked; });
+  };
+
+  // ── Load roster for present marking ──
   window.loadAttendanceStudents = async function() {
     const sel = attnSelection();
     if (!attnValidate(sel)) return;
@@ -2644,14 +2651,16 @@
       wrap.innerHTML = `
         <div style="overflow-x:auto;border:1px solid rgba(0,48,135,.08);border-radius:14px;">
           <table class="results-table">
-            <thead><tr><th style="text-align:center;">ABSENT</th><th>STUDENT</th><th>CLASS</th><th>BOARD</th><th>TODAY (${subjLabel})</th></tr></thead>
+            <thead><tr><th style="text-align:center;"><label style="display:inline-flex;flex-direction:column;align-items:center;gap:.2rem;font-size:.7rem;cursor:pointer;">PRESENT<input type="checkbox" onclick="attnToggleAll(this)" title="Select all" style="width:18px;height:18px;cursor:pointer;"/></label></th><th>STUDENT</th><th>CLASS</th><th>BOARD</th><th>TODAY (${subjLabel})</th></tr></thead>
             <tbody>
               ${withStatus.map(st => `<tr>
-                <td data-label="Absent" style="text-align:center;"><input type="checkbox" data-attn-absent="${htmlEscape(st.uid)}" ${st.status === 'absent' ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;"/></td>
+                <td data-label="Present" style="text-align:center;">${st.status === 'present'
+                  ? '<span title="Already present given — locked for today" style="font-size:1.05rem;">🔒</span>'
+                  : `<input type="checkbox" data-attn-present="${htmlEscape(st.uid)}" style="width:18px;height:18px;cursor:pointer;"/>`}</td>
                 <td class="student-name" data-label="Student">${htmlEscape(st.name || 'Student')}<div style="font-size:.72rem;color:#90a4ae;">${htmlEscape(st.studentId || st.uid)}</div></td>
                 <td data-label="Class">Class ${htmlEscape(st.class)}</td>
                 <td data-label="Board">${htmlEscape(st.board || '—')}</td>
-                <td data-label="Today">${st.status === 'present' ? '<span style="color:#16a34a;font-weight:700;">✅ Present</span>' : st.status === 'absent' ? '<span style="color:#ef4444;font-weight:700;">❌ Absent</span>' : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td data-label="Today">${st.status === 'present' ? '<span style="color:#16a34a;font-weight:700;">✅ Already present given</span>' : st.status === 'absent' ? '<span style="color:#ef4444;font-weight:700;">❌ Absent</span>' : '<span style="color:#cbd5e1;">—</span>'}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -2659,37 +2668,34 @@
     } catch (e) { wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${htmlEscape(e.message)}</div>`; }
   };
 
-  // ── Save absentees: ticked → absent; previously-absent unticked → cleared ──
-  window.saveAbsentees = async function() {
+  // ── Save attendance: ticked → present. A student already marked present
+  //    today for this subject is LOCKED (skipped) — present is final. ──
+  window.saveAttendance = async function() {
     const sel = attnSelection();
     if (!sel.subject) { showMsg('attnSaveMsg', 'error', 'Select a subject.'); return; }
     if (!_attnStudents.length) { showMsg('attnSaveMsg', 'error', 'Load students first.'); return; }
     const sk = attnSubjectKey(sel.subject);
     const today = attnTodayStr();
     const recId = `${today}__${sk}`;
-    let absentN = 0, clearedN = 0;
+    let presentN = 0;
     try {
       showMsg('attnSaveMsg', 'info', 'Saving…');
       for (const st of _attnStudents) {
-        const box = document.querySelector(`[data-attn-absent="${CSS.escape(st.uid)}"]`);
-        const wantAbsent = !!(box && box.checked);
-        if (wantAbsent) {
-          const res = await fsPatch(`students/${st.uid}/attendance/${recId}`, {
-            date: { stringValue: today }, subject: { stringValue: sel.subject }, subjectKey: { stringValue: sk },
-            class: { stringValue: st.class }, board: { stringValue: st.board || '' },
-            status: { stringValue: 'absent' },
-            markedBy: { stringValue: user.uid }, markedByName: { stringValue: teacherProfile.name || user.email || 'Teacher' },
-            markedAt: { stringValue: new Date().toISOString() }
-          });
-          if (res.error) throw new Error(res.error.message);
-          absentN++;
-        } else if (st.status === 'absent') {
-          // Teacher unticked someone previously marked absent → remove the record.
-          await fsDelete(`students/${st.uid}/attendance/${recId}`);
-          clearedN++;
-        }
+        if (st.status === 'present') continue;   // already given — locked, never overwrite
+        const box = document.querySelector(`[data-attn-present="${CSS.escape(st.uid)}"]`);
+        if (!(box && box.checked)) continue;
+        const res = await fsPatch(`students/${st.uid}/attendance/${recId}`, {
+          date: { stringValue: today }, subject: { stringValue: sel.subject }, subjectKey: { stringValue: sk },
+          class: { stringValue: st.class }, board: { stringValue: st.board || '' },
+          status: { stringValue: 'present' },
+          markedBy: { stringValue: user.uid }, markedByName: { stringValue: teacherProfile.name || user.email || 'Teacher' },
+          markedAt: { stringValue: new Date().toISOString() }
+        });
+        if (res.error) throw new Error(res.error.message);
+        presentN++;
       }
-      showMsg('attnSaveMsg', 'success', `Saved · ${absentN} marked absent${clearedN ? ` · ${clearedN} cleared` : ''}.`);
+      if (!presentN) { showMsg('attnSaveMsg', 'info', 'No new students ticked — nothing to save.'); return; }
+      showMsg('attnSaveMsg', 'success', `Saved · ${presentN} marked present.`);
       loadAttendanceStudents();
     } catch (e) { showMsg('attnSaveMsg', 'error', 'Error: ' + e.message); }
   };
@@ -2797,6 +2803,7 @@
         $('teacherNameDisplay').textContent = teacherProfile.name || user.email;
         if ($('studioTeacherName')) $('studioTeacherName').textContent = teacherProfile.name || user.email;
         renderTeacherProfile();
+        restrictAttnSubjectToTeacher();   // lock attendance subject to the teacher's own subject
         console.log('[Teacher Dashboard] Profile loaded:', teacherProfile.name);
       } else {
         console.warn('[Teacher Dashboard] No profile found, using email.');

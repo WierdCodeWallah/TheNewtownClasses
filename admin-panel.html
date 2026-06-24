@@ -714,6 +714,21 @@
     </div>
     <div id="resetMsg" class="alert"></div>
   </div>
+
+  <!-- ─── ONE-TIME SECURITY CLEANUP ─── -->
+  <div class="card" style="margin-top:1rem;border:1px solid #fca5a5;">
+    <div class="card-title">🧹 Remove old stored passwords</div>
+    <p class="card-sub">
+      Earlier versions saved each student's and teacher's password in plaintext
+      in the database. That is no longer done. Run this once to scrub those old
+      passwords from every student and teacher record. Logins and resets are
+      unaffected.
+    </p>
+    <div style="margin-top:1rem;">
+      <button class="btn btn-danger" onclick="purgeStoredPasswords()">Purge stored passwords</button>
+    </div>
+    <div id="purgeMsg" class="alert"></div>
+  </div>
   </div><!-- /tab-reset-password -->
 
   <!-- ════════════════ UPLOAD MATERIAL ════════════════ -->
@@ -843,8 +858,8 @@
         </select>
         <button class="btn btn-outline btn-sm" onclick="loadStudents()">↻ Refresh</button>
         <button class="btn btn-outline btn-sm" id="downloadCredsBtn" type="button"
-          title="Download all student login credentials as an Excel file (admin-only file — keep secure)">
-          ⬇ Download Credentials
+          title="Download the student roster as an Excel file (no passwords — use Reset Password to set one)">
+          ⬇ Download Student List
         </button>
       </div>
     </div>
@@ -894,17 +909,18 @@
         <label>Password *</label>
         <input type="text" id="teacherPassword" placeholder="Min 6 characters"/>
       </div>
-      <div class="field">
-        <label>Subject</label>
-        <select id="teacherSubject">
-          <option value="Physics">Physics</option>
-          <option value="Chemistry">Chemistry</option>
-          <option value="Mathematics">Mathematics</option>
-          <option value="Biology">Biology</option>
-          <option value="Computer">Computer Science</option>
-          <option value="English">English</option>
-          <option value="All Subjects">All Subjects</option>
-        </select>
+      <div class="field full">
+        <label>Subjects * (select one or more)</label>
+        <div class="chip-group" id="teacherSubjectsGroup">
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="Physics"/> Physics</label>
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="Chemistry"/> Chemistry</label>
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="Mathematics"/> Mathematics</label>
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="Biology"/> Biology</label>
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="Computer"/> Computer Science</label>
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="English"/> English</label>
+          <label class="chip-check"><input type="checkbox" name="teacherSubjects" value="All Subjects"/> All Subjects</label>
+        </div>
+        <p style="font-size:.72rem;color:#90a4ae;margin-top:.4rem;">Pick every subject this teacher teaches — they'll choose among these when marking attendance. Use “All Subjects” for a teacher who handles everything.</p>
       </div>
       <div class="field">
         <label>Phone</label>
@@ -926,16 +942,15 @@
 
   <!-- ════════════════ ATTENDANCE ════════════════ -->
   <div class="tab-content" id="tab-attendance">
-  <!-- ─── ATTENDANCE MANAGEMENT ─── -->
-  <div class="card">
-    <div class="card-title">📋 Student Attendance</div>
-    <p class="card-sub">Mark daily attendance, view history, and generate monthly reports. Share alerts to parents via WhatsApp or SMS.</p>
 
-    <!-- Mark Attendance -->
+  <!-- ─── VIEW STUDENT ATTENDANCE (calendar + per-subject present totals) ─── -->
+  <div class="card">
+    <div class="card-title">👀 View Student Attendance</div>
+    <p class="card-sub">Pick a class, board and student to see their attendance calendar — <strong>green</strong> marks the days a teacher recorded them present — and the total present days in each subject. Shows attendance recorded by teachers.</p>
     <div class="form-grid">
       <div class="field">
         <label>Class *</label>
-        <select id="attClass" onchange="loadAttStudents()">
+        <select id="viewAttClass" onchange="loadViewAttStudents()">
           <option value="">Select class</option>
           <option value="7">Class 7</option>
           <option value="8">Class 8</option>
@@ -946,82 +961,25 @@
         </select>
       </div>
       <div class="field">
-        <label>Date *</label>
-        <input type="date" id="attDate"/>
-      </div>
-      <div class="field">
-        <label>Subject</label>
-        <select id="attSubject">
-          <option value="">Optional</option>
-          <option>Physics</option><option>Chemistry</option>
-          <option>Mathematics</option><option>Biology</option>
-          <option value="Computer">Computer Science</option>
-          <option>English</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Summary chips -->
-    <div id="attSummary" style="display:none;margin-top:1rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:.85rem;font-weight:600;">
-      <span id="attSumP" style="padding:.4rem .9rem;border-radius:8px;background:#dcfce7;color:#166534;">Present: 0</span>
-      <span id="attSumA" style="padding:.4rem .9rem;border-radius:8px;background:#fff1f2;color:#991b1b;">Absent: 0</span>
-    </div>
-
-    <!-- Student list for marking -->
-    <div id="attStudentList" style="margin-top:1rem;">
-      <div style="text-align:center;padding:2rem;color:#90a4ae;">Select a class to load students</div>
-    </div>
-
-    <div style="margin-top:1.2rem;display:flex;gap:.75rem;flex-wrap:wrap;">
-      <button class="btn btn-primary" onclick="submitAtt()">Submit Attendance</button>
-      <button class="btn btn-outline" style="background:#25D366;color:#fff;border:none;" onclick="shareAttWA()">WhatsApp Parents</button>
-      <button class="btn btn-outline" style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:none;" onclick="shareAttSMS()">SMS Parents</button>
-    </div>
-    <div id="attMsg" class="alert"></div>
-
-    <hr class="divider"/>
-
-    <!-- Attendance History -->
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem;">
-      <div style="font-weight:700;color:#003087;">Attendance History</div>
-      <div style="display:flex;gap:.5rem;align-items:center;">
-        <select id="histClass" onchange="loadAttHistory()" style="padding:.4rem .7rem;border:1px solid rgba(0,48,135,.12);border-radius:8px;font-family:inherit;font-size:.84rem;">
-          <option value="">All Classes</option>
-          <option value="7">Class 7</option>
-          <option value="8">Class 8</option><option value="9">Class 9</option>
-          <option value="10">Class 10</option><option value="11">Class 11</option>
-          <option value="12">Class 12</option>
-        </select>
-        <button class="btn btn-outline btn-sm" onclick="loadAttHistory()">Refresh</button>
-      </div>
-    </div>
-    <div id="historyWrap"><div style="text-align:center;padding:2rem;color:#90a4ae;">Loading...</div></div>
-
-    <hr class="divider"/>
-
-    <!-- Monthly Report -->
-    <div style="font-weight:700;color:#003087;margin-bottom:.75rem;">Monthly Attendance Report</div>
-    <div class="form-grid" style="margin-bottom:1rem;">
-      <div class="field">
-        <label>Class *</label>
-        <select id="reportClass">
-          <option value="">Select class</option>
-          <option value="7">Class 7</option>
-          <option value="8">Class 8</option><option value="9">Class 9</option>
-          <option value="10">Class 10</option><option value="11">Class 11</option>
-          <option value="12">Class 12</option>
+        <label>Board</label>
+        <select id="viewAttBoard" onchange="loadViewAttStudents()">
+          <option value="">All Boards</option>
+          <option value="CBSE">CBSE</option>
+          <option value="ICSE">ICSE</option>
         </select>
       </div>
       <div class="field">
-        <label>Month *</label>
-        <input type="month" id="reportMonth"/>
-      </div>
-      <div class="field" style="justify-content:flex-end;">
-        <button class="btn btn-primary btn-sm" onclick="genMonthlyReport()" style="align-self:flex-end;">Generate Report</button>
+        <label>Student *</label>
+        <select id="viewAttStudent" onchange="renderViewAttendance()">
+          <option value="">Select class first</option>
+        </select>
       </div>
     </div>
-    <div id="reportWrap"></div>
+    <div id="viewAttBody" style="margin-top:1.2rem;">
+      <div style="text-align:center;padding:2rem;color:#90a4ae;">Select a class, board and student to view attendance.</div>
+    </div>
   </div>
+
   </div><!-- /tab-attendance -->
 
   <!-- ════════════════ CLASS TESTS ════════════════ -->
@@ -1224,7 +1182,6 @@
       loadPdfList();
       loadTestList();
       loadTeacherList();
-      loadAttHistory();
     } else {
       window.location.href = '/login/admin';
     }
@@ -1312,7 +1269,6 @@
           enrollmentType: { stringValue: enrollmentType },   // role for content access
           phone:          { stringValue: phone },
           email:          { stringValue: email },
-          password:       { stringValue: password },   // stored for password-reset flow
           uid:            { stringValue: uid },
           createdAt:      { stringValue: new Date().toISOString() }
         }})
@@ -1545,7 +1501,6 @@
               enrollmentType: { stringValue: r.enrollmentType },
               phone:          { stringValue: r.phone },
               email:          { stringValue: email },
-              password:       { stringValue: r.password },
               uid:            { stringValue: uid },
               createdAt:      { stringValue: new Date().toISOString() }
             }})
@@ -1578,8 +1533,9 @@
   });
 
   // ════════════════════════════════════════════════════════════════
-  //  DOWNLOAD STUDENT CREDENTIALS — exports all students as XLSX
-  //  Includes the password field, so this is admin-only output.
+  //  DOWNLOAD STUDENT LIST — exports all students as XLSX
+  //  Passwords are NOT stored anymore, so this is a roster (no passwords).
+  //  To give a student a new password, use Reset Password.
   //  Uses SheetJS (already loaded for the bulk importer).
   // ════════════════════════════════════════════════════════════════
   document.getElementById('downloadCredsBtn').addEventListener('click', async () => {
@@ -1593,7 +1549,6 @@
         throw new Error('Spreadsheet library still loading — try again in a second.');
       }
 
-      // Fetch fresh data including password (allStudents in memory doesn't include it)
       const adminToken = await auth.currentUser.getIdToken();
       const res = await fetch(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
@@ -1611,7 +1566,6 @@
           .map(v => v.stringValue).filter(Boolean);
         return {
           'Student ID':      f.studentId?.stringValue      || '',
-          'Password':        f.password?.stringValue       || '',
           'Student Name':    f.name?.stringValue           || '',
           'Class':           f.class?.stringValue          || '',
           'Board':           f.board?.stringValue          || '',
@@ -1634,12 +1588,12 @@
       // Build workbook
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rows, { header: [
-        'Student ID','Password','Student Name','Class','Board','Subjects',
+        'Student ID','Student Name','Class','Board','Subjects',
         'Enrollment Type','Parent Phone','Email','Created At'
       ]});
       // Column widths
       ws['!cols'] = [
-        { wch: 16 }, { wch: 14 }, { wch: 28 }, { wch: 8 }, { wch: 8 },
+        { wch: 16 }, { wch: 28 }, { wch: 8 }, { wch: 8 },
         { wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 32 }, { wch: 12 }
       ];
       XLSX.utils.book_append_sheet(wb, ws, 'Login Credentials');
@@ -1657,8 +1611,8 @@
       Object.keys(counts).sort((a,b)=>(parseInt(a)||99)-(parseInt(b)||99))
         .forEach(c => summaryRows.push(['Class ' + c, counts[c]]));
       summaryRows.push([]);
-      summaryRows.push(['⚠ This file contains plaintext passwords — keep it secure.']);
-      summaryRows.push(['  Do not share by email or upload to public storage.']);
+      summaryRows.push(['Note: passwords are not stored and are not included here.']);
+      summaryRows.push(['  To set a new password for a student, use Reset Password.']);
       const sm = XLSX.utils.aoa_to_sheet(summaryRows);
       sm['!cols'] = [{ wch: 30 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(wb, sm, 'Summary');
@@ -1675,6 +1629,10 @@
   });
 
   // ── Reset password ──
+  //  Done server-side by the admin-student-auth function using a service
+  //  account. We never store, read, or transmit any *old* password — the
+  //  function sets the new one directly via the Firebase Admin API. The new
+  //  password is sent over HTTPS only to set it, never persisted in Firestore.
   window.resetPassword = async () => {
     const sid     = $('resetStudentId').value.trim().toUpperCase();
     const newPass = $('resetPassword').value;
@@ -1685,72 +1643,69 @@
     clearMsg('resetMsg');
 
     try {
-      // Step 1: Find student in Firestore by studentId (admin token)
-      const adminToken = await auth.currentUser.getIdToken();
-      const qRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents:runQuery?key=${FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-          body: JSON.stringify({
-            structuredQuery: {
-              from: [{ collectionId: 'students' }],
-              where: { fieldFilter: { field: { fieldPath: 'studentId' }, op: 'EQUAL', value: { stringValue: sid } } },
-              limit: 1
-            }
-          })
-        }
-      );
-      const rows = await qRes.json();
-      if (!rows[0]?.document) throw new Error('Student ID not found. Make sure the student account exists.');
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/.netlify/functions/admin-student-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, action: 'setPassword', studentId: sid, newPassword: newPass })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Reset failed (HTTP ${res.status})`);
 
-      const fields        = rows[0].document.fields;
-      const uid           = fields.uid?.stringValue;
-      const studentEmail  = fields.email?.stringValue;
-      const oldPassword   = fields.password?.stringValue;
-
-      if (!oldPassword) throw new Error('Stored password not found. This student was created before the latest update — delete and recreate their account.');
-
-      // Step 2: Sign in as student via REST (does NOT log out admin — uses fetch, not SDK)
-      const signInRes = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: studentEmail, password: oldPassword, returnSecureToken: true })
-        }
-      );
-      const signInData = await signInRes.json();
-      if (signInData.error) throw new Error('Could not verify student credentials: ' + signInData.error.message);
-      const studentToken = signInData.idToken;
-
-      // Step 3: Update Firebase Auth password using student's own token
-      const updateRes = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken: studentToken, password: newPass, returnSecureToken: false })
-        }
-      );
-      const updateData = await updateRes.json();
-      if (updateData.error) throw new Error('Auth password update failed: ' + updateData.error.message);
-
-      // Step 4: Update stored password in Firestore using admin token
-      await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=password`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-          body: JSON.stringify({ fields: { password: { stringValue: newPass } } })
-        }
-      );
-
-      showMsg('resetMsg', 'success', `✅ Password successfully reset for ${sid}.\nNew password: ${newPass}`);
+      showMsg('resetMsg', 'success', `✅ Password successfully reset for ${sid}.\nNew password: ${newPass}\n\nShare it with the student — it is not stored anywhere.`);
       $('resetStudentId').value = '';
       $('resetPassword').value  = '';
     } catch (err) {
       showMsg('resetMsg', 'error', '❌ ' + err.message);
+    }
+  };
+
+  // ── One-time cleanup: delete the legacy plaintext `password` field from
+  //    every student document. Uses the admin token; rules allow admins to
+  //    update student docs. A PATCH with updateMask=password and an empty
+  //    fields object removes just that field, leaving everything else intact.
+  window.purgeStoredPasswords = async () => {
+    if (!confirm('Remove the old plaintext password field from every student and teacher record?\n\nThis does not change anyone\'s login — it just deletes the stored copy.')) return;
+    clearMsg('purgeMsg');
+    showMsg('purgeMsg', 'success', '⏳ Scanning records…');
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const base = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+
+      // Strip the `password` field from every doc in a collection.
+      async function scrub(collection) {
+        let scanned = 0, cleaned = 0, pageToken = '';
+        do {
+          const url = `${base}/${collection}?key=${FIREBASE_CONFIG.apiKey}&pageSize=300` +
+                      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+          const res  = await fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } });
+          const data = await res.json();
+          if (data.error) throw new Error(data.error.message);
+
+          for (const d of (data.documents || [])) {
+            scanned++;
+            if (!d.fields || !('password' in d.fields)) continue;   // already clean
+            const id = d.name.split('/').pop();
+            const pRes = await fetch(
+              `${base}/${collection}/${id}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=password`,
+              { method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+                body: JSON.stringify({ fields: {} }) }   // empty body + mask = delete that field
+            );
+            if (pRes.ok) cleaned++;
+          }
+          pageToken = data.nextPageToken || '';
+        } while (pageToken);
+        return { scanned, cleaned };
+      }
+
+      const s = await scrub('students');
+      const t = await scrub('teachers');
+
+      showMsg('purgeMsg', 'success',
+        `✅ Done.\nStudents: scanned ${s.scanned}, cleaned ${s.cleaned}.\nTeachers: scanned ${t.scanned}, cleaned ${t.cleaned}.`);
+    } catch (err) {
+      showMsg('purgeMsg', 'error', '❌ ' + err.message);
     }
   };
 
@@ -1913,13 +1868,24 @@
     if (!confirm(`Delete account for "${name}"? This cannot be undone.`)) return;
     try {
       const adminToken = await auth.currentUser.getIdToken();
+      // 1. Delete the Auth account server-side (admin function with service
+      //    account). The old client-side accounts:delete had no auth token and
+      //    silently failed, leaving orphaned Auth users that blocked reusing
+      //    the Student ID. Do this first so a failure aborts before we orphan
+      //    the Firestore profile.
+      const authRes = await fetch('/.netlify/functions/admin-student-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: adminToken, action: 'delete', uid })
+      });
+      const authData = await authRes.json().catch(() => ({}));
+      if (!authRes.ok) throw new Error(authData.error || `Auth delete failed (HTTP ${authRes.status})`);
+
+      // 2. Delete the Firestore profile (admin token; rules allow admin delete).
       await fetch(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
         { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } }
       );
-      await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${FIREBASE_CONFIG.apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ localId: uid }) });
       allStudents = allStudents.filter(s => s.uid !== uid);
       updateStats();
       renderTable(allStudents);
@@ -2532,12 +2498,20 @@
   // ══════════════════════════════════════════════
   //  TEACHER MANAGEMENT
   // ══════════════════════════════════════════════
+  let _teacherList = [];                                  // cached roster for edit/delete lookups
+  // Subjects a teacher can be assigned. Values match the attendance dropdown
+  // (and Firestore rules) so a teacher's subjects line up with what they mark.
+  const TEACHER_SUBJECTS = [
+    ['Physics','Physics'], ['Chemistry','Chemistry'], ['Mathematics','Mathematics'],
+    ['Biology','Biology'], ['Computer','Computer Science'], ['English','English'],
+    ['All Subjects','All Subjects']
+  ];
 
   window.createTeacher = async function() {
     const name     = $('teacherName').value.trim();
     const email    = $('teacherEmail').value.trim();
     const password = $('teacherPassword').value;
-    const subject  = $('teacherSubject').value;
+    const subjects = Array.from(document.querySelectorAll('input[name="teacherSubjects"]:checked')).map(c => c.value);
     const phone    = $('teacherPhone').value.trim();
     const btn      = $('createTeacherBtn');
 
@@ -2546,6 +2520,9 @@
     }
     if (password.length < 6) {
       showMsg('teacherMsg', 'error', '❌ Password must be at least 6 characters.'); return;
+    }
+    if (!subjects.length) {
+      showMsg('teacherMsg', 'error', '❌ Select at least one subject.'); return;
     }
 
     btn.disabled = true; btn.textContent = 'Creating…';
@@ -2576,8 +2553,8 @@
             uid:       { stringValue: uid },
             name:      { stringValue: name },
             email:     { stringValue: email },
-            password:  { stringValue: password },
-            subject:   { stringValue: subject },
+            subject:   { stringValue: subjects[0] },
+            subjects:  { arrayValue: { values: subjects.map(s => ({ stringValue: s })) } },
             phone:     { stringValue: phone },
             createdAt: { stringValue: new Date().toISOString() }
           }})
@@ -2587,9 +2564,10 @@
       if (fsData.error) throw new Error('Account created but profile save failed: ' + fsData.error.message + '. Check Firestore rules for teachers collection.');
 
       showMsg('teacherMsg', 'success',
-        `✅ Teacher account created!\n\nName: ${name}\nEmail: ${email}\nPassword: ${password}\nSubject: ${subject}\n\nShare these login credentials with the teacher. They log in at teacher-login.html.`);
+        `✅ Teacher account created!\n\nName: ${name}\nEmail: ${email}\nPassword: ${password}\nSubjects: ${subjects.join(', ')}\n\nShare these login credentials with the teacher. They log in at teacher-login.html.`);
       $('teacherName').value = ''; $('teacherEmail').value = ''; $('teacherPassword').value = '';
       $('teacherPhone').value = '';
+      document.querySelectorAll('input[name="teacherSubjects"]:checked').forEach(c => { c.checked = false; });
       loadTeacherList();
     } catch (err) {
       showMsg('teacherMsg', 'error', '❌ ' + err.message);
@@ -2611,14 +2589,17 @@
       const data = await res.json();
       const docs = (data.documents || []).map(d => {
         const f = d.fields || {};
+        const subjectsArr = (f.subjects?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean);
+        const legacy = f.subject?.stringValue || '';
         return {
-          uid:     f.uid?.stringValue     || d.name.split('/').pop(),
-          name:    f.name?.stringValue    || '',
-          email:   f.email?.stringValue   || '',
-          subject: f.subject?.stringValue || '',
-          phone:   f.phone?.stringValue   || '—',
+          uid:      f.uid?.stringValue   || d.name.split('/').pop(),
+          name:     f.name?.stringValue  || '',
+          email:    f.email?.stringValue || '',
+          subjects: subjectsArr.length ? subjectsArr : (legacy ? [legacy] : []),
+          phone:    f.phone?.stringValue || '—',
         };
       });
+      _teacherList = docs;
 
       if (!docs.length) {
         wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">👨‍🏫</div>No teacher accounts yet. Add one above.</div>'; return;
@@ -2627,20 +2608,35 @@
       wrap.innerHTML = docs.map(t => `
         <div class="teacher-card-item">
           <div>
-            <strong style="color:#003087;">${t.name}</strong>
-            <div style="font-size:.79rem;color:#546e7a;margin-top:.1rem;">${t.email} · ${t.subject} · 📞 ${t.phone}</div>
+            <strong style="color:#003087;">${_bulkEsc(t.name)}</strong>
+            <div style="font-size:.79rem;color:#546e7a;margin-top:.1rem;">${_bulkEsc(t.email)} · ${t.subjects.length ? _bulkEsc(t.subjects.join(', ')) : '<span style="color:#dc2626;">No subjects</span>'} · 📞 ${_bulkEsc(t.phone)}</div>
           </div>
-          <button onclick="deleteTeacher('${t.uid}','${t.name}')" class="btn btn-danger btn-sm">🗑 Delete</button>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+            <button onclick="editTeacherSubjects('${t.uid}')" class="btn btn-outline btn-sm">✏️ Edit Subjects</button>
+            <button onclick="deleteTeacher('${t.uid}')" class="btn btn-danger btn-sm">🗑 Delete</button>
+          </div>
         </div>`).join('');
     } catch (err) {
       wrap.innerHTML = `<div class="empty-state">❌ ${err.message}</div>`;
     }
   };
 
-  window.deleteTeacher = async function(uid, name) {
+  window.deleteTeacher = async function(uid) {
+    const t = _teacherList.find(x => x.uid === uid);
+    const name = t ? t.name : 'this teacher';
     if (!confirm(`Remove teacher account for "${name}"? They will no longer be able to log in.`)) return;
     try {
       const adminToken = await auth.currentUser.getIdToken();
+      // Delete the Auth account server-side first (service-account function),
+      // so we don't leave an orphaned login that blocks reusing the email.
+      const authRes = await fetch('/.netlify/functions/admin-student-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: adminToken, action: 'delete', uid })
+      });
+      const authData = await authRes.json().catch(() => ({}));
+      if (!authRes.ok) throw new Error(authData.error || `Auth delete failed (HTTP ${authRes.status})`);
+
       await fetch(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/teachers/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
         { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } }
@@ -2649,22 +2645,72 @@
     } catch (err) { alert('Error: ' + err.message); }
   };
 
-  // ══════════════════════════════════════════════
-  //  ATTENDANCE MANAGEMENT (Admin)
-  // ══════════════════════════════════════════════
-  let _attMarks = {};
-  let _attStudentsList = [];
-  let _lastAtt = null;
+  // ── Edit which subjects a teacher teaches (multi-subject support) ──
+  window.editTeacherSubjects = function(uid) {
+    const t = _teacherList.find(x => x.uid === uid);
+    if (!t) return;
+    const current = new Set(t.subjects);
+    const chips = TEACHER_SUBJECTS.map(([val, label]) =>
+      `<label class="chip-check"><input type="checkbox" class="editTeacherSubj" value="${_bulkEsc(val)}" ${current.has(val) ? 'checked' : ''}/> ${_bulkEsc(label)}</label>`
+    ).join('');
+    const overlay = document.createElement('div');
+    overlay.id = 'editTeacherModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:480px;width:100%;padding:1.5rem;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <div style="font-weight:800;color:#003087;font-size:1.05rem;margin-bottom:.25rem;">✏️ Edit Subjects</div>
+        <div style="font-size:.82rem;color:#546e7a;margin-bottom:1rem;">${_bulkEsc(t.name)} · ${_bulkEsc(t.email)}</div>
+        <div class="chip-group" style="margin-bottom:.5rem;">${chips}</div>
+        <p style="font-size:.72rem;color:#90a4ae;margin-bottom:1rem;">Select every subject this teacher teaches. They'll choose among these when marking attendance.</p>
+        <div id="editTeacherMsg" style="font-size:.82rem;margin-bottom:.8rem;"></div>
+        <div style="display:flex;gap:.6rem;justify-content:flex-end;">
+          <button class="btn btn-outline btn-sm" onclick="closeEditTeacher()">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="saveTeacherSubjBtn" onclick="saveTeacherSubjects('${t.uid}')">Save</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeEditTeacher(); });
+    document.body.appendChild(overlay);
+  };
 
-  // Set today's date as default
-  setTimeout(() => {
-    const attDateEl = $('attDate');
-    if (attDateEl) attDateEl.value = new Date().toISOString().split('T')[0];
-    const reportMonthEl = $('reportMonth');
-    if (reportMonthEl) reportMonthEl.value = new Date().toISOString().slice(0,7);
-    loadAttHistory();
-  }, 500);
+  window.closeEditTeacher = function() {
+    const m = document.getElementById('editTeacherModal');
+    if (m) m.remove();
+  };
 
+  window.saveTeacherSubjects = async function(uid) {
+    const subjects = Array.from(document.querySelectorAll('.editTeacherSubj:checked')).map(c => c.value);
+    const msg = document.getElementById('editTeacherMsg');
+    if (!subjects.length) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'Select at least one subject.'; } return; }
+    const btn = document.getElementById('saveTeacherSubjBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      // Partial update — updateMask keeps name/email/phone/etc. untouched.
+      const res = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/teachers/${uid}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=subjects&updateMask.fieldPaths=subject`,
+        { method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+          body: JSON.stringify({ fields: {
+            subjects: { arrayValue: { values: subjects.map(s => ({ stringValue: s })) } },
+            subject:  { stringValue: subjects[0] }
+          }})
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      closeEditTeacher();
+      loadTeacherList();
+    } catch (e) {
+      if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'Error: ' + e.message; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  };
+
+  // ══════════════════════════════════════════════
+  //  ADMIN FIRESTORE READ HELPER
+  //  Attendance is teacher-only now — the admin panel READS attendance
+  //  (see "View Student Attendance" below) but can never mark or change it.
+  // ══════════════════════════════════════════════
   async function adminFsGet(path) {
     const adminToken = await auth.currentUser.getIdToken();
     const res = await fetch(
@@ -2673,261 +2719,147 @@
     );
     return res.json();
   }
-  async function adminFsPatch(path, fields) {
-    const adminToken = await auth.currentUser.getIdToken();
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}`,
-      { method:'PATCH', headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
-        body: JSON.stringify({ fields }) }
-    );
-    return res.json();
+  // ══════════════════════════════════════════════
+  //  VIEW STUDENT ATTENDANCE (Admin) — read-only
+  //  Reads students/{uid}/attendance/* (the records teachers write) and
+  //  shows a month calendar (green = present) plus per-subject present totals.
+  // ══════════════════════════════════════════════
+  const VIEW_ATT_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  // Must match the teacher/student subjectKey normalisation so totals line up.
+  function viewAttSubjectKey(s) {
+    return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/science/g, '').replace(/mathematics/g, 'maths').replace(/[^a-z0-9]+/g, '').trim();
   }
-  async function adminFsDelete(path) {
-    const adminToken = await auth.currentUser.getIdToken();
-    return fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}`,
-      { method:'DELETE', headers:{Authorization:'Bearer '+adminToken} }
-    );
-  }
+  let _viewAttStudents = [];                       // roster for the chosen class/board
+  let _viewAttRecords  = [];                       // selected student's [{date,subjectKey,subject,status}]
+  let _viewAttState    = { uid:'', year:null, month:null };
 
-  // Load students for attendance marking
-  window.loadAttStudents = async function() {
-    const cls = $('attClass').value;
-    const wrap = $('attStudentList');
-    _attMarks = {};
-    if (!cls) { wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Select a class to load students</div>'; $('attSummary').style.display='none'; return; }
-    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading students...</div>';
-
+  // Populate the student dropdown for the chosen class (+ optional board).
+  window.loadViewAttStudents = async function() {
+    const cls   = $('viewAttClass').value;
+    const board = $('viewAttBoard').value;
+    const sel   = $('viewAttStudent');
+    const body  = $('viewAttBody');
+    _viewAttRecords = []; _viewAttState.uid = '';
+    if (body) body.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Select a class, board and student to view attendance.</div>';
+    if (!cls) { sel.innerHTML = '<option value="">Select class first</option>'; return; }
+    sel.innerHTML = '<option value="">Loading…</option>';
     try {
       const json = await adminFsGet('students');
-      _attStudentsList = (json.documents||[]).map(d => {
+      _viewAttStudents = (json.documents||[]).map(d => {
         const f = d.fields||{};
-        return { uid: f.uid?.stringValue||'', name: f.name?.stringValue||'', studentId: f.studentId?.stringValue||'',
-          class: f.class?.stringValue||'', phone: f.phone?.stringValue||'' };
-      }).filter(s => s.uid && s.class === cls).sort((a,b) => a.name.localeCompare(b.name));
-
-      if (!_attStudentsList.length) {
-        wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">No students in Class ' + cls + '</div>';
-        $('attSummary').style.display='none'; return;
-      }
-
-      _attStudentsList.forEach(s => { _attMarks[s.uid] = 'P'; });
-
-      wrap.innerHTML = _attStudentsList.map(s => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem;background:#f9fbff;border-radius:12px;border:1px solid rgba(0,48,135,.07);margin-bottom:.4rem;">
-          <div>
-            <div style="font-weight:600;color:#003087;font-size:.92rem;">${s.name || s.studentId}</div>
-            <div style="font-size:.75rem;color:#90a4ae;">${s.studentId}${s.phone ? ' · ' + s.phone : ''}</div>
-          </div>
-          <div style="display:flex;gap:.4rem;">
-            <button class="att-p-btn" data-uid="${s.uid}" onclick="markAttAdmin('${s.uid}','P',this)" style="padding:.32rem .9rem;border-radius:8px;border:1.5px solid #10b981;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;background:#dcfce7;color:#166534;">P</button>
-            <button class="att-a-btn" data-uid="${s.uid}" onclick="markAttAdmin('${s.uid}','A',this)" style="padding:.32rem .9rem;border-radius:8px;border:1.5px solid #f87171;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;background:transparent;color:#991b1b;opacity:.45;">A</button>
-          </div>
-        </div>`).join('');
-
-      updateAttSummaryAdmin();
-      $('attSummary').style.display = 'flex';
-    } catch(e) { wrap.innerHTML = `<div style="color:#ef4444;">Error: ${e.message}</div>`; }
-  };
-
-  window.markAttAdmin = function(uid, status, btn) {
-    _attMarks[uid] = status;
-    const row = btn.parentElement;
-    const pBtn = row.querySelector('.att-p-btn');
-    const aBtn = row.querySelector('.att-a-btn');
-    if (status === 'P') {
-      pBtn.style.background = '#dcfce7'; pBtn.style.opacity = '1';
-      aBtn.style.background = 'transparent'; aBtn.style.opacity = '.45';
-    } else {
-      aBtn.style.background = '#fff1f2'; aBtn.style.opacity = '1';
-      pBtn.style.background = 'transparent'; pBtn.style.opacity = '.45';
+        return {
+          uid:       f.uid?.stringValue || (d.name||'').split('/').pop() || '',
+          name:      f.name?.stringValue || '',
+          studentId: f.studentId?.stringValue || '',
+          class:     f.class?.stringValue || '',
+          board:     f.board?.stringValue || '',
+          subjects:  (f.subjects?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean)
+        };
+      }).filter(s => s.uid && s.class === cls && (!board || s.board === board))
+        .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      if (!_viewAttStudents.length) { sel.innerHTML = '<option value="">No students found</option>'; return; }
+      sel.innerHTML = '<option value="">Select student</option>' + _viewAttStudents.map(s =>
+        `<option value="${_bulkEsc(s.uid)}">${_bulkEsc(s.name || s.studentId)}${s.studentId ? ' · ' + _bulkEsc(s.studentId) : ''}</option>`
+      ).join('');
+    } catch (e) {
+      sel.innerHTML = '<option value="">Error loading students</option>';
     }
-    updateAttSummaryAdmin();
   };
 
-  function updateAttSummaryAdmin() {
-    const vals = Object.values(_attMarks);
-    $('attSumP').textContent = 'Present: ' + vals.filter(v=>v==='P').length;
-    $('attSumA').textContent = 'Absent: ' + vals.filter(v=>v==='A').length;
-  }
-
-  window.submitAtt = async function() {
-    const cls  = $('attClass').value;
-    const date = $('attDate').value;
-    const subj = $('attSubject').value;
-    if (!cls || !date) { showMsg('attMsg','error','Please select class and date.'); return; }
-    if (!Object.keys(_attMarks).length) { showMsg('attMsg','error','No students to mark.'); return; }
-
-    const records = _attStudentsList.map(s => ({
-      uid: s.uid, name: s.name || s.studentId, studentId: s.studentId, phone: s.phone || '',
-      status: _attMarks[s.uid] || 'P'
-    }));
-
-    const docId = `${cls}_${date}_${Date.now()}`;
+  // Fetch the selected student's attendance records, then draw calendar + totals.
+  window.renderViewAttendance = async function() {
+    const uid  = $('viewAttStudent').value;
+    const body = $('viewAttBody');
+    _viewAttState.uid = uid;
+    if (!uid) { body.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Select a student to view attendance.</div>'; return; }
+    body.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Loading attendance…</div>';
     try {
-      const result = await adminFsPatch(`attendance/${docId}`, {
-        class:   { stringValue: cls },
-        date:    { stringValue: date },
-        subject: { stringValue: subj },
-        teacher: { stringValue: 'Admin' },
-        records: { stringValue: JSON.stringify(records) },
-        savedAt: { stringValue: new Date().toISOString() }
-      });
-      if (result.error) throw new Error(result.error.message);
-      _lastAtt = { cls, date, subj, records, teacher: 'Admin' };
-      const p = records.filter(r=>r.status==='P').length;
-      const a = records.filter(r=>r.status==='A').length;
-      showMsg('attMsg','success',`Attendance saved! Present: ${p}, Absent: ${a}`);
-      loadAttHistory();
-    } catch(e) { showMsg('attMsg','error','Error: ' + e.message); }
-  };
-
-  window.shareAttWA = function() {
-    if (!_lastAtt) { showMsg('attMsg','error','Submit attendance first.'); return; }
-    const absentList = _lastAtt.records.filter(r => r.status === 'A');
-    if (!absentList.length) { showMsg('attMsg','success','No absentees to notify!'); return; }
-    let opened = 0;
-    absentList.forEach(s => {
-      const phone = (s.phone||'').replace(/[^0-9]/g,'');
-      if (phone.length >= 10) {
-        const msg = encodeURIComponent(`*The NewTown Classes – Absence Notice*\n\nDear Parent,\nYour child *${s.name}* was marked *ABSENT* today.\nDate: ${_lastAtt.date}\nClass: ${_lastAtt.cls}${_lastAtt.subj ? '\nSubject: '+_lastAtt.subj : ''}\n\nPlease ensure regular attendance.\n— The NewTown Classes`);
-        const num = phone.length === 10 ? '91' + phone : phone;
-        window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
-        opened++;
-      }
-    });
-    if (opened) showMsg('attMsg','success',`WhatsApp opened for ${opened} absent student(s).`);
-    else showMsg('attMsg','error','No valid phone numbers found for absent students.');
-  };
-
-  window.shareAttSMS = function() {
-    if (!_lastAtt) { showMsg('attMsg','error','Submit attendance first.'); return; }
-    const absentList = _lastAtt.records.filter(r => r.status === 'A');
-    if (!absentList.length) { showMsg('attMsg','success','No absentees to notify!'); return; }
-    let opened = 0;
-    absentList.forEach(s => {
-      const phone = (s.phone||'').replace(/[^0-9]/g,'');
-      if (phone.length >= 10) {
-        const msg = encodeURIComponent(`The NewTown Classes: Your child ${s.name} was marked ABSENT on ${_lastAtt.date}. Class: ${_lastAtt.cls}. Please ensure regular attendance.`);
-        const num = phone.length === 10 ? '+91' + phone : '+' + phone;
-        window.open(`sms:${num}?body=${msg}`, '_blank');
-        opened++;
-      }
-    });
-    if (opened) showMsg('attMsg','success',`SMS opened for ${opened} absent student(s).`);
-    else showMsg('attMsg','error','No valid phone numbers found for absent students.');
-  };
-
-  window.loadAttHistory = async function() {
-    const wrap = $('historyWrap');
-    if (!wrap) return;
-    wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Loading...</div>';
-    const filterCls = $('histClass')?.value || '';
-    try {
-      const json = await adminFsGet('attendance');
-      let docs = (json.documents||[]).map(d => {
+      const json = await adminFsGet(`students/${uid}/attendance`);
+      _viewAttRecords = (json.documents||[]).map(d => {
         const f = d.fields||{};
-        return { id: d.name?.split('/').pop()||'', class: f.class?.stringValue||'', date: f.date?.stringValue||'',
-          subject: f.subject?.stringValue||'', teacher: f.teacher?.stringValue||'',
-          records: JSON.parse(f.records?.stringValue||'[]'), savedAt: f.savedAt?.stringValue||'' };
-      }).filter(d => !filterCls || d.class === filterCls)
-        .sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
-
-      if (!docs.length) { wrap.innerHTML='<div style="text-align:center;padding:2rem;color:#90a4ae;">No attendance records yet.</div>'; return; }
-
-      wrap.innerHTML = docs.map(d => {
-        const p = d.records.filter(r=>r.status==='P').length;
-        const a = d.records.filter(r=>r.status==='A').length;
-        const absentNames = d.records.filter(r=>r.status==='A').map(r=>r.name).join(', ');
-        return `
-          <div style="border:1px solid rgba(0,48,135,.09);border-radius:14px;padding:1rem 1.2rem;margin-bottom:.75rem;background:#f9fbff;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
-              <div style="flex:1;">
-                <strong style="color:#003087;">Class ${d.class} — ${d.date}</strong>
-                <div style="font-size:.78rem;color:#546e7a;margin-top:.15rem;">${d.subject||''}${d.subject?' · ':''}${d.teacher}</div>
-                <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap;">
-                  <span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#dcfce7;color:#166534;">P: ${p}</span>
-                  <span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#fff1f2;color:#991b1b;">A: ${a}</span>
-                </div>
-                ${absentNames ? `<div style="font-size:.78rem;color:#dc2626;margin-top:.3rem;">Absent: ${absentNames}</div>` : ''}
-              </div>
-              <button onclick="deleteAttAdmin('${d.id}')" class="btn btn-danger btn-sm">Delete</button>
-            </div>
-          </div>`;
-      }).join('');
-    } catch(e) { wrap.innerHTML=`<div style="color:#ef4444;">${e.message}</div>`; }
+        return { date: f.date?.stringValue||'', subjectKey: f.subjectKey?.stringValue||'', subject: f.subject?.stringValue||'', status: f.status?.stringValue||'' };
+      }).filter(r => r.date && (r.status === 'present' || r.status === 'absent'));
+      const now = new Date();
+      if (_viewAttState.year === null) { _viewAttState.year = now.getFullYear(); _viewAttState.month = now.getMonth(); }
+      drawViewAttendance();
+    } catch (e) {
+      body.innerHTML = `<div style="color:#dc2626;padding:1rem;">Error: ${_bulkEsc(e.message)}</div>`;
+    }
   };
 
-  window.deleteAttAdmin = async function(docId) {
-    if (!confirm('Delete this attendance record? This cannot be undone.')) return;
-    try {
-      await adminFsDelete(`attendance/${docId}`);
-      showMsg('attMsg','success','Record deleted.');
-      loadAttHistory();
-    } catch(e) { showMsg('attMsg','error','Delete failed: ' + e.message); }
+  window.viewAttChangeMonth = function(delta) {
+    let m = _viewAttState.month + delta, y = _viewAttState.year;
+    if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+    _viewAttState.month = m; _viewAttState.year = y;
+    drawViewAttendance();
   };
 
-  window.genMonthlyReport = async function() {
-    const cls   = $('reportClass').value;
-    const month = $('reportMonth').value;
-    const wrap  = $('reportWrap');
-    if (!cls || !month) { wrap.innerHTML = '<div style="color:#991b1b;font-size:.88rem;margin-top:.5rem;">Select class and month.</div>'; return; }
+  function drawViewAttendance() {
+    const body = $('viewAttBody');
+    if (!body) return;
+    const { year, month } = _viewAttState;
+    const student  = _viewAttStudents.find(s => s.uid === _viewAttState.uid) || {};
+    const subjects = (student.subjects && student.subjects.length) ? student.subjects : [];
+    const prefix   = `${year}-${String(month+1).padStart(2,'0')}-`;
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Generating report...</div>';
-    try {
-      const json = await adminFsGet('attendance');
-      const docs = (json.documents||[]).map(d => {
-        const f = d.fields||{};
-        return { class: f.class?.stringValue||'', date: f.date?.stringValue||'',
-          records: JSON.parse(f.records?.stringValue||'[]') };
-      }).filter(d => d.class === cls && d.date.startsWith(month));
+    const presentSet = new Set(_viewAttRecords.filter(r => r.status==='present' && r.date.startsWith(prefix)).map(r => r.date));
+    const absentSet  = new Set(_viewAttRecords.filter(r => r.status==='absent'  && r.date.startsWith(prefix)).map(r => r.date));
+    const totalPresent = presentSet.size;
 
-      if (!docs.length) { wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">No attendance data for this class/month.</div>'; return; }
+    // Calendar grid — green = present, red = absent
+    const firstDay    = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    let cells = ['Su','Mo','Tu','We','Th','Fr','Sa'].map(w =>
+      `<div style="text-align:center;font-size:.7rem;font-weight:800;color:#90a4ae;padding:.3rem 0;">${w}</div>`).join('');
+    for (let i=0;i<firstDay;i++) cells += '<div></div>';
+    for (let d=1; d<=daysInMonth; d++) {
+      const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const present = presentSet.has(ds), absent = absentSet.has(ds), isToday = ds===todayStr;
+      let bg='transparent', col='#334155', bd='1px solid rgba(0,48,135,.08)';
+      if (present)      { bg='linear-gradient(135deg,#34d399,#16a34a)'; col='#fff'; bd='none'; }
+      else if (absent)  { bg='linear-gradient(135deg,#fb7185,#ef4444)'; col='#fff'; bd='none'; }
+      const ring = isToday ? 'box-shadow:0 0 0 2px #003087;' : '';
+      cells += `<div title="${ds}${present?' · Present':absent?' · Absent':''}" style="text-align:center;padding:.5rem 0;border-radius:8px;font-size:.82rem;font-weight:700;background:${bg};color:${col};border:${bd};${ring}">${d}</div>`;
+    }
 
-      const workingDays = docs.length;
-      const studentMap = {};
-      docs.forEach(d => {
-        d.records.forEach(r => {
-          const key = r.uid || r.studentId || r.name;
-          if (!studentMap[key]) studentMap[key] = { name: r.name, studentId: r.studentId||'', present: 0, absent: 0 };
-          if (r.status === 'P') studentMap[key].present++;
-          else studentMap[key].absent++;
-        });
-      });
+    // Per-subject present totals for the displayed month
+    const totalsRows = subjects.length ? subjects.map(s => {
+      const sk = viewAttSubjectKey(s);
+      const present = _viewAttRecords.filter(r => r.subjectKey===sk && r.status==='present' && r.date.startsWith(prefix)).length;
+      const absent  = _viewAttRecords.filter(r => r.subjectKey===sk && r.status==='absent'  && r.date.startsWith(prefix)).length;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .1rem;border-bottom:1px dashed rgba(0,48,135,.08);">
+        <span style="font-size:.88rem;color:#334155;font-weight:600;">${_bulkEsc(s)}</span>
+        <span style="font-size:.9rem;font-weight:800;"><span style="color:#16a34a;">${present}P</span>${absent?` <span style="color:#ef4444;">${absent}A</span>`:''}</span>
+      </div>`;
+    }).join('') : '<div style="color:#90a4ae;font-size:.85rem;">No subjects enrolled for this student.</div>';
 
-      const students = Object.values(studentMap).sort((a,b) => a.name.localeCompare(b.name));
-      const monthName = new Date(month + '-01').toLocaleDateString('en-IN', { month:'long', year:'numeric' });
-
-      wrap.innerHTML = `
-        <div style="margin-bottom:1rem;">
-          <strong style="color:#003087;">Class ${cls} — ${monthName}</strong>
-          <div style="font-size:.82rem;color:#546e7a;margin-top:.2rem;">Working days: ${workingDays} | Students: ${students.length}</div>
+    body.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;">
+        <div style="font-weight:800;color:#003087;">${_bulkEsc(student.name || student.studentId || 'Student')} · Class ${_bulkEsc(student.class||'')}${student.board?' · '+_bulkEsc(student.board):''}</div>
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <button class="btn btn-outline btn-sm" onclick="viewAttChangeMonth(-1)">‹</button>
+          <span style="font-weight:700;color:#003087;min-width:140px;text-align:center;">${VIEW_ATT_MONTHS[month]} ${year}</span>
+          <button class="btn btn-outline btn-sm" onclick="viewAttChangeMonth(1)">›</button>
         </div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:.84rem;">
-            <thead><tr style="background:#f0f4ff;">
-              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">#</th>
-              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Student</th>
-              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">ID</th>
-              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Present</th>
-              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Absent</th>
-              <th style="padding:.55rem .8rem;text-align:left;color:#003087;font-weight:700;font-size:.78rem;border-bottom:1px solid rgba(0,48,135,.08);">Working Days</th>
-            </tr></thead>
-            <tbody>
-              ${students.map((s,i) => `
-                <tr style="border-bottom:1px solid rgba(0,48,135,.06);">
-                  <td style="padding:.55rem .8rem;color:#90a4ae;">${i+1}</td>
-                  <td style="padding:.55rem .8rem;font-weight:600;">${s.name}</td>
-                  <td style="padding:.55rem .8rem;font-size:.78rem;color:#546e7a;">${s.studentId}</td>
-                  <td style="padding:.55rem .8rem;"><span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#dcfce7;color:#166534;">${s.present}</span></td>
-                  <td style="padding:.55rem .8rem;"><span style="padding:.18rem .6rem;border-radius:50px;font-size:.72rem;font-weight:700;background:#fff1f2;color:#991b1b;">${s.absent}</span></td>
-                  <td style="padding:.55rem .8rem;">${workingDays}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>`;
-    } catch(e) { wrap.innerHTML = `<div style="color:#ef4444;">${e.message}</div>`; }
-  };
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;align-items:start;">
+        <div>
+          <div style="display:flex;gap:.9rem;font-size:.72rem;font-weight:800;margin-bottom:.6rem;">
+            <span style="display:inline-flex;align-items:center;gap:.3rem;color:#16a34a;"><span style="width:11px;height:11px;background:linear-gradient(135deg,#34d399,#16a34a);border-radius:4px;"></span>Present</span>
+            <span style="display:inline-flex;align-items:center;gap:.3rem;color:#ef4444;"><span style="width:11px;height:11px;background:linear-gradient(135deg,#fb7185,#ef4444);border-radius:4px;"></span>Absent</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;">${cells}</div>
+        </div>
+        <div style="border:1px solid rgba(0,48,135,.08);border-radius:14px;padding:1rem;background:#f9fbff;">
+          <div style="font-weight:800;color:#003087;margin-bottom:.3rem;">Present days · ${VIEW_ATT_MONTHS[month]}</div>
+          <div style="font-size:2rem;font-weight:900;color:#16a34a;line-height:1;margin-bottom:.9rem;">${totalPresent}<span style="font-size:.8rem;color:#90a4ae;font-weight:700;"> day${totalPresent===1?'':'s'}</span></div>
+          <div style="font-weight:800;color:#003087;font-size:.85rem;margin-bottom:.2rem;">By subject</div>
+          ${totalsRows}
+          <div style="font-size:.7rem;color:#90a4ae;margin-top:.6rem;">P = present days · A = absent days (this month)</div>
+        </div>
+      </div>`;
+  }
 
   // ════════════════════════════════════════
   //  LIVE CLASSES — Admin Logic

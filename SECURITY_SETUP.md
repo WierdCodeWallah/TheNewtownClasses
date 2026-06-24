@@ -16,7 +16,8 @@ Public site: `thenewtownclasses.com` (Netlify)
 | 3 | App Check (reCAPTCHA v3) | Wired up — needs a site key — see §4 | Helper in `firebase-config.js` (`initAppCheck`); already called from every page that initialises Firebase. Add the site key to enable. |
 | 4 | Auth checks in JS | Reviewed — all clean. One hardening tweak applied | Teacher dashboard now halts execution after a not-signed-in redirect (was racing with subsequent Firestore calls). |
 | 5 | Billing alerts | **Action required in console** — see §5 | |
-| 6 | Hardcoded secrets | No real secrets found | The Firebase web config and the Uploadcare *public* key are both public by design. There is **one critical data-handling issue** unrelated to secrets — see §7. |
+| 6 | Hardcoded secrets | No real secrets found | The Firebase web config and the Uploadcare *public* key are both public by design. |
+| 7 | Plaintext passwords | **FIXED in code** — see §7 | Student *and* teacher passwords are no longer written to Firestore. Password resets and account deletion now run server-side via the `admin-student-auth` function. **One console step required:** add the `FIREBASE_SERVICE_ACCOUNT` env var in Netlify (see §7). Run the one-time "Purge stored passwords" button to remove old copies. |
 
 ---
 
@@ -172,23 +173,42 @@ After steps 2–5 are done, run through this in a private/incognito browser wind
 
 ---
 
-## 7. CRITICAL data-handling issue (separate from this audit's scope)
+## 7. Plaintext passwords — FIXED (one console step remains)
 
-While reviewing the rules, I found that **`admin-panel.html` stores student passwords in plaintext** in each `students/{uid}` document, in a `password` field. The "Reset password" flow reads that field, signs in *as* the student over the REST API to mint a token, and then updates the auth password.
+**The problem (now resolved):** `admin-panel.html` used to store every student's *and* every teacher's password in plaintext, in a `password` field on `students/{uid}` and `teachers/{uid}`. Teacher docs are readable by **any signed-in user**, so every student could read every teacher's password; student docs are readable by all staff.
 
-This means:
+**What was changed in code:**
 
-1. Anybody with read access to `students/{uid}` (which under the new rules is the student themselves, all teachers, and admins) can read that student's plaintext password from the document.
-2. If a teacher account is ever compromised, every student's password is exposed.
-3. Firestore rules are document-level, not field-level — there is no rule I can write that hides the `password` field while still letting teachers read attendance/profile fields on the same document.
+- The create-student, bulk-import, and create-teacher flows **no longer write a `password` field** at all.
+- Password reset no longer needs (or keeps) a stored copy. It now calls a new server-side function, `netlify/functions/admin-student-auth.js`, which:
+  - verifies the caller's Firebase ID token signature,
+  - confirms the caller is an admin (`admins/{uid}.isAdmin == true`),
+  - then uses a **service-account** token to set the new password directly via the Firebase Admin API. No old password is ever read; the new one is never persisted.
+- Account **deletion** (student and teacher) now goes through the same function so the Auth account is actually removed (the old client-side `accounts:delete` had no auth token and silently failed, leaving orphaned logins that blocked reusing an ID/email).
+- The "Download Credentials" export is now a **roster with no passwords**.
+- A one-time **"Purge stored passwords"** button (Reset Password tab) strips the legacy `password` field from all existing student and teacher docs.
 
-**Recommended remediation, in order of effort:**
+### 7a. Required console step — add the service-account key to Netlify
 
-1. **Cheap:** stop offering "reset to a chosen password" entirely. Use Firebase Auth's built-in password-reset email — students click a link, set their own password. Delete the `password` field from every existing `students` doc.
-2. **Medium:** if admins must be able to set passwords directly (because students can't always receive email), move the reset flow into a **Cloud Function** that uses the Admin SDK's `updateUser({ password })`. The plaintext password never leaves the function — Firestore stores nothing.
-3. **Don't:** "encrypt the password before storing." That's still a reversible secret in the database — same risk class.
+The function needs admin rights to change passwords, which requires a service account:
 
-I'm flagging this here because it's the single biggest credential-exposure risk in the codebase, and the new rules can only mitigate it, not solve it.
+1. Firebase Console → **Project settings** (gear icon) → **Service accounts** tab.
+2. Click **Generate new private key** → confirm → a JSON file downloads. **Treat this file like a master password** — it grants full admin access to your Firebase project. Do **not** commit it to git or put it in the published site.
+3. Open the JSON, copy its **entire contents** (one big `{ ... }` block).
+4. Netlify → your site → **Site settings → Environment variables → Add a variable**:
+   - Key: `FIREBASE_SERVICE_ACCOUNT`
+   - Value: paste the entire JSON.
+   - (Confirm `FIREBASE_PROJECT_ID` is also set — it's already required by the Zoom/Gemini functions.)
+5. **Redeploy** the site (Netlify → Deploys → Trigger deploy) so the function picks up the new variable.
+6. Delete the downloaded JSON file from your computer once it's pasted into Netlify.
+
+### 7b. After deploy — run the cleanup
+
+1. Open the admin panel → **Reset Password** tab.
+2. Test a reset on one student to confirm the function works (you'll see "Password successfully reset").
+3. Click **Purge stored passwords** once to scrub the old plaintext copies from the database.
+
+> The service-account JSON is the one genuinely sensitive secret in this whole setup. It lives only in Netlify's environment variables, never in the repo or the browser. If it ever leaks, revoke it in Firebase Console → Service accounts → Manage service account permissions, and generate a new key.
 
 ---
 

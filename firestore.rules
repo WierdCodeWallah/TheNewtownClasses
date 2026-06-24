@@ -49,16 +49,20 @@ service cloud.firestore {
     function onlyChanges(allowed) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
-    // True iff the teacher has opened attendance for this class+subject on
-    // the given date. The control doc id is `${class}__${subjectKey}`,
-    // written by the teacher portal (toggleAttendance in teacher-dashboard).
-    function isAttendanceOpen(cls, board, subjectKey, date) {
-      let cid = cls + '__' + board + '__' + subjectKey;
-      return exists(/databases/$(database)/documents/attendanceControl/$(cid))
-        && get(/databases/$(database)/documents/attendanceControl/$(cid)).data.open == true
-        && get(/databases/$(database)/documents/attendanceControl/$(cid)).data.openDate == date;
+    // True iff the calling TEACHER may record attendance for `subject`. A
+    // teacher's profile (teachers/{uid}) lists the subjects they teach in a
+    // `subjects` array (e.g. ["Mathematics","Physics"]); older accounts may
+    // only have a single `subject` string, which we still honour. "All
+    // Subjects" in either field means any subject. Admins are intentionally
+    // excluded: only teachers can mark attendance. The teacher portal and
+    // admin panel use the same subject labels, so a direct match works.
+    // Callers gate this with isTeacher(), so the teacher doc is guaranteed.
+    function attnSubjectAllowed(subject) {
+      let t = get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data;
+      return t.get('subjects', []).hasAny([subject, 'All Subjects'])
+          || t.get('subject', '') == subject
+          || t.get('subject', '') == 'All Subjects';
     }
-
     // ─── students/{uid} ─────────────────────────────────────────────
     // Students can read their own profile.
     // Staff can read all students (needed for attendance, reports, results).
@@ -89,24 +93,23 @@ service cloud.firestore {
       }
 
       // ─── students/{uid}/attendance/{recordId} ─────────────────────
-      // Self-service attendance records. recordId is `${date}__${subjectKey}`.
-      // A student can mark themselves PRESENT only for their own uid, and
-      // only while the teacher has attendance open for that class+subject
-      // on that date (see isAttendanceOpen). Staff can read all and can
-      // edit/remove records (corrections). The student reads their own.
-      // Staff can set any status (e.g. mark absentees). A student can only
-      // create their own PRESENT record, and only while the teacher has
-      // attendance open for their class+board+subject on that date.
+      // Attendance records. recordId is `${date}__${subjectKey}`.
+      // READ: the student (their own) or any staff — admins view attendance
+      // in the admin panel; teachers view it in the teacher portal.
+      //
+      // WRITE: ONLY teachers (admins are view-only — they cannot mark or
+      // change attendance). Two client rules enforced here, not just in UI:
+      //  1. A teacher may only mark attendance for the subject they teach
+      //     (attnSubjectAllowed).
+      //  2. Once a record is 'present' it is FINAL for that day+subject —
+      //     it cannot be overwritten or deleted from any client.
       match /attendance/{recordId} {
         allow read:   if isSignedIn() && (request.auth.uid == uid || isStaff());
-        allow create: if isStaff()
-                      || (request.auth.uid == uid
-                          && request.resource.data.status == 'present'
-                          && isAttendanceOpen(request.resource.data.class,
-                                              request.resource.data.board,
-                                              request.resource.data.subjectKey,
-                                              request.resource.data.date));
-        allow update, delete: if isStaff();
+        allow create: if isTeacher() && attnSubjectAllowed(request.resource.data.subject);
+        allow update: if isTeacher() && attnSubjectAllowed(request.resource.data.subject)
+                      && resource.data.status != 'present';
+        allow delete: if isTeacher() && attnSubjectAllowed(resource.data.subject)
+                      && resource.data.status != 'present';
       }
     }
 
@@ -174,21 +177,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // ─── attendance/{id} ────────────────────────────────────────────
-    // Staff read/write. Students don't touch attendance from the client.
+    // ─── attendance/{id} (legacy top-level collection) ──────────────
+    // No longer written by any client — attendance now lives per-student
+    // under students/{uid}/attendance and is teacher-only. Kept readable by
+    // staff for any old records; nobody can write here from the client.
     match /attendance/{id} {
-      allow read, write: if isStaff();
-    }
-
-    // ─── attendanceControl/{id} ─────────────────────────────────────
-    // Per class+subject switch that lets students self-mark attendance.
-    // id = `${class}__${subjectKey}` (e.g. "10__physics").
-    // Any signed-in user can read it (students need to know if marking is
-    // open); only staff can flip it on/off (toggleAttendance in the
-    // teacher portal). It is also read by isAttendanceOpen() above.
-    match /attendanceControl/{id} {
-      allow read:                   if isSignedIn();
-      allow create, update, delete: if isStaff();
+      allow read:  if isStaff();
+      allow write: if false;
     }
 
     // ─── liveClasses/{id} ───────────────────────────────────────────

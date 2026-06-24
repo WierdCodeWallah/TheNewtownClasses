@@ -1208,7 +1208,7 @@
       <div id="attendanceSection" style="display:none;">
         <div class="attn-hero attn-anim">
           <h2>📅 My Attendance</h2>
-          <p>Tap a subject to see your month at a glance — <strong>green</strong> means present, <strong>red</strong> means absent.</p>
+          <p>Tap a subject to see your month at a glance — <strong>green</strong> marks the days your teacher recorded you <strong>present</strong>.</p>
         </div>
 
         <div class="attn-card attn-controls attn-anim">
@@ -1282,7 +1282,7 @@ const sectionMeta = {
   results:     { title: 'My Test Results',   desc: 'Your online test scores from the last 30 days', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
   recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes you missed or want to revise', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
   chatbot:     { title: '💬 Ask a Doubt',     desc: 'Get instant answers, or connect with a teacher if you need more help', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
-  attendance:  { title: '📅 My Attendance',   desc: 'Mark yourself present when class is open, and track your monthly attendance', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📅' },
+  attendance:  { title: '📅 My Attendance',   desc: 'See how many days you were present each month — green marks the days you attended', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📅' },
 };
 
 var currentSection  = 'chapterwise'; // var so module script can read it
@@ -1391,7 +1391,7 @@ function switchSection(el, section) {
       attSection.classList.add('attn-enter');
     }
     document.getElementById('pageTitle').textContent = '📅 My Attendance';
-    document.getElementById('pageDesc').textContent  = 'Mark yourself present when class is open, and track your monthly attendance';
+    document.getElementById('pageDesc').textContent  = 'See how many days you were present each month — green marks the days you attended';
     document.getElementById('breadcrumbSection').textContent = 'My Attendance';
   } else {
     if (lcSection)  lcSection.style.display  = 'none';
@@ -2931,10 +2931,10 @@ renderCards();
   }
 
   // ════════════════════════════════════════════
-  //  MY ATTENDANCE (student)
-  //  Reads students/{uid}/attendance/* and lets the student self-mark
-  //  present for today when the teacher has opened attendance for the
-  //  selected subject (attendanceControl/{class}__{subjectKey}).
+  //  MY ATTENDANCE (student) — read-only
+  //  Reads students/{uid}/attendance/* and shows the month at a glance.
+  //  Only teachers record attendance; students can no longer self-mark.
+  //  Green = present (counts towards the monthly total); red = absent.
   // ════════════════════════════════════════════
   function attnSubjectKeyS(s) {
     return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/science/g, '').replace(/mathematics/g, 'maths').replace(/[^a-z0-9]+/g, '').trim();
@@ -2944,10 +2944,6 @@ renderCards();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   const ATTN_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  // Authoritative class for attendance = the student's profile class (the
-  // ?class= URL param is only a display hint and can be wrong/defaulted).
-  function attnClassVal() { return (window._studentProfile && window._studentProfile.class) || studentClass || ''; }
-  function attnBoardVal() { return (window._studentProfile && window._studentProfile.board) || ''; }
   let _attnRecords = [];               // [{date, subjectKey, subject, status}]
   let _attnState = { subject: '', year: null, month: null };
   let _attnSubjectsLoaded = false;
@@ -3043,19 +3039,14 @@ renderCards();
       </div>
       <div class="attn-cal-grid">${cells}</div>`;
 
-    // Mark-present control (today only, gated by teacher toggle)
+    // Today's status (read-only — only teachers record attendance)
     if (markWrap) {
       if (todayStatus === 'present') {
         markWrap.innerHTML = '<span class="attn-pill present">✅ Present today</span>';
       } else if (todayStatus === 'absent') {
         markWrap.innerHTML = '<span class="attn-pill absent">❌ Absent today</span>';
       } else {
-        markWrap.innerHTML = '<span class="attn-pill closed">Checking…</span>';
-        const open = await attnIsOpenToday(attnClassVal(), attnBoardVal(), sk, today);
-        if (absentSet.has(today) || presentSet.has(today)) return; // guard against race
-        markWrap.innerHTML = open
-          ? `<button class="attn-mark-btn" onclick="markAttendancePresent()">✔ Mark me present</button>`
-          : '<span class="attn-pill closed">⚪ Not open right now</span>';
+        markWrap.innerHTML = '';
       }
     }
   };
@@ -3081,54 +3072,6 @@ renderCards();
     list.innerHTML = rows + '<div style="font-size:.7rem;color:#90a4ae;margin-top:.6rem;">P = present days · A = absent days (this month)</div>';
   }
 
-  async function attnIsOpenToday(cls, board, subjectKey, today) {
-    if (!board) return false;
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/attendanceControl/${cls}__${board}__${subjectKey}?key=${FIREBASE_CONFIG.apiKey}`,
-        { headers: { Authorization: 'Bearer ' + token } }
-      );
-      if (!res.ok) return false;
-      const j = await res.json();
-      const f = j.fields || {};
-      return f.open?.booleanValue === true && f.openDate?.stringValue === today;
-    } catch (_e) { return false; }
-  }
-
-  window.markAttendancePresent = async function() {
-    const subject = _attnState.subject;
-    if (!subject) return;
-    const sk = attnSubjectKeyS(subject);
-    const today = attnTodayStrS();
-    const markWrap = document.getElementById('attnMarkWrap');
-    if (markWrap) markWrap.innerHTML = '<span style="color:#90a4ae;font-size:.82rem;">Marking…</span>';
-    try {
-      const token = await user.getIdToken();
-      const recordId = `${today}__${sk}`;
-      const res = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${user.uid}/attendance/${recordId}?key=${FIREBASE_CONFIG.apiKey}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-          body: JSON.stringify({ fields: {
-            date: { stringValue: today }, subject: { stringValue: subject }, subjectKey: { stringValue: sk },
-            class: { stringValue: attnClassVal() }, board: { stringValue: attnBoardVal() },
-            status: { stringValue: 'present' }, markedAt: { stringValue: new Date().toISOString() }
-          } })
-        }
-      );
-      const j = await res.json();
-      if (j.error) {
-        if (markWrap) markWrap.innerHTML = '<span style="color:#ef4444;font-size:.82rem;">⚪ Attendance just closed — ask your teacher to reopen it.</span>';
-        return;
-      }
-      _attnRecords.push({ date: today, subjectKey: sk, subject, status: 'present' });
-      window.renderAttendanceCalendar();
-    } catch (e) {
-      if (markWrap) markWrap.innerHTML = `<span style="color:#ef4444;font-size:.82rem;">Error: ${e.message}</span>`;
-    }
-  };
 
   window.loadStudentClasses = async function() {
     const wrap = document.getElementById('lcStudentList');
