@@ -41,6 +41,16 @@ export const FIREBASE_CONFIG = {
 //
 export const RECAPTCHA_V3_SITE_KEY = "6LcGAdYsAAAAAAv2_DFaO7xNxZZYVFwpL8GpGlww"; // ← paste your reCAPTCHA v3 site key here
 
+// ════════════════════════════════════════════════════
+//  CLOUD MESSAGING (Web Push) — VAPID public key
+// ════════════════════════════════════════════════════
+//  Needed so the student dashboard can register for push notifications.
+//  Firebase Console → ⚙ Project settings → Cloud Messaging →
+//  "Web Push certificates" → Generate key pair → copy the key (long string,
+//  usually starts with "B…"). It's a PUBLIC key, safe to commit.
+//  Leave it blank to disable push (the dashboard simply won't prompt).
+export const FCM_VAPID_KEY = "BLui_XogBooElyLNssnrjqrMLK9yn-Fm7_QEq0cTxY8ttEkpjK_1n92xJcIG_IZH0PHUIDxOJw6pgySx4Frj2jk"; // ← paste your Web Push certificate (VAPID) key here
+
 /**
  * Call this ONCE per page, immediately after `initializeApp(FIREBASE_CONFIG)`,
  * before getAuth() or getFirestore().

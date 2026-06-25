@@ -532,6 +532,9 @@
       <div class="sidebar-item" data-section="attendance" onclick="switchAdminTab('attendance')">
         <span class="icon">📋</span> Attendance
       </div>
+      <div class="sidebar-item" data-section="notifications" onclick="switchAdminTab('notifications')">
+        <span class="icon">🔔</span> Notifications
+      </div>
     </div>
   </aside>
 
@@ -981,6 +984,62 @@
   </div>
 
   </div><!-- /tab-attendance -->
+
+  <!-- ════════════════ NOTIFICATIONS ════════════════ -->
+  <div class="tab-content" id="tab-notifications">
+  <div class="card">
+    <div class="card-title">🔔 Send Notification</div>
+    <p class="card-sub">Send a web-push notification to enrolled students. They receive it on their phone/computer if they turned on notifications in the student dashboard — even when the site is closed.</p>
+
+    <div class="form-grid">
+      <div class="field full">
+        <label>Title *</label>
+        <input type="text" id="pushTitle" maxlength="80" placeholder="e.g. Test tomorrow"/>
+      </div>
+      <div class="field full">
+        <label>Message *</label>
+        <textarea id="pushBody" maxlength="500" rows="3" placeholder="e.g. Physics unit test tomorrow at 9 AM. Bring your calculator." style="resize:vertical;font-family:inherit;padding:.7rem .85rem;border:1px solid rgba(0,48,135,.15);border-radius:10px;font-size:.92rem;"></textarea>
+      </div>
+      <div class="field">
+        <label>Send to</label>
+        <select id="pushAudType" onchange="onPushAudChange()">
+          <option value="all">All enrolled students</option>
+          <option value="class">A specific class</option>
+          <option value="subject">A specific subject</option>
+        </select>
+      </div>
+      <div class="field" id="pushClassField" style="display:none;">
+        <label>Class</label>
+        <select id="pushClass">
+          <option value="7">Class 7</option>
+          <option value="8">Class 8</option>
+          <option value="9">Class 9</option>
+          <option value="10">Class 10</option>
+          <option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+      </div>
+      <div class="field" id="pushSubjectField" style="display:none;">
+        <label>Subject</label>
+        <select id="pushSubject">
+          <option value="Physics">Physics</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="Maths">Maths</option>
+          <option value="Biology">Biology</option>
+          <option value="Computer">Computer Science</option>
+          <option value="English">English</option>
+        </select>
+        <p style="font-size:.72rem;color:#90a4ae;margin-top:.3rem;">Matches students enrolled in this subject.</p>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" id="sendPushBtn" onclick="sendPush()">🔔 Send Notification</button>
+      <span style="font-size:.78rem;color:#90a4ae;">Only students who enabled notifications will receive it.</span>
+    </div>
+    <div id="pushMsg" class="alert"></div>
+  </div>
+  </div><!-- /tab-notifications -->
 
   <!-- ════════════════ CLASS TESTS ════════════════ -->
   <div class="tab-content" id="tab-tests">
@@ -2860,6 +2919,60 @@
         </div>
       </div>`;
   }
+
+  // ══════════════════════════════════════════════
+  //  NOTIFICATIONS (Admin) — send web push to students
+  //  Calls the send-push Netlify function, which fans out to the FCM tokens
+  //  students registered from their dashboard.
+  // ══════════════════════════════════════════════
+  window.onPushAudChange = function() {
+    const t = $('pushAudType').value;
+    $('pushClassField').style.display   = (t === 'class')   ? 'flex' : 'none';
+    $('pushSubjectField').style.display = (t === 'subject') ? 'flex' : 'none';
+  };
+
+  window.sendPush = async function() {
+    const title = $('pushTitle').value.trim();
+    const body  = $('pushBody').value.trim();
+    const type  = $('pushAudType').value;
+    const btn   = $('sendPushBtn');
+    if (!title) { showMsg('pushMsg', 'error', '❌ Enter a title.'); return; }
+    if (!body)  { showMsg('pushMsg', 'error', '❌ Enter a message.'); return; }
+
+    const audience = { type };
+    if (type === 'class')   audience.value = $('pushClass').value;
+    if (type === 'subject') audience.value = $('pushSubject').value;
+
+    const who = type === 'all' ? 'all enrolled students'
+              : type === 'class' ? `Class ${audience.value}`
+              : `${audience.value} students`;
+    if (!confirm(`Send this notification to ${who}?\n\n${title}\n${body}`)) return;
+
+    btn.disabled = true; btn.textContent = 'Sending…';
+    clearMsg('pushMsg');
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/.netlify/functions/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, title, body, audience })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Send failed (HTTP ${res.status})`);
+      if (!data.recipients) {
+        showMsg('pushMsg', 'success', `✅ Sent. No registered devices matched ${who} yet — students need to turn on notifications in their dashboard first.`);
+      } else {
+        showMsg('pushMsg', 'success',
+          `✅ Delivered to ${data.sent} of ${data.recipients} device(s) for ${who}.` +
+          (data.cleaned ? ` (${data.cleaned} stale device(s) removed.)` : ''));
+      }
+      $('pushTitle').value = ''; $('pushBody').value = '';
+    } catch (err) {
+      showMsg('pushMsg', 'error', '❌ ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '🔔 Send Notification';
+    }
+  };
 
   // ════════════════════════════════════════
   //  LIVE CLASSES — Admin Logic

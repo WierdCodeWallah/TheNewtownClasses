@@ -186,6 +186,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ─── pushTokens/{token} ─────────────────────────────────────────
+    // Web-push (FCM) device tokens. Doc ID is the token itself. Each doc:
+    //   { token, uid, studentId, class, board, subjects[], updatedAt }
+    // A signed-in user may register / refresh / remove a token only for
+    // THEMSELVES (uid must match). Staff may read (for counts). The
+    // send-push Netlify function reads + cleans up tokens via the service
+    // account, which bypasses these rules.
+    match /pushTokens/{token} {
+      allow read:           if isStaff();
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete:         if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // ─── liveClasses/{id} ───────────────────────────────────────────
     // Any signed-in user can read the schedule.
     // Staff can create/update; only admin can delete.
