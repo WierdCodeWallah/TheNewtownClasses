@@ -527,7 +527,7 @@
       <div class="sidebar-section">
         <div class="sidebar-heading">Attendance</div>
         <div class="sidebar-item" data-section="attendance" onclick="switchSection(this,'attendance');loadAttendance();">
-          <span class="icon">📅</span> My Attendance
+          <span class="icon">📋</span> My Attendance
         </div>
       </div>
 
@@ -1207,8 +1207,7 @@
       </style>
       <div id="attendanceSection" style="display:none;">
         <div class="attn-hero attn-anim">
-          <h2>📅 My Attendance</h2>
-          <p>Tap a subject to see your month at a glance — <strong>green</strong> marks the days your teacher recorded you <strong>present</strong>.</p>
+          <h2>📋 My Attendance</h2>
         </div>
 
         <div class="attn-card attn-controls attn-anim">
@@ -1274,15 +1273,15 @@ document.title = 'Class ' + studentClass + ' Dashboard – The NewTown Classes';
 // rendered by the module-script override of window.renderCards below.
 
 const sectionMeta = {
-  chapterwise: { title: 'Chapterwise Tests', desc: 'Practice chapter-by-chapter with PDFs and MCQs', badge: 'badge-mcq', badgeText: 'MCQ', icon: '📝' },
-  module:      { title: 'Module Tests',      desc: 'Complete module-level assessments',            badge: 'badge-pdf', badgeText: 'PDF', icon: '📚' },
-  mock:        { title: 'Mock Tests',        desc: 'Full-length mock exams to test your preparation', badge: 'badge-pdf', badgeText: 'EXAM', icon: '🎯' },
-  notes:       { title: 'Chapter Notes',     desc: 'Download study notes for quick revision',      badge: 'badge-notes', badgeText: 'NOTES', icon: '📖' },
-  onlinetest:  { title: 'Online Tests',      desc: 'Take auto-graded MCQ tests and see your results instantly', badge: 'badge-mcq', badgeText: 'LIVE', icon: '✏️' },
-  results:     { title: 'My Test Results',   desc: 'Your online test scores from the last 30 days', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
-  recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes you missed or want to revise', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
-  chatbot:     { title: '💬 Ask a Doubt',     desc: 'Get instant answers, or connect with a teacher if you need more help', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
-  attendance:  { title: '📅 My Attendance',   desc: 'See how many days you were present each month — green marks the days you attended', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📅' },
+  chapterwise: { title: 'Chapterwise Tests', desc: 'Chapter-by-chapter practice tests', badge: 'badge-mcq', badgeText: 'MCQ', icon: '📝' },
+  module:      { title: 'Module Tests',      desc: 'Module-level assessments',          badge: 'badge-pdf', badgeText: 'PDF', icon: '📚' },
+  mock:        { title: 'Mock Tests',        desc: 'Full-length mock exams',            badge: 'badge-pdf', badgeText: 'EXAM', icon: '🎯' },
+  notes:       { title: 'Chapter Notes',     desc: 'Study notes for revision',          badge: 'badge-notes', badgeText: 'NOTES', icon: '📖' },
+  onlinetest:  { title: 'Online Tests',      desc: 'Auto-graded MCQ tests',             badge: 'badge-mcq', badgeText: 'LIVE', icon: '✏️' },
+  results:     { title: 'My Test Results',   desc: 'Your test scores from the last 30 days', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
+  recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
+  chatbot:     { title: '💬 Ask a Doubt',     desc: 'Ask a question or connect with a teacher', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
+  attendance:  { title: '📋 My Attendance',   desc: 'Green marks the days you were present', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📋' },
 };
 
 var currentSection  = 'chapterwise'; // var so module script can read it
@@ -1390,8 +1389,8 @@ function switchSection(el, section) {
       void attSection.offsetWidth;
       attSection.classList.add('attn-enter');
     }
-    document.getElementById('pageTitle').textContent = '📅 My Attendance';
-    document.getElementById('pageDesc').textContent  = 'See how many days you were present each month — green marks the days you attended';
+    document.getElementById('pageTitle').textContent = '📋 My Attendance';
+    document.getElementById('pageDesc').textContent  = 'Green marks the days you were present';
     document.getElementById('breadcrumbSection').textContent = 'My Attendance';
   } else {
     if (lcSection)  lcSection.style.display  = 'none';
@@ -2053,7 +2052,7 @@ renderCards();
                 <p>${resultEscape(shownSubject || '')}${shownSubject ? ' · ' : ''}Class ${resultEscape(r.class)} · ${resultEscape(normalizeTopic(r))}</p>
                 <div class="test-card-footer" style="flex-direction:column;align-items:flex-start;gap:.25rem;">
                   <span class="test-card-meta"><strong style="color:${col};">${scoreText}</strong>${isOffline ? (r.remark ? ' &nbsp;·&nbsp; ' + resultEscape(r.remark) : '') : ' &nbsp;·&nbsp; ✓ ' + r.correctCount + ' &nbsp; ✗ ' + r.wrongCount + ' &nbsp; ⊘ ' + r.unattemptedCount}</span>
-                  <span class="test-card-meta" style="font-size:.72rem;">📅 ${dateMs ? fmtDate(dateMs) : 'Date not available'}${isOffline && r.teacherName ? ' · Uploaded by ' + resultEscape(r.teacherName) : ''}</span>
+                  <span class="test-card-meta" style="font-size:.72rem;">${dateMs ? fmtDate(dateMs) : 'Date not available'}${isOffline && r.teacherName ? ' · Uploaded by ' + resultEscape(r.teacherName) : ''}</span>
                   ${isOffline && r.answerSheetUrl ? `<a href="${resultEscape(r.answerSheetUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="font-size:.72rem;color:#dc2626;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem;">📄 View / Download Result PDF</a>` : ''}
                   ${reviewable ? '<span class="test-card-meta" style="font-size:.72rem;color:#0ea5e9;font-weight:700;">🔍 Tap to review answers</span>' : ''}
                 </div>
@@ -3182,7 +3181,7 @@ renderCards();
       if (!classes.length) {
         wrap.innerHTML = `
           <div style="text-align:center;padding:3rem 1rem;">
-            <div style="font-size:2.5rem;margin-bottom:.8rem;">📅</div>
+            <div style="font-size:2.5rem;margin-bottom:.8rem;">🕒</div>
             <div style="font-weight:700;color:#1e293b;margin-bottom:.3rem;">No classes scheduled</div>
             <div style="font-size:.85rem;color:#90a4ae;">Your teacher hasn't scheduled any live classes yet. Check back soon.</div>
           </div>`;
@@ -3776,8 +3775,11 @@ renderCards();
        To revert: delete this <style> block.
        ════════════════════════════════════════════════════════════════ -->
   <style>
+    /* Opacity-only: a transform on body would turn it into the containing
+       block for position:fixed children (mobile sidebar, overlays) and make
+       them scroll away with the page. */
     body { animation: ntcFadeIn .55s ease both; }
-    @keyframes ntcFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes ntcFadeIn { from { opacity: 0; } to { opacity: 1; } }
     ::selection { background: rgba(14,165,233,.22); color: #003087; }
 
     .main-content, .cat-section, .profile-strip, .pdf-viewer {

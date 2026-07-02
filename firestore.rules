@@ -97,18 +97,21 @@ service cloud.firestore {
       // READ: the student (their own) or any staff — admins view attendance
       // in the admin panel; teachers view it in the teacher portal.
       //
-      // WRITE: ONLY teachers (admins are view-only — they cannot mark or
-      // change attendance). Two client rules enforced here, not just in UI:
+      // WRITE: teachers and admins. Rules enforced here, not just in UI:
       //  1. A teacher may only mark attendance for the subject they teach
-      //     (attnSubjectAllowed).
+      //     (attnSubjectAllowed). Admins may mark ANY subject.
       //  2. Once a record is 'present' it is FINAL for that day+subject —
-      //     it cannot be overwritten or deleted from any client.
+      //     it cannot be overwritten or deleted from any client (teacher
+      //     or admin alike).
       match /attendance/{recordId} {
         allow read:   if isSignedIn() && (request.auth.uid == uid || isStaff());
-        allow create: if isTeacher() && attnSubjectAllowed(request.resource.data.subject);
-        allow update: if isTeacher() && attnSubjectAllowed(request.resource.data.subject)
+        allow create: if isAdmin()
+                      || (isTeacher() && attnSubjectAllowed(request.resource.data.subject));
+        allow update: if (isAdmin()
+                          || (isTeacher() && attnSubjectAllowed(request.resource.data.subject)))
                       && resource.data.status != 'present';
-        allow delete: if isTeacher() && attnSubjectAllowed(resource.data.subject)
+        allow delete: if (isAdmin()
+                          || (isTeacher() && attnSubjectAllowed(resource.data.subject)))
                       && resource.data.status != 'present';
       }
     }
@@ -164,7 +167,11 @@ service cloud.firestore {
     // cannot fabricate a result for somebody else.
     //
     // Students can read ONLY their own result. Staff can read/list all.
-    // Students can create their own once; updates/deletes are admin-only.
+    // Students can create their own once; updates are admin-only.
+    // DELETE: admins always; a teacher may delete a result only for a test
+    // THEY OWN (tests/{testId}.teacherUid == their uid) — this powers the
+    // "↻ Re-allow retake" button in the teacher portal. Legacy tests that
+    // predate the teacherUid field still need an admin.
     match /testResults/{id} {
       allow get:    if isSignedIn() && (
                        isStaff()
@@ -174,7 +181,11 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && id.matches('.*__' + request.auth.uid + '$')
                     && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin()
+                    || (isTeacher()
+                        && get(/databases/$(database)/documents/tests/$(resource.data.testId))
+                             .data.get('teacherUid', '') == request.auth.uid);
     }
 
     // ─── attendance/{id} (legacy top-level collection) ──────────────

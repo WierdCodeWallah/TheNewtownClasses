@@ -292,10 +292,13 @@
     /* ── MODAL ── */
     .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; overflow-y:auto; padding:2rem 1rem; }
     .modal-bg.open { display:block; }
-    .modal-card { background:#fff; border-radius:20px; max-width:960px; margin:0 auto; padding:2rem; }
+    .modal-card { background:#fff; border-radius:20px; max-width:min(1200px,96vw); margin:0 auto; padding:2rem; }
 
     /* ── TEST RESULTS TABLE ── */
     .results-table { width:100%; border-collapse:collapse; font-size:.84rem; }
+    /* Keep header/cell words on one line; the wrapper scrolls horizontally
+       instead of letting the inherited overflow-wrap:anywhere split words. */
+    .results-table th, .results-table td { white-space:nowrap; overflow-wrap:normal; word-break:normal; }
     .results-table th { background:#f0f4ff; color:#003087; padding:.55rem .7rem; text-align:left; font-size:.76rem; font-weight:700; }
     .results-table td { padding:.55rem .7rem; border-bottom:1px solid rgba(0,48,135,.07); }
     .results-summary { display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.2rem; }
@@ -731,16 +734,6 @@
       <div style="font-weight:700;color:#003087;margin-bottom:.75rem;">My Published Tests</div>
       <div id="testListWrap"><div style="text-align:center;padding:2rem;color:#90a4ae;">Loading...</div></div>
 
-      <!-- Results modal -->
-      <div class="modal-bg" id="resultsModal">
-        <div class="modal-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
-            <h2 id="resultsModalTitle" style="color:#003087;font-size:1.1rem;">Test Results</h2>
-            <button onclick="document.getElementById('resultsModal').classList.remove('open')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#546e7a;">✕</button>
-          </div>
-          <div id="resultsModalBody"></div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -1050,6 +1043,17 @@
     </div><!-- /page -->
   </main>
 </div><!-- /dash-body -->
+
+<!-- Results modal (direct child of body so position:fixed overlays the viewport) -->
+<div class="modal-bg" id="resultsModal">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+      <h2 id="resultsModalTitle" style="color:#003087;font-size:1.1rem;">Test Results</h2>
+      <button onclick="document.getElementById('resultsModal').classList.remove('open')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#546e7a;">✕</button>
+    </div>
+    <div id="resultsModalBody"></div>
+  </div>
+</div>
 
 <!-- ════ FIREBASE + LOGIC ════ -->
 <script type="module">
@@ -2194,6 +2198,7 @@
     const modal = $('resultsModal');
     const body  = $('resultsModalBody');
     modal.classList.add('open');
+    modal.scrollTop = 0;
     body.innerHTML = '<div style="text-align:center;padding:2rem;">Loading...</div>';
     try {
       const token = await user.getIdToken();
@@ -2264,7 +2269,7 @@
               <th style="text-align:center;">ENTRY TIME</th>
               <th style="text-align:center;">TIME TAKEN</th>
               <th>SUBMITTED</th>
-              <th style="text-align:center;">DETAIL</th>
+              <th style="text-align:center;">ACTIONS</th>
             </tr></thead>
             <tbody>
               ${results.map((r,i)=>{
@@ -2298,6 +2303,9 @@
                 const corDisp = r.correctCount ? r.correctCount + '/' + r.totalQuestions : '—';
                 const corCol = r.totalQuestions > 0 && r.correctCount >= r.totalQuestions * 0.6 ? '#059669' : r.correctCount > 0 ? '#d97706' : '#dc2626';
                 const submittedFmt = r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+                // Escape the name for safe use inside a single-quoted JS string in onclick.
+                const nameArg = String(r.studentName || r.studentId || 'this student')
+                  .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');
                 return `<tr>
                   <td data-label="#" style="color:#90a4ae;font-size:.76rem;">${i+1}</td>
                   <td class="student-name" data-label="Student">${r.studentName}</td>
@@ -2309,7 +2317,10 @@
                   <td data-label="Entry time" style="text-align:center;font-size:.76rem;color:#546e7a;">${fmtTime(r.entryTime)}</td>
                   <td data-label="Time taken" style="text-align:center;font-weight:700;color:${timeTakenCol};">${timeTaken}</td>
                   <td data-label="Submitted" style="font-size:.76rem;color:#546e7a;">${submittedFmt}</td>
-                  <td data-label="Detail" style="text-align:center;"><button onclick="viewStudentAnswers(${i})" class="btn btn-outline" style="font-size:.74rem;padding:.28rem .6rem;white-space:nowrap;">🔍 View</button></td>
+                  <td data-label="Actions" style="text-align:center;white-space:nowrap;">
+                    <button onclick="viewStudentAnswers(${i})" class="btn btn-outline" style="font-size:.74rem;padding:.28rem .6rem;white-space:nowrap;">🔍 View</button>
+                    <button onclick="reallowRetake('${testId}','${r.uid}','${nameArg}')" title="Clear this student's submission so they can take the test again. Classmates are not affected." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(14,165,233,.4);background:#fff;cursor:pointer;color:#0369a1;font-family:inherit;margin-left:.35rem;white-space:nowrap;">↻ Re-allow</button>
+                  </td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -2327,6 +2338,46 @@
   window.backToResultsList = function() {
     const body = $('resultsModalBody');
     if (body && _trListHTML) body.innerHTML = _trListHTML;
+    const modal = $('resultsModal');
+    if (modal) modal.scrollTop = 0;
+  };
+
+  // ── Re-allow ONE student to retake (e.g. they submitted by mistake) ──
+  // Per-student version of re-activating a test: clear only this student's
+  // result for the test's CURRENT cycle (so their attempt-check passes again)
+  // and make sure the test is visible — WITHOUT bumping activeCycle, so every
+  // classmate who already submitted stays locked. Firestore rules allow a
+  // teacher to delete a result only for tests they own (tests.teacherUid).
+  window.reallowRetake = async function(testId, uid, studentName) {
+    if (!uid) { alert('This submission has no linked student id, so it cannot be re-allowed.'); return; }
+    if (!confirm(`Allow ${studentName || 'this student'} to take this test again?\n\nTheir current submission will be cleared so they can re-attempt. Other students are NOT affected.`)) return;
+    try {
+      // 1. Read the test's current active cycle + active state.
+      const tDoc = await fsGet(`tests/${testId}`);
+      if (!tDoc.fields) throw new Error('Test not found.');
+      const cycle    = parseInt(tDoc.fields.activeCycle?.integerValue || '1');
+      const isActive = tDoc.fields.isActive?.booleanValue !== false;
+
+      // 2. Delete this student's result for the current cycle (the attempt-blocker).
+      //    A 404 just means they had no submission this cycle — nothing to clear.
+      const delRes = await fsDelete(`testResults/${testId}__${cycle}__${uid}`);
+      if (!delRes.ok && delRes.status !== 404) throw new Error('Could not clear submission: ' + (await delRes.text()));
+
+      // 3. Make sure the test is visible to students — but DON'T bump the cycle,
+      //    so classmates who already submitted this cycle remain locked.
+      if (!isActive) {
+        const token = await user.getIdToken();
+        await fetch(
+          `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests/${testId}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=isActive`,
+          { method:'PATCH', headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+            body: JSON.stringify({ fields: { isActive: { booleanValue: true } } }) }
+        );
+      }
+
+      alert(`✅ ${studentName || 'Student'} can now retake this test.`);
+      viewResults(testId);
+      window.loadMyTests();
+    } catch(e) { alert('Error: ' + e.message); }
   };
 
   window.viewStudentAnswers = function(i) {
@@ -2387,7 +2438,8 @@
       </div>
       ${reviewHTML}
       <div style="padding-bottom:1rem;"><button onclick="backToResultsList()" class="btn btn-outline" style="font-size:.8rem;padding:.4rem .9rem;">← Back to all students</button></div>`;
-    body.scrollTop = 0;
+    const modalBg = $('resultsModal');
+    if (modalBg) modalBg.scrollTop = 0;
     try {
       if (typeof renderMathInElement === 'function') {
         renderMathInElement(body, { delimiters: [{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError:false });
@@ -2678,6 +2730,7 @@
     const today = attnTodayStr();
     const recId = `${today}__${sk}`;
     let presentN = 0;
+    const presentUids = [];                      // students newly marked present → notify
     try {
       showMsg('attnSaveMsg', 'info', 'Saving…');
       for (const st of _attnStudents) {
@@ -2693,12 +2746,34 @@
         });
         if (res.error) throw new Error(res.error.message);
         presentN++;
+        if (st.uid) presentUids.push(st.uid);
       }
       if (!presentN) { showMsg('attnSaveMsg', 'info', 'No new students ticked — nothing to save.'); return; }
       showMsg('attnSaveMsg', 'success', `Saved · ${presentN} marked present.`);
+      notifyStudentsPresent(presentUids, sel.subject);   // best-effort push (won't block save)
       loadAttendanceStudents();
     } catch (e) { showMsg('attnSaveMsg', 'error', 'Error: ' + e.message); }
   };
+
+  // Best-effort web-push telling each student they were marked present.
+  // Fire-and-forget: a push failure must never affect attendance saving.
+  async function notifyStudentsPresent(uids, subject) {
+    if (!uids || !uids.length) return;
+    try {
+      const idToken = await user.getIdToken();
+      await fetch('/.netlify/functions/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          title: 'Attendance marked ✅',
+          body: `You were marked present in ${subject} today.`,
+          audience: { type: 'students', uids },
+          url: '/learn'
+        })
+      });
+    } catch (e) { console.warn('[attendance] present-notify failed:', e && e.message); }
+  }
 
   async function refreshTeacherStudio() {
     if (!user) return;
@@ -3509,8 +3584,10 @@
       linear-gradient(180deg, rgba(238,246,255,1) 0%, rgba(248,251,255,1) 42%, rgba(241,245,249,1) 100%) !important;
     color: var(--studio-ink);
   }
+  /* Opacity-only: a transform on body would turn it into the containing
+     block for position:fixed children and break modal overlays. */
   body { animation: ntcFadeIn .55s ease both; }
-  @keyframes ntcFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes ntcFadeIn { from { opacity: 0; } to { opacity: 1; } }
   ::selection { background: rgba(14,165,233,.22); color: #003087; }
 
   .nav {

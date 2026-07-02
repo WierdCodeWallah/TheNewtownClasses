@@ -212,6 +212,64 @@
     .table-wrap thead th { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
     .table-wrap > table { min-width: 980px; }   /* triggers horizontal scroll on small screens */
 
+    /* ── TEST RESULTS TABLE (results modal) ── */
+    .results-table { width:100%; border-collapse:collapse; font-size:.86rem; }
+    /* Keep header/cell words on one line; the wrapper scrolls horizontally
+       instead of letting the inherited overflow-wrap:anywhere split words. */
+    .results-table th, .results-table td { white-space:nowrap; overflow-wrap:normal; word-break:normal; }
+    .results-table th { background:#f0f4ff; color:#003087; padding:.6rem 1rem; text-align:left; font-size:.76rem; border-bottom:none; }
+    .results-table td { padding:.6rem 1rem; border-bottom:1px solid rgba(0,48,135,.07); }
+    @media (max-width: 768px) {
+      /* RESULTS TABLE → stacked cards on phones */
+      .results-table, .results-table thead, .results-table tbody,
+      .results-table tr, .results-table td, .results-table th {
+        display: block; width: 100%;
+      }
+      .results-table thead { display: none; }
+      .results-table tr {
+        background: #fff;
+        border: 1px solid rgba(0,48,135,.12);
+        border-radius: 12px;
+        padding: .7rem .9rem;
+        margin-bottom: .7rem;
+        box-shadow: 0 1px 4px rgba(0,48,135,.04);
+      }
+      .results-table tr:hover td { background: transparent; }
+      .results-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        padding: .35rem 0;
+        border-bottom: none;
+        text-align: right;
+        white-space: normal;
+        word-break: break-word;
+      }
+      .results-table td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: .7rem;
+        font-weight: 700;
+        color: #003087;
+        letter-spacing: .4px;
+        text-transform: uppercase;
+        text-align: left;
+      }
+      /* Put the student name as a big header inside each card */
+      .results-table td.student-name {
+        justify-content: flex-start;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1e293b;
+        padding-bottom: .5rem;
+        margin-bottom: .3rem;
+        border-bottom: 1px solid rgba(0,48,135,.08);
+        text-align: left;
+      }
+      .results-table td.student-name::before { display: none; }
+    }
+
     thead tr { background: #f5f7ff; }
     th { padding: .75rem 1rem; text-align: left; font-size: .78rem; font-weight: 700;
          color: #546e7a; letter-spacing: .5px; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
@@ -946,10 +1004,69 @@
   <!-- ════════════════ ATTENDANCE ════════════════ -->
   <div class="tab-content" id="tab-attendance">
 
+  <!-- ─── MARK ATTENDANCE (admin — all subjects) ─── -->
+  <div class="card">
+    <div class="card-title">📅 Mark Attendance</div>
+    <p class="card-sub">Choose board, subject and one or more classes, then load the students and tick who is <strong>present</strong> today. As admin you can mark attendance for <strong>any subject</strong>. Present shows green on each student's calendar and counts towards their monthly total.</p>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Board *</label>
+        <select id="attnBoard">
+          <option value="ALL">All Boards</option>
+          <option value="CBSE">CBSE</option>
+          <option value="ICSE">ICSE</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Subject *</label>
+        <select id="attnSubject">
+          <option value="">Select subject</option>
+          <option>Physics</option><option>Chemistry</option>
+          <option>Mathematics</option><option>Biology</option>
+          <option value="Computer">Computer Science</option>
+          <option>English</option>
+        </select>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label>Classes * (select one or more)</label>
+        <div id="attnClassBoxes" style="display:flex;flex-wrap:wrap;gap:.5rem;">
+          <label style="display:inline-flex;align-items:center;gap:.35rem;border:1px solid rgba(0,48,135,.16);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;"><input type="checkbox" class="attn-class-box" value="7"/> Class 7</label>
+          <label style="display:inline-flex;align-items:center;gap:.35rem;border:1px solid rgba(0,48,135,.16);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;"><input type="checkbox" class="attn-class-box" value="8"/> Class 8</label>
+          <label style="display:inline-flex;align-items:center;gap:.35rem;border:1px solid rgba(0,48,135,.16);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;"><input type="checkbox" class="attn-class-box" value="9"/> Class 9</label>
+          <label style="display:inline-flex;align-items:center;gap:.35rem;border:1px solid rgba(0,48,135,.16);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;"><input type="checkbox" class="attn-class-box" value="10"/> Class 10</label>
+          <label style="display:inline-flex;align-items:center;gap:.35rem;border:1px solid rgba(0,48,135,.16);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;"><input type="checkbox" class="attn-class-box" value="11"/> Class 11</label>
+          <label style="display:inline-flex;align-items:center;gap:.35rem;border:1px solid rgba(0,48,135,.16);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;"><input type="checkbox" class="attn-class-box" value="12"/> Class 12</label>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" onclick="loadAttendanceStudents()">Load Students</button>
+    </div>
+
+    <span id="attnMsg" class="alert" style="margin:.75rem 0 0;display:block;"></span>
+  </div>
+
+  <div class="card" id="attnStudentsCard" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+      <div class="card-title" style="margin:0;">🧑‍🎓 Mark Present — Today</div>
+      <button class="btn btn-outline" onclick="loadAttendanceStudents()">⟳ Refresh</button>
+    </div>
+    <p class="card-sub">Tick the students who are <strong>present</strong> today, then Save. Once a student is marked present for the day they're locked (🔒 <em>Already present given</em>) and can't be changed again. Present students show green on their calendar and count towards their attendance.</p>
+    <div id="attnStudentsWrap" style="margin-top:1rem;">
+      <div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>
+    </div>
+    <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" onclick="saveAttendance()">Save Attendance</button>
+      <span id="attnSaveMsg" class="alert" style="margin:0;"></span>
+    </div>
+  </div>
+
   <!-- ─── VIEW STUDENT ATTENDANCE (calendar + per-subject present totals) ─── -->
   <div class="card">
     <div class="card-title">👀 View Student Attendance</div>
-    <p class="card-sub">Pick a class, board and student to see their attendance calendar — <strong>green</strong> marks the days a teacher recorded them present — and the total present days in each subject. Shows attendance recorded by teachers.</p>
+    <p class="card-sub">Pick a class, board and student to see their attendance calendar — <strong>green</strong> marks the days they were recorded present — and the total present days in each subject. Shows attendance recorded by teachers and admins.</p>
     <div class="form-grid">
       <div class="field">
         <label>Class *</label>
@@ -1053,17 +1170,6 @@
     </div>
 
     <div id="testListWrap" style="margin-top:1rem;"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></div>
-
-    <!-- Results Modal -->
-    <div id="testResultsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;overflow-y:auto;padding:2rem 1rem;">
-      <div style="background:#fff;border-radius:20px;max-width:700px;margin:0 auto;padding:2rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
-          <h2 id="resultsModalTitle" style="color:#003087;font-size:1.2rem;">Test Results</h2>
-          <button onclick="document.getElementById('testResultsModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#546e7a;">✕</button>
-        </div>
-        <div id="resultsModalBody"></div>
-      </div>
-    </div>
   </div>
   </div><!-- /tab-tests -->
 
@@ -2388,6 +2494,7 @@
     const title = document.getElementById('resultsModalTitle');
     body.innerHTML = '<div style="text-align:center;padding:2rem;">⏳ Loading results…</div>';
     modal.style.display = 'block';
+    modal.scrollTop = 0;
 
     try {
       const adminToken = await auth.currentUser.getIdToken();
@@ -2456,16 +2563,16 @@
 
       body.innerHTML = `
         <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+          <table class="results-table">
             <thead>
-              <tr style="background:#f0f4ff;">
-                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">#</th>
-                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Student</th>
-                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Class</th>
-                <th style="padding:.6rem 1rem;text-align:center;color:#003087;">Score</th>
-                <th style="padding:.6rem 1rem;text-align:center;color:#003087;">%</th>
-                <th style="padding:.6rem 1rem;text-align:left;color:#003087;">Submitted</th>
-                <th style="padding:.6rem 1rem;text-align:center;color:#003087;">Actions</th>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Class</th>
+                <th style="text-align:center;">Score</th>
+                <th style="text-align:center;">%</th>
+                <th>Submitted</th>
+                <th style="text-align:center;">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2475,14 +2582,14 @@
                 // Escape the name for safe use inside a single-quoted JS string in onclick.
                 const nameArg = String(r.studentName || r.studentId || 'this student')
                   .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');
-                return `<tr style="border-bottom:1px solid rgba(0,48,135,.07);">
-                  <td style="padding:.6rem 1rem;color:#90a4ae;font-size:.78rem;">${idx+1}</td>
-                  <td style="padding:.6rem 1rem;font-weight:600;">${r.studentName || r.studentId || '—'}</td>
-                  <td style="padding:.6rem 1rem;">Class ${r.studentClass||'?'}</td>
-                  <td style="padding:.6rem 1rem;text-align:center;font-weight:700;color:${col};">${r.score}/${r.totalMarks}</td>
-                  <td style="padding:.6rem 1rem;text-align:center;color:${col};">${pct}%</td>
-                  <td style="padding:.6rem 1rem;font-size:.78rem;color:#546e7a;">${r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN') : '—'}</td>
-                  <td style="padding:.6rem 1rem;text-align:center;white-space:nowrap;">
+                return `<tr>
+                  <td data-label="#" style="color:#90a4ae;font-size:.78rem;">${idx+1}</td>
+                  <td data-label="Student" class="student-name" style="font-weight:600;">${r.studentName || r.studentId || '—'}</td>
+                  <td data-label="Class">Class ${r.studentClass||'?'}</td>
+                  <td data-label="Score" style="text-align:center;font-weight:700;color:${col};">${r.score}/${r.totalMarks}</td>
+                  <td data-label="%" style="text-align:center;color:${col};">${pct}%</td>
+                  <td data-label="Submitted" style="font-size:.78rem;color:#546e7a;">${r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN') : '—'}</td>
+                  <td data-label="Actions" style="text-align:center;white-space:nowrap;">
                     <button onclick="reallowRetake('${testId}','${r.uid}','${nameArg}')" title="Clear this student's submission so they can take the test again. Classmates are not affected." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(14,165,233,.4);background:#fff;cursor:pointer;color:#0369a1;font-family:inherit;margin-right:.35rem;">↻ Re-allow</button>
                     <button onclick="deleteTestResult('${r.docId}','${nameArg}','${testId}')" title="Permanently delete this student's result." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(239,68,68,.35);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
                   </td>
@@ -2766,9 +2873,7 @@
   };
 
   // ══════════════════════════════════════════════
-  //  ADMIN FIRESTORE READ HELPER
-  //  Attendance is teacher-only now — the admin panel READS attendance
-  //  (see "View Student Attendance" below) but can never mark or change it.
+  //  ADMIN FIRESTORE HELPERS
   // ══════════════════════════════════════════════
   async function adminFsGet(path) {
     const adminToken = await auth.currentUser.getIdToken();
@@ -2777,6 +2882,159 @@
       { headers: { Authorization: 'Bearer ' + adminToken } }
     );
     return res.json();
+  }
+  async function adminFsPatch(path, fields) {
+    const adminToken = await auth.currentUser.getIdToken();
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}`,
+      { method:'PATCH', headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
+        body: JSON.stringify({ fields }) }
+    );
+    return res.json();
+  }
+
+  // ══════════════════════════════════════════════
+  //  MARK ATTENDANCE (Admin) — same flow as the teacher portal, but the
+  //  admin may mark ANY subject (Firestore rules allow admin writes to
+  //  students/{uid}/attendance without the teacher's subject restriction).
+  //  Writes students/{uid}/attendance/{date}__{subjectKey} with status
+  //  'present'. Once present, a record is locked for the day (rules-enforced).
+  // ══════════════════════════════════════════════
+  function attnTodayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function attnSelection() {
+    const boardSel = $('attnBoard')?.value || 'ALL';
+    const boards = boardSel === 'ALL' ? ['CBSE', 'ICSE'] : [boardSel];
+    const subject = $('attnSubject')?.value || '';
+    const classes = Array.from(document.querySelectorAll('.attn-class-box:checked')).map(c => c.value);
+    return { boardSel, boards, subject, classes };
+  }
+  function attnValidate(sel) {
+    if (!sel.subject) { showMsg('attnMsg', 'error', 'Select a subject.'); return false; }
+    if (!sel.classes.length) { showMsg('attnMsg', 'error', 'Select at least one class.'); return false; }
+    return true;
+  }
+
+  let _attnStudents = [];   // loaded roster for present marking
+
+  // Tick / untick every student at once (header "select all" box).
+  window.attnToggleAll = function(master) {
+    document.querySelectorAll('[data-attn-present]').forEach(b => { b.checked = master.checked; });
+  };
+
+  // ── Load roster for present marking ──
+  window.loadAttendanceStudents = async function() {
+    const sel = attnSelection();
+    if (!attnValidate(sel)) return;
+    const card = $('attnStudentsCard');
+    const wrap = $('attnStudentsWrap');
+    card.style.display = 'block';
+    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading students…</div>';
+    const sk = viewAttSubjectKey(sel.subject);
+    const today = attnTodayStr();
+    const classSet = new Set(sel.classes);
+    const boardSet = new Set(sel.boards);
+    try {
+      const json = await adminFsGet('students');
+      const students = (json.documents || []).map(d => {
+        const f = d.fields || {};
+        const uid = f.uid?.stringValue || (d.name || '').split('/').pop() || '';
+        return { uid, name: f.name?.stringValue || '', studentId: f.studentId?.stringValue || '', class: f.class?.stringValue || '', board: f.board?.stringValue || '', subjects: (f.subjects?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean) };
+      }).filter(st => st.uid && classSet.has(st.class) && (boardSet.has(st.board) || !st.board)
+                 && (!st.subjects.length || st.subjects.some(s => viewAttSubjectKey(s) === sk)))
+        .sort((a, b) => (a.class || '').localeCompare(b.class || '') || (a.name || '').localeCompare(b.name || ''));
+
+      if (!students.length) {
+        wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No students match this board / class / subject.</div>';
+        _attnStudents = [];
+        return;
+      }
+      const adminToken = await auth.currentUser.getIdToken();
+      const withStatus = await Promise.all(students.map(async st => {
+        let status = '';
+        try {
+          const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${st.uid}/attendance/${today}__${sk}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + adminToken } });
+          if (r.ok) { const j = await r.json(); status = j.fields?.status?.stringValue || ''; }
+        } catch (_e) {}
+        return { ...st, status };
+      }));
+      _attnStudents = withStatus;
+      const subjLabel = _bulkEsc(sel.subject);
+      wrap.innerHTML = `
+        <div style="overflow-x:auto;border:1px solid rgba(0,48,135,.08);border-radius:14px;">
+          <table class="results-table">
+            <thead><tr><th style="text-align:center;"><label style="display:inline-flex;flex-direction:column;align-items:center;gap:.2rem;font-size:.7rem;cursor:pointer;">PRESENT<input type="checkbox" onclick="attnToggleAll(this)" title="Select all" style="width:18px;height:18px;cursor:pointer;"/></label></th><th>STUDENT</th><th>CLASS</th><th>BOARD</th><th>TODAY (${subjLabel})</th></tr></thead>
+            <tbody>
+              ${withStatus.map(st => `<tr>
+                <td data-label="Present" style="text-align:center;">${st.status === 'present'
+                  ? '<span title="Already present given — locked for today" style="font-size:1.05rem;">🔒</span>'
+                  : `<input type="checkbox" data-attn-present="${_bulkEsc(st.uid)}" style="width:18px;height:18px;cursor:pointer;"/>`}</td>
+                <td class="student-name" data-label="Student">${_bulkEsc(st.name || 'Student')}<div style="font-size:.72rem;color:#90a4ae;">${_bulkEsc(st.studentId || st.uid)}</div></td>
+                <td data-label="Class">Class ${_bulkEsc(st.class)}</td>
+                <td data-label="Board">${_bulkEsc(st.board || '—')}</td>
+                <td data-label="Today">${st.status === 'present' ? '<span style="color:#16a34a;font-weight:700;">✅ Already present given</span>' : st.status === 'absent' ? '<span style="color:#ef4444;font-weight:700;">❌ Absent</span>' : '<span style="color:#cbd5e1;">—</span>'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (e) { wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${_bulkEsc(e.message)}</div>`; }
+  };
+
+  // ── Save attendance: ticked → present. A student already marked present
+  //    today for this subject is LOCKED (skipped) — present is final. ──
+  window.saveAttendance = async function() {
+    const sel = attnSelection();
+    if (!sel.subject) { showMsg('attnSaveMsg', 'error', 'Select a subject.'); return; }
+    if (!_attnStudents.length) { showMsg('attnSaveMsg', 'error', 'Load students first.'); return; }
+    const sk = viewAttSubjectKey(sel.subject);
+    const today = attnTodayStr();
+    const recId = `${today}__${sk}`;
+    let presentN = 0;
+    const presentUids = [];                      // students newly marked present → notify
+    try {
+      showMsg('attnSaveMsg', 'info', 'Saving…');
+      for (const st of _attnStudents) {
+        if (st.status === 'present') continue;   // already given — locked, never overwrite
+        const box = document.querySelector(`[data-attn-present="${CSS.escape(st.uid)}"]`);
+        if (!(box && box.checked)) continue;
+        const res = await adminFsPatch(`students/${st.uid}/attendance/${recId}`, {
+          date: { stringValue: today }, subject: { stringValue: sel.subject }, subjectKey: { stringValue: sk },
+          class: { stringValue: st.class }, board: { stringValue: st.board || '' },
+          status: { stringValue: 'present' },
+          markedBy: { stringValue: auth.currentUser.uid }, markedByName: { stringValue: 'Admin' },
+          markedAt: { stringValue: new Date().toISOString() }
+        });
+        if (res.error) throw new Error(res.error.message);
+        presentN++;
+        if (st.uid) presentUids.push(st.uid);
+      }
+      if (!presentN) { showMsg('attnSaveMsg', 'info', 'No new students ticked — nothing to save.'); return; }
+      showMsg('attnSaveMsg', 'success', `Saved · ${presentN} marked present.`);
+      notifyStudentsPresent(presentUids, sel.subject);   // best-effort push (won't block save)
+      loadAttendanceStudents();
+    } catch (e) { showMsg('attnSaveMsg', 'error', 'Error: ' + e.message); }
+  };
+
+  // Best-effort web-push telling each student they were marked present.
+  // Fire-and-forget: a push failure must never affect attendance saving.
+  async function notifyStudentsPresent(uids, subject) {
+    if (!uids || !uids.length) return;
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      await fetch('/.netlify/functions/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          title: 'Attendance marked ✅',
+          body: `You were marked present in ${subject} today.`,
+          audience: { type: 'students', uids },
+          url: '/learn'
+        })
+      });
+    } catch (e) { console.warn('[attendance] present-notify failed:', e && e.message); }
   }
   // ══════════════════════════════════════════════
   //  VIEW STUDENT ATTENDANCE (Admin) — read-only
@@ -3220,13 +3478,26 @@
 
 </script>
 
+<!-- Results Modal (direct child of body so position:fixed overlays the viewport) -->
+<div id="testResultsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;overflow-y:auto;padding:2rem 1rem;">
+  <div style="background:#fff;border-radius:20px;max-width:min(1000px,96vw);margin:0 auto;padding:2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+      <h2 id="resultsModalTitle" style="color:#003087;font-size:1.2rem;">Test Results</h2>
+      <button onclick="document.getElementById('testResultsModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#546e7a;">✕</button>
+    </div>
+    <div id="resultsModalBody"></div>
+  </div>
+</div>
+
 <!-- ════════════════════════════════════════════════════════════════
      MODERN ENHANCEMENTS — 2026 (purely additive)
      To revert: delete this <style> block.
      ════════════════════════════════════════════════════════════════ -->
 <style>
+  /* Opacity-only: a transform on body would turn it into the containing
+     block for position:fixed children and break modal overlays. */
   body { animation: ntcFadeIn .55s ease both; }
-  @keyframes ntcFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes ntcFadeIn { from { opacity: 0; } to { opacity: 1; } }
   ::selection { background: rgba(14,165,233,.22); color: #003087; }
 
   /* Glass card surface upgrade */

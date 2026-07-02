@@ -109,14 +109,19 @@ async function verifyFirebaseIdToken(idToken) {
   if (!verifier.verify(cert, b64urlToBuf(parts[2]))) throw new Error('Invalid Firebase ID token (bad signature)');
   return { uid: payload.sub, email: payload.email || '' };
 }
-async function requireAdmin(idToken, uid) {
+//  Returns 'admin' | 'teacher'. Throws if the caller is neither.
+async function requireStaff(idToken, uid) {
   const project = process.env.FIREBASE_PROJECT_ID;
-  const r = await request('firestore.googleapis.com',
+  const a = await request('firestore.googleapis.com',
     `/v1/projects/${project}/databases/(default)/documents/admins/${uid}`,
     'GET', { Authorization: `Bearer ${idToken}` });
-  const ok = r.status === 200 && r.body && r.body.fields
-    && r.body.fields.isAdmin && r.body.fields.isAdmin.booleanValue === true;
-  if (!ok) throw new Error('Only an admin can perform this action');
+  if (a.status === 200 && a.body && a.body.fields
+      && a.body.fields.isAdmin && a.body.fields.isAdmin.booleanValue === true) return 'admin';
+  const t = await request('firestore.googleapis.com',
+    `/v1/projects/${project}/databases/(default)/documents/teachers/${uid}`,
+    'GET', { Authorization: `Bearer ${idToken}` });
+  if (t.status === 200 && t.body && t.body.fields) return 'teacher';
+  throw new Error('Only staff can perform this action');
 }
 
 // ── Service-account access token, scoped for FCM send + Firestore read/delete ──
@@ -150,17 +155,12 @@ async function getServiceAccountAccessToken() {
   return r.body.access_token;
 }
 
-// ── Fetch target push tokens from Firestore (by audience) ──
-//  Returns [{ token, name }] where name is the full Firestore resource path
-//  (used for stale-token cleanup).
-async function fetchTargetTokens(accessToken, audience) {
+// ── Run one pushTokens query with an optional `where` filter. ──
+//  Returns [{ token, name }] (name = full Firestore resource path, for cleanup).
+async function runTokenQuery(accessToken, where) {
   const project = process.env.FIREBASE_PROJECT_ID;
   const structuredQuery = { from: [{ collectionId: 'pushTokens' }] };
-  if (audience && audience.type === 'class' && audience.value) {
-    structuredQuery.where = { fieldFilter: { field: { fieldPath: 'class' }, op: 'EQUAL', value: { stringValue: String(audience.value) } } };
-  } else if (audience && audience.type === 'subject' && audience.value) {
-    structuredQuery.where = { fieldFilter: { field: { fieldPath: 'subjects' }, op: 'ARRAY_CONTAINS', value: { stringValue: String(audience.value) } } };
-  } // 'all' → no filter
+  if (where) structuredQuery.where = where;
   const r = await request('firestore.googleapis.com',
     `/v1/projects/${project}/databases/(default)/documents:runQuery`, 'POST',
     { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -173,6 +173,31 @@ async function fetchTargetTokens(accessToken, audience) {
     if (doc && tok) out.push({ token: tok, name: doc.name });
   });
   return out;
+}
+
+// ── Fetch target push tokens for an audience. ──
+//  all                    → every registered device
+//  class / subject        → broadcast (admin only)
+//  student {value:uid}    → one student's devices
+//  students {uids:[...]}  → several students' devices (e.g. attendance)
+async function fetchTargetTokens(accessToken, audience) {
+  const eq = (path, val) => ({ fieldFilter: { field: { fieldPath: path }, op: 'EQUAL', value: { stringValue: String(val) } } });
+  if (audience.type === 'class' && audience.value)   return runTokenQuery(accessToken, eq('class', audience.value));
+  if (audience.type === 'subject' && audience.value) return runTokenQuery(accessToken, { fieldFilter: { field: { fieldPath: 'subjects' }, op: 'ARRAY_CONTAINS', value: { stringValue: String(audience.value) } } });
+  if (audience.type === 'student' && audience.value) return runTokenQuery(accessToken, eq('uid', audience.value));
+  if (audience.type === 'students' && Array.isArray(audience.uids) && audience.uids.length) {
+    const uids = audience.uids.slice(0, 500).map(String);
+    const all = [];
+    for (let i = 0; i < uids.length; i += 30) {            // Firestore IN allows ≤ 30 values
+      const chunk = uids.slice(i, i + 30);
+      const where = { fieldFilter: { field: { fieldPath: 'uid' }, op: 'IN', value: { arrayValue: { values: chunk.map(u => ({ stringValue: u })) } } } };
+      all.push(...await runTokenQuery(accessToken, where));
+    }
+    const seen = new Set(); const dedup = [];
+    for (const t of all) { if (!seen.has(t.token)) { seen.add(t.token); dedup.push(t); } }
+    return dedup;
+  }
+  return runTokenQuery(accessToken, null);                  // 'all'
 }
 
 // ── Send one data-only FCM message. Returns 'ok' | 'stale' | 'error'. ──
@@ -210,12 +235,18 @@ exports.handler = async function (event) {
   if (!title || !String(title).trim())   return bad(400, 'Title is required');
   if (!message || !String(message).trim()) return bad(400, 'Message is required');
   const aud = audience && audience.type ? audience : { type: 'all' };
-  if (!['all', 'class', 'subject'].includes(aud.type)) return bad(400, 'Invalid audience');
-  if ((aud.type === 'class' || aud.type === 'subject') && !aud.value) return bad(400, 'Audience value is required');
+  if (!['all', 'class', 'subject', 'student', 'students'].includes(aud.type)) return bad(400, 'Invalid audience');
+  if ((aud.type === 'class' || aud.type === 'subject' || aud.type === 'student') && !aud.value) return bad(400, 'Audience value is required');
+  if (aud.type === 'students' && (!Array.isArray(aud.uids) || !aud.uids.length)) return bad(400, 'Audience uids are required');
 
   try {
     const { uid } = await verifyFirebaseIdToken(idToken);
-    await requireAdmin(idToken, uid);
+    const role = await requireStaff(idToken, uid);
+    // Teachers may only notify specific students (e.g. attendance present).
+    // Broadcasts (all / class / subject) stay admin-only.
+    if (role !== 'admin' && !['student', 'students'].includes(aud.type)) {
+      return bad(403, 'Teachers can only notify specific students');
+    }
 
     const projectId   = process.env.FIREBASE_PROJECT_ID;
     const accessToken = await getServiceAccountAccessToken();
@@ -249,7 +280,7 @@ exports.handler = async function (event) {
   } catch (e) {
     const msg = (e && e.message) || String(e);
     if (/Invalid Firebase ID token|Missing idToken|expired/i.test(msg)) return bad(401, msg);
-    if (/Only an admin/i.test(msg)) return bad(403, msg);
+    if (/Only staff|Only an admin|Teachers can only/i.test(msg)) return bad(403, msg);
     console.error('[send-push]', e);
     return bad(500, msg);
   }
