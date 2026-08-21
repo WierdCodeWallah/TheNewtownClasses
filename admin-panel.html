@@ -515,6 +515,7 @@
 </style>
 <!-- Shared role / content-type access rules -->
 <script src="/assets/js/content-access.js"></script>
+<script src="/assets/js/ncert-chapters.js"></script>
 </head>
 <body>
 
@@ -573,6 +574,9 @@
       <div class="sidebar-heading">Content &amp; Teaching</div>
       <div class="sidebar-item" data-section="upload-material" onclick="switchAdminTab('upload-material')">
         <span class="icon">📄</span> Upload Material
+      </div>
+      <div class="sidebar-item" data-section="ncert" onclick="switchAdminTab('ncert');ncertInit();">
+        <span class="icon">📘</span> NCERT Solutions
       </div>
       <div class="sidebar-item" data-section="teachers" onclick="switchAdminTab('teachers')">
         <span class="icon">👨‍🏫</span> Teachers
@@ -891,6 +895,82 @@
     </div>
   </div>
   </div><!-- /tab-upload-material -->
+
+  <!-- ════════════════ NCERT SOLUTIONS (ADMIN ONLY) ════════════════ -->
+  <div class="tab-content" id="tab-ncert">
+  <div class="card">
+    <div class="card-title">📘 NCERT Chapter Solutions (PDF)</div>
+    <p class="card-sub">
+      Upload one solutions PDF per chapter. It goes live on the public page at
+      <a href="/ncert/" target="_blank" rel="noopener" style="color:#0ea5e9;">thenewtownclasses.com/ncert</a>
+      and is shown <strong>only</strong> when a visitor opens that chapter.
+      Teachers cannot upload here — this is admin-only.
+    </p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Class *</label>
+        <select id="ncClass" onchange="ncertOnClassChange()"></select>
+      </div>
+      <div class="form-group">
+        <label>Subject *</label>
+        <select id="ncSubject" onchange="ncertOnSubjectChange()"></select>
+      </div>
+      <div class="form-group">
+        <label>Chapter *</label>
+        <select id="ncChapter" onchange="ncertLoadChapter()"></select>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:.9rem;">
+      <label>Short description <span style="color:#90a4ae;font-weight:400;">(optional — shown above the PDF, and it is what Google reads)</span></label>
+      <textarea id="ncIntro" rows="2" placeholder="e.g. Full solutions to all textbook exercises of Light — Reflection and Refraction, including ray diagrams and numericals."
+        style="width:100%;font-family:inherit;padding:.6rem .8rem;border:1px solid rgba(0,48,135,.14);border-radius:10px;"></textarea>
+    </div>
+
+    <div class="form-group" style="margin-top:.9rem;">
+      <label>Solutions PDF *</label>
+
+      <!-- Google Drive only. Direct upload used to go to Uploadcare, but that
+           project's CDN returns 404 for every file (uploads succeed and report
+           is_stored:true, yet ucarecdn.com will not serve them), which produced
+           published-but-broken chapters. Drive costs nothing, Google serves the
+           bytes, and its preview renders on phones where a raw PDF iframe does
+           not. If the Uploadcare account is ever fixed, the file path can come
+           back — the public page already understands source:'file'. -->
+      <div>
+        <ol style="font-size:.79rem;color:#546e7a;line-height:1.75;margin:0 0 .6rem 1.1rem;padding:0;">
+          <li>Upload the PDF to your Google Drive.</li>
+          <li>Right-click it → <strong>Share</strong> → General access → <strong>Anyone with the link</strong>.</li>
+          <li>Click <strong>Copy link</strong> and paste it below.</li>
+        </ol>
+        <input type="text" id="ncDriveLink" placeholder="https://drive.google.com/file/d/…/view?usp=sharing"
+          oninput="ncertCheckDrive()"
+          style="width:100%;font-family:inherit;padding:.65rem .9rem;border:1px solid rgba(0,48,135,.14);border-radius:10px;"/>
+        <div id="ncDriveInfo" style="margin-top:.5rem;font-size:.85rem;color:#546e7a;"></div>
+        <div style="margin-top:.6rem;font-size:.78rem;color:#0c4a6e;background:#f0f9ff;border:1px solid rgba(14,165,233,.25);border-radius:8px;padding:.5rem .7rem;">
+          💡 Sharing <strong>must</strong> be “Anyone with the link”. If it stays “Restricted”,
+          students see a Google permission page instead of your PDF.
+        </div>
+      </div>
+    </div>
+
+    <div id="ncMsg" class="alert"></div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem;">
+      <button class="btn btn-primary" id="ncPublishBtn" onclick="ncertSave(true)">✓ Upload &amp; Publish</button>
+      <button class="btn btn-outline" onclick="ncertSave(false)">💾 Save as Draft</button>
+      <button class="btn btn-outline" onclick="ncertPreview()">👁 Preview Public Page</button>
+      <button class="btn btn-outline" onclick="ncertUnpublish()" style="color:#dc2626;border-color:rgba(220,38,38,.3);">Unpublish</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📚 Uploaded Chapters</div>
+    <p class="card-sub">Everything currently on the public NCERT pages.</p>
+    <button class="btn btn-outline" onclick="ncertLoadPublished()" style="font-size:.85rem;margin-bottom:.8rem;">↻ Refresh</button>
+    <div id="ncPublishedWrap"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></div>
+  </div>
+  </div><!-- /tab-ncert -->
 
   <!-- ════════════════ ALL STUDENTS ════════════════ -->
   <div class="tab-content" id="tab-all-students">
@@ -3475,6 +3555,256 @@
 
   // Load admin classes on page load
   window.addEventListener('load', () => setTimeout(loadAdminClasses, 1500));
+
+  // ══════════════════════════════════════════════
+  //  NCERT SOLUTIONS — admin-only PDF upload
+  //  ────────────────────────────────────────────
+  //  One PDF per chapter. The chapter list comes from
+  //  /assets/js/ncert-chapters.js (shared with the public /ncert/ page).
+  //  Writes two docs:
+  //    ncertSolutions/{class}_{subject}_{NN}  the chapter + its pdfUrl
+  //    ncertIndex/{class}_{subject}           { published:[…] } so the public
+  //                                           chapter list needs ONE read.
+  //  Firestore rules restrict writes here to admins only — teachers cannot
+  //  publish NCERT material.
+  // ══════════════════════════════════════════════
+
+  const ncEsc = v => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const ncSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
+
+  let _ncSource = 'drive';
+
+  // Pull the file id out of any of Drive's share-link shapes.
+  function ncDriveId(link) {
+    const s = String(link || '');
+    const m = s.match(/\/d\/([a-zA-Z0-9_-]{10,})/)      // /file/d/<id>/view
+           || s.match(/[?&]id=([a-zA-Z0-9_-]{10,})/)    // open?id=<id>
+           || s.match(/^([a-zA-Z0-9_-]{25,})$/);        // bare id pasted
+    return m ? m[1] : null;
+  }
+  // Drive URL shapes the public page needs.
+  const ncDriveView     = id => 'https://drive.google.com/file/d/' + id + '/view';
+  const ncDriveEmbed    = id => 'https://drive.google.com/file/d/' + id + '/preview';
+  const ncDriveDownload = id => 'https://drive.google.com/uc?export=download&id=' + id;
+
+  window.ncertCheckDrive = function () {
+    const info = $('ncDriveInfo');
+    const id = ncDriveId($('ncDriveLink').value);
+    if (!$('ncDriveLink').value.trim()) { info.innerHTML = ''; return; }
+    info.innerHTML = id
+      ? '<span style="color:#059669;font-weight:700;">✓ Link looks good.</span> ' +
+        '<a href="' + ncDriveEmbed(id) + '" target="_blank" rel="noopener" style="color:#0ea5e9;font-weight:700;">Test it opens →</a>' +
+        '<div style="font-size:.78rem;color:#90a4ae;margin-top:.2rem;">Make sure sharing is set to “Anyone with the link”, or students will see a permission error.</div>'
+      : '<span style="color:#dc2626;font-weight:700;">That does not look like a Google Drive file link.</span>';
+  };
+
+  window.ncertInit = function () {
+    const sel = $('ncClass');
+    if (!sel || sel.options.length) return;               // already built
+    sel.innerHTML = NCERT.getClasses().map(c => '<option value="' + c + '">Class ' + c + '</option>').join('');
+    sel.value = '10';
+    ncertOnClassChange();
+    ncertLoadPublished();
+  };
+
+  window.ncertOnClassChange = function () {
+    const cls = $('ncClass').value;
+    $('ncSubject').innerHTML = NCERT.getSubjects(cls)
+      .map(s => '<option value="' + s.key + '">' + s.icon + ' ' + s.label + '</option>').join('');
+    ncertOnSubjectChange();
+  };
+
+  window.ncertOnSubjectChange = function () {
+    const cls = $('ncClass').value, subj = $('ncSubject').value;
+    $('ncChapter').innerHTML = NCERT.getChapters(cls, subj)
+      .map(c => '<option value="' + c.num + '">Ch ' + c.num + ' — ' + ncEsc(c.title) + '</option>').join('');
+    ncertLoadChapter();
+  };
+
+  // Pull whatever is already saved for this chapter into the form.
+  window.ncertLoadChapter = async function () {
+    const cls = $('ncClass').value, subj = $('ncSubject').value, ch = $('ncChapter').value;
+    if (!cls || !subj || !ch) return;
+    $('ncIntro').value = '';
+    $('ncDriveLink').value = '';
+    $('ncDriveInfo').innerHTML = '';
+    clearMsg('ncMsg');
+    try {
+      const snap = await getDoc(doc(db, 'ncertSolutions', NCERT.docId(cls, subj, ch)));
+      if (snap.exists()) {
+        const d = snap.data();
+        $('ncIntro').value = d.intro || '';
+        if (d.source === 'drive' && d.driveId) {
+          $('ncDriveLink').value = ncDriveView(d.driveId);
+          $('ncDriveInfo').innerHTML =
+            '<span style="color:#059669;font-weight:700;">✓ Google Drive file linked</span> — ' +
+            '<a href="' + ncEsc(ncDriveEmbed(d.driveId)) + '" target="_blank" rel="noopener" style="color:#0ea5e9;font-weight:700;">open it</a>' +
+            '<div style="font-size:.78rem;color:#90a4ae;margin-top:.2rem;">Paste a different link only if you want to replace it.</div>';
+        } else if (d.pdfUrl) {
+          // Legacy Uploadcare record — that CDN no longer serves anything.
+          $('ncDriveInfo').innerHTML =
+            '<span style="color:#dc2626;font-weight:700;">⚠ This chapter uses an old uploaded file that no longer loads.</span>' +
+            '<div style="font-size:.78rem;color:#90a4ae;margin-top:.2rem;">Paste a Google Drive link above to replace it, then publish.</div>';
+        }
+        showMsg('ncMsg', d.isPublished ? 'success' : 'info',
+          d.isPublished ? '🟢 This chapter is LIVE on the public site.'
+                        : '📝 A draft is saved for this chapter (not public yet).');
+      }
+    } catch (_) { /* nothing saved yet — leave the form blank */ }
+  };
+
+  window.ncertSave = async function (publish) {
+    const cls = $('ncClass').value, subj = $('ncSubject').value, ch = parseInt($('ncChapter').value, 10);
+    const subject = NCERT.getSubject(cls, subj);
+    const chapter = NCERT.getChapter(cls, subj, ch);
+    if (!subject || !chapter) { showMsg('ncMsg', 'error', 'Pick a class, subject and chapter first.'); return; }
+
+    const id = NCERT.docId(cls, subj, ch);
+    const btn = $('ncPublishBtn');
+
+    try {
+      // What is already stored, so "Publish" alone can re-publish without re-uploading.
+      let existing = {};
+      try {
+        const snap = await getDoc(doc(db, 'ncertSolutions', id));
+        if (snap.exists()) existing = snap.data();
+      } catch (_) {}
+
+      let source  = existing.source  || '';
+      let driveId = existing.driveId || '';
+      let pdfUrl  = existing.pdfUrl  || '';
+      let pdfName = existing.pdfName || '';
+      let pdfSize = existing.pdfSize || 0;
+
+      if ($('ncDriveLink').value.trim()) {
+        const gid = ncDriveId($('ncDriveLink').value);
+        if (!gid) {
+          showMsg('ncMsg', 'error', 'That Google Drive link is not valid. Copy the share link again.');
+          btn.disabled = false; return;
+        }
+        source = 'drive'; driveId = gid;
+        pdfUrl = ncDriveView(gid);
+        pdfName = 'Solutions PDF';
+        pdfSize = 0;                       // Drive does not expose size to us
+      }
+
+      // Refuse to publish a chapter still pointing at the dead Uploadcare CDN.
+      if (publish && source === 'file') {
+        showMsg('ncMsg', 'error',
+          'This chapter still points at an old uploaded file that no longer loads. ' +
+          'Paste a Google Drive link above to replace it.');
+        btn.disabled = false; return;
+      }
+
+      if (publish && !pdfUrl) {
+        showMsg('ncMsg', 'error', 'Add a Google Drive link or choose a PDF before publishing.');
+        btn.disabled = false; return;
+      }
+
+      await setDoc(doc(db, 'ncertSolutions', id), {
+        class: String(cls), subject: subj, subjectLabel: subject.label,
+        chapterNumber: ch, chapterTitle: chapter.title,
+        intro: $('ncIntro').value.trim(),
+        source: source, driveId: driveId,
+        pdfUrl: pdfUrl, pdfName: pdfName, pdfSize: pdfSize,
+        isPublished: !!publish,
+        uploadedBy: (auth.currentUser && auth.currentUser.email) || 'admin',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      await ncertSyncIndex(cls, subj, ch, !!publish);
+
+      showMsg('ncMsg', 'success', publish
+        ? '✅ Published! Live now at /ncert/?class=' + cls + '&subject=' + subj + '&ch=' + ch
+        : '💾 Draft saved — not visible to the public yet.');
+      ncertLoadChapter();
+      ncertLoadPublished();
+    } catch (e) {
+      showMsg('ncMsg', 'error', 'Error: ' + (e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  window.ncertUnpublish = async function () {
+    const cls = $('ncClass').value, subj = $('ncSubject').value, ch = parseInt($('ncChapter').value, 10);
+    if (!confirm('Remove this chapter from the public site? The PDF stays saved as a draft.')) return;
+    try {
+      await setDoc(doc(db, 'ncertSolutions', NCERT.docId(cls, subj, ch)),
+                   { isPublished: false, updatedAt: new Date().toISOString() }, { merge: true });
+      await ncertSyncIndex(cls, subj, ch, false);
+      showMsg('ncMsg', 'info', 'Unpublished — no longer visible to the public.');
+      ncertLoadPublished();
+    } catch (e) { showMsg('ncMsg', 'error', 'Error: ' + (e.message || e)); }
+  };
+
+  // Keep ncertIndex/{class}_{subject}.published in step with what is live.
+  async function ncertSyncIndex(cls, subj, ch, add) {
+    const idxRef = doc(db, 'ncertIndex', NCERT.indexId(cls, subj));
+    let published = [];
+    try {
+      const cur = await getDoc(idxRef);
+      if (cur.exists()) published = (cur.data().published || []).map(n => parseInt(n, 10)).filter(n => !isNaN(n));
+    } catch (_) {}
+    const set = new Set(published);
+    if (add) set.add(ch); else set.delete(ch);
+    await setDoc(idxRef, {
+      class: String(cls), subject: subj,
+      published: Array.from(set).sort((a, b) => a - b),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  }
+
+  window.ncertPreview = function () {
+    const cls = $('ncClass').value, subj = $('ncSubject').value, ch = $('ncChapter').value;
+    window.open('/ncert/?class=' + cls + '&subject=' + subj + '&ch=' + ch, '_blank', 'noopener');
+  };
+
+  window.ncertLoadPublished = async function () {
+    const wrap = $('ncPublishedWrap');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
+    try {
+      const snaps = await getDocs(collection(db, 'ncertSolutions'));
+      const rows = [];
+      snaps.forEach(sn => rows.push(sn.data()));
+      rows.sort((a, b) =>
+        (parseInt(a.class, 10) - parseInt(b.class, 10)) ||
+        String(a.subject).localeCompare(String(b.subject)) ||
+        (a.chapterNumber - b.chapterNumber));
+
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div>No chapters uploaded yet.</div>';
+        return;
+      }
+      wrap.innerHTML = rows.map(d =>
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.7rem .95rem;background:#f9fbff;border:1px solid rgba(0,48,135,.08);border-radius:10px;margin-bottom:.5rem;">' +
+          '<div>' +
+            '<strong style="color:#003087;">Class ' + ncEsc(d.class) + ' · ' + ncEsc(d.subjectLabel) + ' · Ch ' + d.chapterNumber + '</strong>' +
+            '<div style="font-size:.79rem;color:#546e7a;margin-top:.15rem;">' +
+              ncEsc(d.chapterTitle) +
+              (d.pdfName ? ' — ' + ncEsc(d.pdfName) : '') +
+              (d.pdfSize ? ' · ' + ncSize(d.pdfSize) : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:.5rem;align-items:center;">' +
+            // Legacy Uploadcare records render a 404 for visitors — call them out.
+            (d.source !== 'drive' && d.pdfUrl
+              ? '<span style="font-size:.68rem;font-weight:800;padding:.2rem .55rem;border-radius:999px;background:#fef2f2;color:#b91c1c;">⚠ BROKEN — re-add</span>'
+              : '') +
+            '<span style="font-size:.68rem;font-weight:800;padding:.2rem .55rem;border-radius:999px;' +
+              (d.isPublished ? 'background:#ecfdf5;color:#047857;' : 'background:#f1f5f9;color:#64748b;') + '">' +
+              (d.isPublished ? '🟢 LIVE' : 'Draft') + '</span>' +
+            (d.pdfUrl ? '<a href="' + ncEsc(d.pdfUrl) + '" target="_blank" rel="noopener" style="font-size:.78rem;color:#0ea5e9;font-weight:700;text-decoration:none;">PDF ↗</a>' : '') +
+            '<a href="/ncert/?class=' + ncEsc(d.class) + '&subject=' + ncEsc(d.subject) + '&ch=' + d.chapterNumber + '" target="_blank" rel="noopener" style="font-size:.78rem;color:#0059d1;font-weight:700;text-decoration:none;">View →</a>' +
+          '</div>' +
+        '</div>').join('');
+    } catch (e) {
+      wrap.innerHTML = '<div style="color:#ef4444;padding:1rem;">' + ncEsc(e.message) + '</div>';
+    }
+  };
 
 </script>
 

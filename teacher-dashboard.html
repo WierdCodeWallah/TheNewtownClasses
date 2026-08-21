@@ -26,6 +26,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <!-- Shared role-based content access helper -->
   <script src="/assets/js/content-access.js"></script>
+  <!-- Shared AI answer-sheet report renderer -->
+  <script src="/assets/js/answersheet-report.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
@@ -536,6 +538,10 @@
       <div class="sidebar-item active" data-section="tests" onclick="switchTab('tests')">
         <span class="icon">✏️</span> Online Tests
       </div>
+      <div class="sidebar-item" data-section="answersheets" onclick="switchTab('answersheets');loadMySubjectiveTests();loadReviewSheets();">
+        <span class="icon">🧠</span> AI Answer Sheets
+        <span id="reviewBadge" class="badge" style="display:none;">0</span>
+      </div>
       <div class="sidebar-item" data-section="offline-results" onclick="switchTab('offline-results')">
         <span class="icon">%</span> Offline Marks
       </div>
@@ -624,6 +630,14 @@
         <div class="field full">
           <label>Test Name *</label>
           <input type="text" id="testName" placeholder="e.g. Chapter 1 – Polynomials MCQ Test"/>
+        </div>
+        <div class="field">
+          <label>Chapter</label>
+          <input type="text" id="testChapter" placeholder="e.g. Chapter 1 - Polynomials"/>
+        </div>
+        <div class="field">
+          <label>Topic</label>
+          <input type="text" id="testTopic" placeholder="e.g. Factorisation"/>
         </div>
         <div class="field">
           <label>Time Limit (minutes) *</label>
@@ -740,6 +754,71 @@
   <!-- ════════════════════════════
        TAB 3 — LIVE CLASSES
   ════════════════════════════ -->
+  <!-- ════════════════════════════
+       AI ANSWER-SHEET CHECKER (subjective)
+  ════════════════════════════ -->
+  <div class="tab-content" id="tab-answersheets">
+    <div class="card">
+      <div class="card-title">🧠 Create AI-Checked Answer Sheet (Subjective)</div>
+      <p class="card-sub">Feed the question paper + marking scheme. Students upload a photo of their handwritten answers and AI grades them against your scheme. You review &amp; release the report.</p>
+
+      <div class="field-grid">
+        <div class="field">
+          <label>Class *</label>
+          <select id="subjClass">
+            <option value="">Select class</option>
+            <option value="7">Class 7</option><option value="8">Class 8</option>
+            <option value="9">Class 9</option><option value="10">Class 10</option>
+            <option value="11">Class 11</option><option value="12">Class 12</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Subject *</label>
+          <select id="subjSubject">
+            <option value="">Select subject</option>
+            <option>Physics</option><option>Chemistry</option>
+            <option>Mathematics</option><option>Biology</option>
+            <option value="Computer">Computer Science</option>
+            <option>English</option><option>All Subjects</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Target Board</label>
+          <select id="subjTargetBoard">
+            <option value="" selected>All Boards</option>
+            <option value="CBSE">CBSE only</option>
+            <option value="ICSE">ICSE only</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Test / Paper Name *</label>
+          <input type="text" id="subjName" placeholder="e.g. Pre-Mid Term — Science (Subjective)"/>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;font-weight:700;color:#003087;">Questions &amp; Marking Scheme</div>
+      <div id="subjQuestions"></div>
+      <button class="btn btn-outline" onclick="addSubjQuestion()" style="font-size:.85rem;margin-top:.5rem;">+ Add Question</button>
+
+      <div style="margin-top:1.2rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="publishSubjective()">Publish Answer Sheet</button>
+        <button class="btn btn-outline" onclick="loadMySubjectiveTests()">Refresh List</button>
+      </div>
+      <div id="subjMsg" class="alert"></div>
+
+      <hr/>
+      <div style="font-weight:700;color:#003087;margin-bottom:.75rem;">My Answer-Sheet Assignments</div>
+      <div id="subjListWrap"><div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📥 Answer Sheets to Review</div>
+      <p class="card-sub">AI has graded these — adjust any marks or notes, then release the report to the student.</p>
+      <button class="btn btn-outline" onclick="loadReviewSheets()" style="font-size:.85rem;margin-bottom:.8rem;">↻ Refresh</button>
+      <div id="reviewWrap"><div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div></div>
+    </div>
+  </div>
+
   <div class="tab-content" id="tab-offline-results">
     <div class="card">
       <div class="card-title">Upload Offline Test Marks</div>
@@ -1842,6 +1921,8 @@
     const cls  = $('testClass').value;
     const subj = $('testSubject').value;
     const name = $('testName').value.trim();
+    const chapter = $('testChapter') ? $('testChapter').value.trim() : '';
+    const topic = $('testTopic') ? $('testTopic').value.trim() : '';
     const negWrong = parseFloat($('negWrong').value) || 0;
     const negUnattempted = parseFloat($('negUnattempted').value) || 0;
     if (!cls||!subj||!name) { showMsg('testMsg','error','Fill class, subject and test name.'); return; }
@@ -1913,6 +1994,8 @@
       const targetBoard = ($('testTargetBoard') ? $('testTargetBoard').value : '') || '';
       const result = await fsPatch(`tests/${testId}`, {
         class:{stringValue:cls}, subject:{stringValue:subj}, testName:{stringValue:name},
+        chapter:{stringValue:chapter},
+        topic:{stringValue:topic},
         sections:{stringValue:JSON.stringify(sections)},
         totalMarks:{integerValue:String(totalMarks)}, totalQ:{integerValue:String(totalQ)},
         isActive:{booleanValue:true},
@@ -1960,6 +2043,8 @@
       if (pubBtn) pubBtn.textContent = 'Publish Test';
       const cancelBtn = $('cancelEditBtn'); if (cancelBtn) cancelBtn.remove();
       $('testClass').value=''; $('testSubject').value=''; $('testName').value=''; $('testTimeLimit').value='60';
+      if ($('testChapter')) $('testChapter').value = '';
+      if ($('testTopic')) $('testTopic').value = '';
       $('negWrong').value='0'; $('negUnattempted').value='0';
       if ($('testType')) $('testType').value='regular';
       if ($('testTargetBoard')) $('testTargetBoard').value = '';
@@ -2039,6 +2124,8 @@
       setVal('testClass',     f.class?.stringValue || '');
       setVal('testSubject',   f.subject?.stringValue || '');
       setVal('testName',      f.testName?.stringValue || '');
+      setVal('testChapter',   f.chapter?.stringValue || f.chapterName?.stringValue || f.unit?.stringValue || '');
+      setVal('testTopic',     f.topic?.stringValue || f.topicName?.stringValue || f.lesson?.stringValue || '');
       setVal('testTimeLimit', parseInt(f.timeLimit?.integerValue || '60'));
       setVal('negWrong',      parseFloat(f.negWrong?.doubleValue || f.negWrong?.integerValue || '0'));
       setVal('negUnattempted',parseFloat(f.negUnattempted?.doubleValue || f.negUnattempted?.integerValue || '0'));
@@ -2100,6 +2187,8 @@
   window.cancelEdit = function() {
     _editingTestId = null; _editingMeta = null;
     $('testClass').value=''; $('testSubject').value=''; $('testName').value=''; $('testTimeLimit').value='60';
+    if ($('testChapter')) $('testChapter').value = '';
+    if ($('testTopic')) $('testTopic').value = '';
     $('negWrong').value='0'; $('negUnattempted').value='0';
     if ($('testType')) $('testType').value='regular';
     if ($('testTargetBoard')) $('testTargetBoard').value='';
@@ -2121,6 +2210,8 @@
         const f=d.fields||{};
         return { testId:f.testId?.stringValue||'', testName:f.testName?.stringValue||'',
           class:f.class?.stringValue||'', subject:f.subject?.stringValue||'',
+          chapter:f.chapter?.stringValue||f.chapterName?.stringValue||f.unit?.stringValue||'',
+          topic:f.topic?.stringValue||f.topicName?.stringValue||f.lesson?.stringValue||'',
           totalMarks:parseInt(f.totalMarks?.integerValue||'0'),
           totalQ:parseInt(f.totalQ?.integerValue||'0'),
           isActive:f.isActive?.booleanValue!==false,
@@ -3561,6 +3652,213 @@
       setInterval(refreshDoubtBadge, 90000);
     }
   }, 1000);
+
+  // ════════════════════════════════════════════
+  //  AI ANSWER-SHEET CHECKER (subjective)
+  // ════════════════════════════════════════════
+  function subjCssId(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g,'_'); }
+  function subjGradeBand(pct){ if(pct>=90)return'A+';if(pct>=80)return'A';if(pct>=70)return'B+';if(pct>=60)return'B';if(pct>=50)return'C';return'D'; }
+
+  let _subjQCount = 0;
+  window.addSubjQuestion = function(){
+    const qi = _subjQCount++;
+    const wrap = $('subjQuestions');
+    const div = document.createElement('div');
+    div.id = 'sq_' + qi;
+    div.style.cssText = 'border:1px solid rgba(0,48,135,.12);border-radius:12px;padding:1rem;margin-top:.8rem;background:#f9fbff;';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+        <strong style="color:#003087;">Question</strong>
+        <button type="button" onclick="document.getElementById('sq_${qi}').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-weight:600;">✕ Remove</button>
+      </div>
+      <div class="field-grid">
+        <div class="field"><label>Label *</label><input type="text" id="sqlabel_${qi}" placeholder="e.g. 5a or 1"/></div>
+        <div class="field"><label>Max Marks *</label><input type="number" id="sqmax_${qi}" min="0" step="0.5" value="2"/></div>
+        <div class="field"><label>Topic</label><input type="text" id="sqtopic_${qi}" placeholder="e.g. Osmosis"/></div>
+        <div class="field full"><label>Question Text *</label><textarea id="sqtext_${qi}" rows="2" style="width:100%;font-family:inherit;padding:.5rem .7rem;border:1px solid rgba(0,48,135,.14);border-radius:8px;"></textarea></div>
+        <div class="field full"><label>Model Answer <span style="color:#90a4ae;font-weight:400;">(AI reference — students never see this)</span></label><textarea id="sqmodel_${qi}" rows="2" style="width:100%;font-family:inherit;padding:.5rem .7rem;border:1px solid rgba(0,48,135,.14);border-radius:8px;"></textarea></div>
+      </div>
+      <div style="margin-top:.6rem;font-size:.82rem;font-weight:700;color:#003087;">Marking Points <span style="color:#90a4ae;font-weight:400;">(each earns marks toward the max)</span></div>
+      <div id="sqmarks_${qi}"></div>
+      <button type="button" class="btn btn-outline" onclick="addMarkPoint(${qi})" style="font-size:.78rem;margin-top:.4rem;">+ Add Marking Point</button>
+    `;
+    wrap.appendChild(div);
+    addMarkPoint(qi);
+  };
+  window.addMarkPoint = function(qi){
+    const wrap = $('sqmarks_' + qi);
+    const mi = wrap.children.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:.4rem;align-items:center;margin-top:.35rem;';
+    row.innerHTML = `
+      <span style="font-weight:700;color:#0284c7;min-width:2rem;">F${mi+1}</span>
+      <input type="text" class="mp-text" placeholder="What earns the mark (e.g. Correct definition)" style="flex:1;padding:.4rem .6rem;border:1px solid rgba(0,48,135,.14);border-radius:7px;font-family:inherit;font-size:.84rem;"/>
+      <input type="number" class="mp-marks" min="0" step="0.5" value="1" style="width:70px;padding:.4rem;border:1px solid rgba(0,48,135,.14);border-radius:7px;font-family:inherit;"/>
+      <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;">✕</button>
+    `;
+    wrap.appendChild(row);
+  };
+
+  window.publishSubjective = async function(){
+    const cls = $('subjClass').value, subj = $('subjSubject').value, name = $('subjName').value.trim();
+    const board = $('subjTargetBoard') ? $('subjTargetBoard').value : '';
+    if(!cls||!subj||!name){ showMsg('subjMsg','error','Fill class, subject and paper name.'); return; }
+    const questions = [], answers = []; let totalMarks = 0;
+    document.querySelectorAll('[id^="sq_"]').forEach(el => {
+      const qi = el.id.split('_')[1];
+      const label = $('sqlabel_'+qi)?.value.trim();
+      const text  = $('sqtext_'+qi)?.value.trim();
+      const max   = parseFloat($('sqmax_'+qi)?.value) || 0;
+      const topic = $('sqtopic_'+qi)?.value.trim() || '';
+      const model = $('sqmodel_'+qi)?.value.trim() || '';
+      if(!label || !text) return;
+      const qId = 'q' + qi;
+      const markingPoints = [];
+      $('sqmarks_'+qi)?.querySelectorAll(':scope > div').forEach(row => {
+        const t = row.querySelector('.mp-text')?.value.trim();
+        const m = parseFloat(row.querySelector('.mp-marks')?.value) || 0;
+        if(t) markingPoints.push({ code:'F'+(markingPoints.length+1), text:t, marks:m });
+      });
+      totalMarks += max;
+      questions.push({ qId, label, questionText:text, maxMarks:max, topic });
+      answers.push({ qId, modelAnswer:model, markingPoints, topic });
+    });
+    if(!questions.length){ showMsg('subjMsg','error','Add at least one question with a label and text.'); return; }
+    const testId = cls + '_subj_' + subj.replace(/\s+/g,'') + '_' + Date.now();
+    try {
+      const r1 = await fsPatch('subjectiveTests/'+testId, {
+        class:{stringValue:cls}, subject:{stringValue:subj}, testName:{stringValue:name},
+        targetBoard:{stringValue:board},
+        questions:{stringValue:JSON.stringify(questions)},
+        totalMarks:{doubleValue:totalMarks},
+        isActive:{booleanValue:true}, activeCycle:{integerValue:'1'},
+        createdBy:{stringValue:(teacherProfile.name||user.email)},
+        teacherUid:{stringValue:user.uid}, teacherEmail:{stringValue:(user.email||'')},
+        createdAt:{stringValue:new Date().toISOString()}, testId:{stringValue:testId}
+      });
+      if(r1.error) throw new Error(r1.error.message);
+      const r2 = await fsPatch('subjectiveTestKeys/'+testId, { answers:{stringValue:JSON.stringify(answers)} });
+      if(r2.error) throw new Error(r2.error.message);
+      showMsg('subjMsg','success','✅ Published! Class '+cls+' students can now upload their answer sheets ('+questions.length+' questions, '+totalMarks+' marks).');
+      $('subjName').value=''; $('subjQuestions').innerHTML=''; _subjQCount=0;
+      setTimeout(loadMySubjectiveTests, 700);
+    } catch(e){ showMsg('subjMsg','error','Error: '+e.message); }
+  };
+
+  window.loadMySubjectiveTests = async function(){
+    const wrap = $('subjListWrap'); if(!wrap) return;
+    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>';
+    try {
+      const json = await fsGet('subjectiveTests');
+      const docs = (json.documents||[]).map(d => { const f=d.fields||{}; return {
+        testId:f.testId?.stringValue||'', testName:f.testName?.stringValue||'',
+        class:f.class?.stringValue||'', subject:f.subject?.stringValue||'',
+        totalMarks:parseFloat(f.totalMarks?.doubleValue||f.totalMarks?.integerValue||'0'),
+        isActive:f.isActive?.booleanValue!==false, teacherUid:f.teacherUid?.stringValue||''
+      };}).filter(d => d.testId && d.teacherUid === user.uid);
+      if(!docs.length){ wrap.innerHTML='<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No answer-sheet assignments yet.</div>'; return; }
+      wrap.innerHTML = docs.map(d => `<div class="test-list-item">
+        <div><strong style="color:#003087;">${escapeHtml(d.testName)}</strong>
+          <div style="font-size:.78rem;color:#546e7a;">Class ${escapeHtml(d.class)} · ${escapeHtml(d.subject)} · ${d.totalMarks} marks · <span style="color:${d.isActive?'#059669':'#dc2626'}">${d.isActive?'Active':'Inactive'}</span></div>
+        </div>
+        <div style="display:flex;gap:.4rem;"><button onclick="toggleSubjActive('${d.testId}',${!d.isActive})" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .75rem;">${d.isActive?'Pause':'Activate'}</button></div>
+      </div>`).join('');
+    } catch(e){ wrap.innerHTML='<div style="color:#ef4444;">'+e.message+'</div>'; }
+  };
+  window.toggleSubjActive = async function(id, active){
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/subjectiveTests/${id}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=isActive`,
+        { method:'PATCH', headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}, body:JSON.stringify({fields:{isActive:{booleanValue:active}}}) });
+      if(!res.ok) throw new Error(await res.text());
+      loadMySubjectiveTests();
+    } catch(e){ alert('Error: '+e.message); }
+  };
+
+  let _reviewData = {};
+  window.loadReviewSheets = async function(){
+    const wrap = $('reviewWrap'); if(!wrap) return;
+    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>';
+    try {
+      const json = await fsGet('subjectiveResults');
+      const docs = (json.documents||[]).map(d => { const f=d.fields||{}; return {
+        id:d.name.split('/').pop(),
+        status:f.status?.stringValue||'',
+        teacherUid:f.teacherUid?.stringValue||'',
+        studentName:f.studentName?.stringValue||'',
+        studentClass:f.studentClass?.stringValue||'',
+        subject:f.subject?.stringValue||'',
+        testName:f.testName?.stringValue||'',
+        pageUrls:(f.pageUrls?.arrayValue?.values||[]).map(v=>v.stringValue),
+        finalGrading:f.finalGrading?.stringValue||f.grading?.stringValue||'{}',
+        teacherNotes:f.teacherNotes?.stringValue||''
+      };}).filter(d => d.teacherUid === user.uid && d.status === 'ai_graded');
+      const badge = $('reviewBadge');
+      if(badge){ if(docs.length){ badge.style.display=''; badge.textContent=docs.length; } else badge.style.display='none'; }
+      if(!docs.length){ wrap.innerHTML='<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No sheets waiting for review. 🎉</div>'; return; }
+      _reviewData = {};
+      docs.forEach(d => { try { _reviewData[d.id] = JSON.parse(d.finalGrading); } catch { _reviewData[d.id] = { parts:[] }; } });
+      wrap.innerHTML = docs.map(d => renderReviewItem(d, _reviewData[d.id])).join('');
+    } catch(e){ wrap.innerHTML='<div style="color:#ef4444;">'+e.message+'</div>'; }
+  };
+
+  function renderReviewItem(d, g){
+    g = g || {}; const parts = g.parts || []; const rid = subjCssId(d.id);
+    return `<div style="border:1px solid rgba(0,48,135,.12);border-radius:14px;padding:1rem;margin-bottom:1rem;background:#fff;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+        <div><strong style="color:#003087;">${escapeHtml(d.studentName||'Student')}</strong> · Class ${escapeHtml(d.studentClass)} · ${escapeHtml(d.testName)}</div>
+        <div style="font-weight:800;color:#003087;">AI: ${g.totalAwarded||0}/${g.totalMax||0} (${g.pct||0}%)</div>
+      </div>
+      ${d.pageUrls.length?`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin:.6rem 0;">${d.pageUrls.map(u=>`<a href="${u}" target="_blank" rel="noopener"><img src="${u}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,48,135,.12);"></a>`).join('')}</div>`:''}
+      <div style="display:flex;flex-direction:column;gap:.45rem;margin-top:.5rem;">
+        ${parts.map((p,i)=>`<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;background:#f9fbff;border-radius:8px;padding:.45rem .6rem;">
+          <span style="font-weight:700;color:#003087;min-width:2.5rem;">Q${escapeHtml(p.label)}</span>
+          <input type="number" id="rv_${rid}_${i}_a" value="${p.awarded}" min="0" max="${p.max}" step="0.5" style="width:64px;padding:.3rem;border:1px solid rgba(0,48,135,.14);border-radius:6px;"/>
+          <span style="color:#546e7a;">/ ${p.max}</span>
+          <input type="text" id="rv_${rid}_${i}_c" value="${escapeHtml(p.comment||'')}" placeholder="comment" style="flex:1;min-width:140px;padding:.3rem .5rem;border:1px solid rgba(0,48,135,.14);border-radius:6px;font-size:.82rem;"/>
+        </div>`).join('')}
+      </div>
+      <textarea id="rv_${rid}_notes" rows="2" placeholder="Overall note to the student (optional)" style="width:100%;margin-top:.6rem;padding:.5rem;border:1px solid rgba(0,48,135,.14);border-radius:8px;font-family:inherit;">${escapeHtml(d.teacherNotes||'')}</textarea>
+      <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="releaseSheet('${d.id}')" style="font-size:.85rem;">✓ Release to Student</button>
+      </div>
+    </div>`;
+  }
+
+  window.releaseSheet = async function(id){
+    const g = _reviewData[id];
+    if(!g){ alert('Please refresh the list and try again.'); return; }
+    const rid = subjCssId(id);
+    let totalAwarded = 0;
+    (g.parts||[]).forEach((p,i)=>{
+      let a = parseFloat(document.getElementById('rv_'+rid+'_'+i+'_a')?.value);
+      if(!isFinite(a)) a = p.awarded || 0;
+      a = Math.max(0, Math.min(a, p.max || 0));
+      p.awarded = a;
+      p.verdict = (p.max>0 && a>=p.max) ? 'full' : (a<=0 ? 'zero' : 'partial');
+      const c = document.getElementById('rv_'+rid+'_'+i+'_c'); if(c) p.comment = c.value;
+      totalAwarded += a;
+    });
+    totalAwarded = Math.round(totalAwarded*100)/100;
+    g.totalAwarded = totalAwarded;
+    g.pct = g.totalMax > 0 ? Math.round(totalAwarded/g.totalMax*100) : 0;
+    g.grade = subjGradeBand(g.pct);
+    const notes = document.getElementById('rv_'+rid+'_notes')?.value || '';
+    try {
+      const token = await user.getIdToken();
+      const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/subjectiveResults/${id}?key=${FIREBASE_CONFIG.apiKey}` +
+        '&updateMask.fieldPaths=finalGrading&updateMask.fieldPaths=teacherNotes&updateMask.fieldPaths=status&updateMask.fieldPaths=releasedAt';
+      const res = await fetch(url, { method:'PATCH', headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+        body: JSON.stringify({ fields:{
+          finalGrading:{stringValue:JSON.stringify(g)},
+          teacherNotes:{stringValue:notes},
+          status:{stringValue:'released'},
+          releasedAt:{stringValue:new Date().toISOString()}
+        }}) });
+      if(!res.ok) throw new Error(await res.text());
+      loadReviewSheets();
+    } catch(e){ alert('Release failed: '+e.message); }
+  };
 
 </script>
 

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>NCERT Solutions Class 7-12 (Science & Maths) | The NewTown Classes</title>
+  <meta name="description" content="Free NCERT solutions for Class 7 to 12 — Science, Maths, Physics, Chemistry and Biology. Chapter-wise PDF solutions from The NewTown Classes.">
+  <link rel="canonical" href="https://thenewtownclasses.com/ncert/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="NCERT Solutions Class 7-12 | The NewTown Classes">
+  <meta property="og:description" content="Free chapter-wise NCERT solutions for Science and Maths, Class 7 to 12.">
+  <meta property="og:url" content="https://thenewtownclasses.com/ncert/">
+  <link rel="icon" href="/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/styles.css">
+  <link rel="stylesheet" href="/assets/css/pages.css">
+  <script src="/assets/js/ncert-chapters.js"></script>
+  <style>
+    /* ══════════════════════════════════════════════════════════
+       NCERT browser — page-specific pieces only (prefix .nc-).
+       The shared look (paper background, hero, section headings,
+       CTA) lives in /assets/css/pages.css.
+
+       ⚠️  Never wrap these blocks in <section>: styles.css sets
+           section:not(.hero){contain-intrinsic-size:820px}, which
+           reserves an ~820px placeholder. Use <div>.
+       ══════════════════════════════════════════════════════════ */
+
+    /* ── Breadcrumbs ── */
+    .nc-crumbs { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
+      font-size:.76rem; font-weight:700; color:#64748b; margin-bottom:.9rem; }
+    .nc-crumbs a { color:#0059d1; text-decoration:none; }
+    .nc-crumbs a:active, .nc-crumbs a:hover { text-decoration:underline; }
+    .nc-crumbs .sep { opacity:.4; }
+
+    /* ── Class tiles (book-spine feel) ── */
+    .nc-classgrid { display:grid; gap:.7rem;
+      grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
+    .nc-classcard { position:relative; display:block; text-decoration:none; background:#fff;
+      border:1px solid rgba(0,48,135,.12); border-radius:16px; overflow:hidden;
+      padding:.95rem 1rem 1rem; transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+    .nc-classcard::before { content:''; position:absolute; top:0; left:0; right:0; height:3px;
+      background:linear-gradient(90deg,#003087,#0ea5e9); }
+    .nc-classcard:hover { transform:translateY(-2px); border-color:rgba(14,165,233,.45);
+      box-shadow:0 16px 34px -24px rgba(0,48,135,.5); }
+    .nc-cls-top { display:flex; align-items:baseline; gap:.4rem; }
+    .nc-cls-num { font-family:'Syne',sans-serif; font-weight:800; color:#003087;
+      font-size: clamp(1.9rem, 6vw, 2.4rem); line-height:1; letter-spacing:-.05em;
+      font-variant-numeric:tabular-nums; }
+    .nc-cls-word { font-size:.66rem; font-weight:800; letter-spacing:.12em;
+      text-transform:uppercase; color:#90a4ae; }
+    .nc-cls-subs { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.6rem; }
+    .nc-dot { display:inline-flex; align-items:center; gap:.25rem; font-size:.68rem;
+      font-weight:700; color:#475569; }
+    .nc-dot i { width:7px; height:7px; border-radius:50%; background:var(--acc,#0ea5e9); }
+    .nc-cls-meta { font-size:.7rem; color:#90a4ae; font-weight:600; margin-top:.5rem;
+      font-variant-numeric:tabular-nums; }
+
+    /* ── Subject cards ── */
+    .nc-subgrid { display:grid; gap:.7rem;
+      grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); }
+    .nc-subcard { position:relative; display:flex; align-items:center; gap:.8rem;
+      text-decoration:none; background:#fff; border:1px solid rgba(0,48,135,.12);
+      border-left:4px solid var(--acc,#0ea5e9); border-radius:14px; padding:.9rem 1rem;
+      transition:transform .16s ease, box-shadow .16s ease; }
+    .nc-subcard:hover { transform:translateX(3px); box-shadow:0 14px 30px -24px rgba(0,48,135,.5); }
+    .nc-subicon { flex:none; width:42px; height:42px; border-radius:12px; display:grid;
+      place-items:center; font-size:1.25rem;
+      background:#eef2f7;                                   /* fallback: older Android */
+      background:color-mix(in srgb, var(--acc) 12%, #fff); }
+    .nc-subbody { min-width:0; flex:1; }
+    .nc-subbody strong { display:block; color:#003087; font-size:.98rem; line-height:1.25; }
+    .nc-subbody small { color:#90a4ae; font-size:.72rem; font-weight:600;
+      font-variant-numeric:tabular-nums; }
+    .nc-meter { height:4px; border-radius:999px; background:rgba(0,48,135,.09);
+      margin-top:.45rem; overflow:hidden; }
+    .nc-meter i { display:block; height:100%; border-radius:999px; background:var(--acc,#0ea5e9); }
+
+    /* ── Chapter spine ── */
+    .nc-search { position:relative; margin-bottom:.9rem; }
+    .nc-search input { width:100%; font-family:inherit; font-size:.9rem; font-weight:500;
+      color:#1e293b; background:#fff; border:1px solid rgba(0,48,135,.15);
+      border-radius:12px; padding:.7rem .85rem .7rem 2.3rem; }
+    .nc-search input:focus { outline:none; border-color:#0ea5e9;
+      box-shadow:0 0 0 3px rgba(14,165,233,.14); }
+    .nc-search .ic { position:absolute; left:.8rem; top:50%; transform:translateY(-50%);
+      font-size:.9rem; opacity:.45; pointer-events:none; }
+
+    .nc-spine { position:relative; padding-left:34px; }
+    /* the vertical rule the chapter nodes hang off */
+    .nc-spine::before { content:''; position:absolute; left:15px; top:6px; bottom:6px;
+      width:2px; background:linear-gradient(180deg,rgba(0,48,135,.18),rgba(0,48,135,.05)); }
+    .nc-ch { position:relative; display:flex; align-items:center; gap:.75rem;
+      text-decoration:none; background:#fff; border:1px solid rgba(0,48,135,.12);
+      border-radius:12px; padding:.7rem .85rem; margin-bottom:.5rem;
+      transition:transform .14s ease, border-color .14s ease, box-shadow .14s ease; }
+    .nc-ch::before { content:''; position:absolute; left:-26px; top:50%;
+      width:11px; height:11px; margin-top:-5.5px; border-radius:50%;
+      background:#fff; border:2.5px solid var(--acc,#0ea5e9); }
+    .nc-ch.live::before { background:var(--acc,#0ea5e9); }
+    .nc-ch.soon { opacity:.62; }
+    .nc-ch.soon::before { border-color:#cbd5e1; }
+    a.nc-ch:hover { transform:translateX(3px); border-color:var(--acc,#0ea5e9);
+      box-shadow:0 12px 26px -22px rgba(0,48,135,.5); }
+    .nc-ch-num { flex:none; font-family:'Syne',sans-serif; font-weight:800; color:#94a3b8;
+      font-size:.82rem; min-width:1.6rem; font-variant-numeric:tabular-nums; }
+    .nc-ch-body { flex:1; min-width:0; }
+    .nc-ch-body strong { display:block; color:#00306b; font-size:.9rem; font-weight:700;
+      line-height:1.35; }
+    .nc-ch-go { flex:none; font-size:.68rem; font-weight:800; letter-spacing:.03em;
+      padding:.24rem .5rem; border-radius:7px; white-space:nowrap; }
+    .go-live { background:#ecfdf5; color:#047857; }
+    .go-soon { background:#f1f5f9; color:#94a3b8; }
+
+    /* ── Solution view header ── */
+    .nc-sol-head { position:relative; overflow:hidden; border-radius:18px; color:#fff;
+      background:linear-gradient(135deg,#00204f,#003087 55%,#0b6fb8);
+      padding: clamp(1.1rem, 3.6vw, 1.7rem); margin-bottom:1.1rem; }
+    .nc-sol-head::after { content:''; position:absolute; inset:0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+      background-size:22px 22px; pointer-events:none; }
+    .nc-sol-head .kicker { position:relative; z-index:1; font-size:.63rem; font-weight:800;
+      letter-spacing:.13em; text-transform:uppercase; opacity:.8; }
+    .nc-sol-head h1 { position:relative; z-index:1; font-family:'Syne',sans-serif; color:#fff;
+      font-size: clamp(1.15rem, 3.6vw, 1.75rem); line-height:1.18; letter-spacing:-.025em;
+      margin:.4rem 0 .35rem; }
+    .nc-sol-head p { position:relative; z-index:1; font-size:.78rem; opacity:.85; margin:0; }
+
+    .nc-intro { background:#fff; border:1px solid rgba(0,48,135,.12);
+      border-left:4px solid #0ea5e9; border-radius:12px;
+      padding:.85rem 1rem; margin-bottom:1.1rem;
+      font-size:.88rem; line-height:1.6; color:#334155; }
+    .nc-intro p:last-child { margin-bottom:0 !important; }
+
+    /* ── PDF viewer ── */
+    .nc-pdf { background:#fff; border:1px solid rgba(0,48,135,.12);
+      border-radius:16px; overflow:hidden; }
+    .nc-pdf-bar { display:flex; align-items:center; justify-content:space-between;
+      gap:.7rem; flex-wrap:wrap; padding:.8rem .95rem;
+      border-bottom:1px solid rgba(0,48,135,.09); background:#f9fbff; }
+    .nc-pdf-meta { display:flex; align-items:center; gap:.5rem; min-width:0;
+      font-size:.82rem; font-weight:700; color:#00306b; }
+    .nc-pdf-ic { font-size:1.1rem; }
+    .nc-pdf-actions { display:flex; gap:.45rem; flex-wrap:wrap; }
+    .nc-btn { display:inline-block; text-decoration:none; font-weight:800; font-size:.78rem;
+      padding:.45rem .8rem; border-radius:9px; white-space:nowrap;
+      border:1px solid rgba(0,48,135,.18); color:#003087; background:#fff; }
+    .nc-btn:hover { border-color:#0ea5e9; color:#0059d1; }
+    .nc-btn-primary { background:linear-gradient(135deg,#003087,#0ea5e9);
+      color:#fff; border-color:transparent; }
+    .nc-btn-primary:hover { color:#fff; opacity:.93; }
+    .nc-pdf-frame { display:block; width:100%; height:min(78vh, 900px); border:0;
+      background:#f1f5f9; }
+    .nc-pdf-hint { padding:1.5rem 1rem; text-align:center; color:#64748b;
+      font-size:.87rem; line-height:1.6; }
+
+    .nc-empty { text-align:center; padding:2.2rem 1.1rem; background:#fff;
+      border:1px dashed rgba(0,48,135,.22); border-radius:16px; }
+    .nc-empty .ic { font-size:1.9rem; }
+    .nc-empty h3 { font-family:'Syne',sans-serif; color:#003087; font-size:1rem;
+      margin:.55rem 0 .35rem; }
+    .nc-empty p { color:#64748b; font-size:.85rem; line-height:1.55;
+      max-width:34rem; margin:0 auto; }
+
+    .nc-byline { font-size:.72rem; color:#94a3b8; margin-top:1rem; text-align:center; }
+    .nc-loading { text-align:center; padding:2.2rem; color:#94a3b8;
+      font-weight:600; font-size:.88rem; }
+    .nc-none { text-align:center; padding:1.4rem; color:#94a3b8; font-size:.85rem; }
+
+    /* ── Phones ── */
+    @media (max-width: 560px) {
+      .nc-classgrid { grid-template-columns:repeat(2,1fr); gap:.6rem; }
+      .nc-subgrid   { grid-template-columns:1fr; }
+      .nc-spine { padding-left:28px; }
+      .nc-spine::before { left:12px; }
+      .nc-ch::before { left:-22px; }
+      .nc-ch { padding:.65rem .7rem; gap:.55rem; }
+      .nc-ch-body strong { font-size:.85rem; }
+      /* the status chip eats width on small screens — the node colour already says it */
+      .nc-ch-go { display:none; }
+      .nc-pdf-bar { flex-direction:column; align-items:stretch; }
+      .nc-pdf-actions { display:grid; grid-template-columns:1fr 1fr; }
+      /* 44px minimum tap target — these are the main action on a phone */
+      .nc-btn { text-align:center; min-height:44px; display:flex;
+        align-items:center; justify-content:center; font-size:.82rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .nc-classcard, .nc-subcard, .nc-ch { transition:none !important; }
+    }
+  </style>
+</head>
+<body class="subpage">
+  <header class="subpage-top">
+    <a class="subpage-brand" href="/"><img src="/assets/img/logo-mark.png" alt="">The NewTown Classes</a>
+    <nav class="subpage-nav">
+      <a href="/courses/">Courses</a><a class="active" href="/ncert/">NCERT</a><a href="/why-us/">Why Us</a><a href="/toppers/">Toppers</a><a href="/results/">Results</a><a href="/faq/">FAQ</a><a href="/#contact">Contact</a>
+    </nav>
+  </header>
+
+  <main class="subpage-main">
+    <div class="pg-wrap" id="ncApp"><div class="nc-loading">Loading…</div></div>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { FIREBASE_CONFIG, initAppCheck } from "/assets/js/firebase-config.js";
+
+    // Public page — no auth. Firestore rules allow anonymous reads of
+    // ncertIndex/* and of ncertSolutions docs with isPublished == true.
+    // Uploads are ADMIN-ONLY (see firestore.rules) — teachers have no access.
+    const app = initializeApp(FIREBASE_CONFIG);
+    await initAppCheck(app);
+    const db = getFirestore(app);
+
+    const root = document.getElementById('ncApp');
+    const esc = s => String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+    const fileSize = b => b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : Math.round(b/1024) + ' KB';
+
+    // One accent colour per subject — carried through tiles, spine nodes and meters.
+    const ACCENT = {
+      science:'#0ea5e9', maths:'#7c3aed', physics:'#4f46e5',
+      chemistry:'#d97706', biology:'#059669'
+    };
+    const acc = k => ACCENT[k] || '#0ea5e9';
+
+    // Light markdown for the chapter description: **bold**, `code`, paragraphs.
+    function fmt(text) {
+      return esc(text)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .split(/\n{2,}/).map(p => '<p style="margin:0 0 .6rem;">' + p.replace(/\n/g,'<br>') + '</p>').join('');
+    }
+
+    // ── SEO: rewrite title / description / canonical per view ──
+    function setMeta(title, desc, canonicalPath) {
+      document.title = title;
+      const set = (sel, attr, val) => { const el = document.querySelector(sel); if (el) el.setAttribute(attr, val); };
+      set('meta[name="description"]', 'content', desc);
+      set('link[rel="canonical"]', 'href', 'https://thenewtownclasses.com' + canonicalPath);
+      set('meta[property="og:title"]', 'content', title);
+      set('meta[property="og:description"]', 'content', desc);
+      set('meta[property="og:url"]', 'content', 'https://thenewtownclasses.com' + canonicalPath);
+    }
+
+    function crumbs(parts) {
+      return '<div class="nc-crumbs">' + parts.map((p, i) => {
+        const sep = i ? '<span class="sep">/</span>' : '';
+        return sep + (p.href ? `<a href="${p.href}">${esc(p.label)}</a>` : `<span>${esc(p.label)}</span>`);
+      }).join('') + '</div>';
+    }
+
+    const ctaBlock = `
+      <div class="pg-cta">
+        <h2>Want a teacher to walk you through this chapter?</h2>
+        <p>We teach Science and Maths for Class 7-12, plus NEET and JEE prep. Book a free demo and see how we explain it.</p>
+        <a href="/#contact">Book a Free Demo Class</a>
+      </div>`;
+
+    // Read the published-chapter index for one class+subject (ONE Firestore get).
+    async function publishedSet(cls, subjectKey) {
+      try {
+        const snap = await getDoc(doc(db, 'ncertIndex', NCERT.indexId(cls, subjectKey)));
+        if (snap.exists()) return new Set((snap.data().published || []).map(n => parseInt(n, 10)));
+      } catch (e) { console.warn('[ncert] index read failed:', e); }
+      return new Set();
+    }
+
+    // ── VIEW 1: class picker ──
+    function viewClasses() {
+      setMeta(
+        'NCERT Solutions Class 7-12 (Science & Maths) | The NewTown Classes',
+        'Free NCERT solutions for Class 7 to 12 — Science, Maths, Physics, Chemistry and Biology. Chapter-wise PDF solutions, free to read.',
+        '/ncert/'
+      );
+      const cards = NCERT.getClasses().map(c => {
+        const subs = NCERT.getSubjects(c);
+        const nCh = subs.reduce((s, x) => s + x.chapters.length, 0);
+        return `<a class="nc-classcard" href="/ncert/?class=${c}">
+          <div class="nc-cls-top"><span class="nc-cls-num">${c}</span><span class="nc-cls-word">Class</span></div>
+          <div class="nc-cls-subs">${subs.map(s =>
+            `<span class="nc-dot" style="--acc:${acc(s.key)}"><i></i>${esc(s.label === 'Mathematics' ? 'Maths' : s.label)}</span>`).join('')}</div>
+          <div class="nc-cls-meta">${nCh} chapters</div>
+        </a>`;
+      }).join('');
+
+      root.innerHTML = `
+        <div class="pg-hero">
+          <span class="pg-eyebrow">Free · NCERT</span>
+          <h1>Solutions for <em>every</em> chapter.</h1>
+          <p class="pg-lede">Class 7 to 12 Science and Maths, worked through step by step by the teachers at The NewTown Classes.</p>
+          <div class="pg-tags">
+            <span class="pg-tag"><b>${NCERT.totalChapters()}</b> chapters</span>
+            <span class="pg-tag"><b>6</b> classes</span>
+            <span class="pg-tag">Free to read</span>
+            <span class="pg-tag">No sign-up</span>
+          </div>
+        </div>
+        <h2 class="pg-h2">Choose your class</h2>
+        <div class="nc-classgrid">${cards}</div>
+        ${ctaBlock}`;
+    }
+
+    // ── VIEW 2: subject picker ──
+    async function viewSubjects(cls) {
+      const subs = NCERT.getSubjects(cls);
+      if (!subs.length) return viewClasses();
+      setMeta(
+        `NCERT Solutions for Class ${cls} — Science & Maths | The NewTown Classes`,
+        `Chapter-wise NCERT solutions for Class ${cls}: ${subs.map(s => s.label).join(', ')}. Free PDF solutions.`,
+        `/ncert/?class=${cls}`
+      );
+      root.innerHTML = `
+        ${crumbs([{ label:'NCERT', href:'/ncert/' }, { label:`Class ${cls}` }])}
+        <div class="pg-hero">
+          <span class="pg-eyebrow">Class ${cls}</span>
+          <h1>Pick a <em>subject</em>.</h1>
+          <p class="pg-lede">${subs.length} subjects, ${subs.reduce((s,x)=>s+x.chapters.length,0)} chapters in total.</p>
+        </div>
+        <div class="nc-subgrid">${subs.map(s => `
+          <a class="nc-subcard" style="--acc:${acc(s.key)}" href="/ncert/?class=${cls}&subject=${s.key}">
+            <span class="nc-subicon">${s.icon}</span>
+            <span class="nc-subbody">
+              <strong>${esc(s.label)}</strong>
+              <small id="cnt_${s.key}">${s.chapters.length} chapters</small>
+              <span class="nc-meter"><i id="mtr_${s.key}" style="width:0%"></i></span>
+            </span>
+          </a>`).join('')}</div>
+        ${ctaBlock}`;
+
+      // Fill in "N of M solved" per subject (one small read each).
+      subs.forEach(async s => {
+        const live = await publishedSet(cls, s.key);
+        const cnt = document.getElementById('cnt_' + s.key);
+        const mtr = document.getElementById('mtr_' + s.key);
+        if (cnt) cnt.textContent = live.size
+          ? `${live.size} of ${s.chapters.length} solved`
+          : `${s.chapters.length} chapters`;
+        if (mtr) mtr.style.width = Math.round(live.size / s.chapters.length * 100) + '%';
+      });
+    }
+
+    // ── VIEW 3: chapter list ──
+    async function viewChapters(cls, subjectKey) {
+      const subject = NCERT.getSubject(cls, subjectKey);
+      if (!subject) return viewSubjects(cls);
+      const a = acc(subjectKey);
+      setMeta(
+        `NCERT Solutions Class ${cls} ${subject.label} — All Chapters | The NewTown Classes`,
+        `Chapter-wise NCERT solutions for Class ${cls} ${subject.label}. ${subject.chapters.length} chapters, free PDF solutions.`,
+        `/ncert/?class=${cls}&subject=${subjectKey}`
+      );
+      root.innerHTML = `
+        ${crumbs([{ label:'NCERT', href:'/ncert/' }, { label:`Class ${cls}`, href:`/ncert/?class=${cls}` }, { label:subject.label }])}
+        <div class="pg-hero">
+          <span class="pg-eyebrow">Class ${cls} · ${esc(subject.label)}</span>
+          <h1>${esc(subject.label)} <em>chapters</em>.</h1>
+          <p class="pg-lede" id="subjLede">${subject.chapters.length} chapters. Filled dots are published and free to read.</p>
+        </div>
+        <div class="nc-search">
+          <span class="ic">🔍</span>
+          <input type="search" id="chFilter" placeholder="Filter chapters…" autocomplete="off" aria-label="Filter chapters">
+        </div>
+        <div id="chapterList" class="nc-loading">Loading chapters…</div>`;
+
+      const live = await publishedSet(cls, subjectKey);
+
+      const rows = subject.chapters.map(ch => {
+        const ready = live.has(ch.num);
+        const href = `/ncert/?class=${cls}&subject=${subjectKey}&ch=${ch.num}`;
+        const inner = `
+          <span class="nc-ch-num">${String(ch.num).padStart(2,'0')}</span>
+          <span class="nc-ch-body"><strong>${esc(ch.title)}</strong></span>
+          <span class="nc-ch-go ${ready?'go-live':'go-soon'}">${ready?'Read':'Soon'}</span>`;
+        return ready
+          ? `<a class="nc-ch live" style="--acc:${a}" href="${href}" data-t="${esc(ch.title.toLowerCase())}">${inner}</a>`
+          : `<div class="nc-ch soon" data-t="${esc(ch.title.toLowerCase())}">${inner}</div>`;
+      }).join('');
+
+      document.getElementById('chapterList').outerHTML =
+        `<div class="nc-spine" id="chapterList">${rows}</div>
+         <div class="nc-none" id="noMatch" style="display:none;">No chapter matches that.</div>
+         ${ctaBlock}`;
+
+      if (live.size) {
+        const lede = document.getElementById('subjLede');
+        if (lede) lede.textContent = `${live.size} of ${subject.chapters.length} chapters published. Filled dots are free to read.`;
+      }
+
+      // Live filter — useful when a subject runs to 19 chapters.
+      const input = document.getElementById('chFilter');
+      if (input) input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        let shown = 0;
+        document.querySelectorAll('#chapterList .nc-ch').forEach(el => {
+          const hit = !q || (el.dataset.t || '').includes(q);
+          el.style.display = hit ? '' : 'none';
+          if (hit) shown++;
+        });
+        document.getElementById('noMatch').style.display = shown ? 'none' : '';
+      });
+    }
+
+    // ── VIEW 4: one chapter — the solutions PDF the admin uploaded ──
+    async function viewSolution(cls, subjectKey, chNum) {
+      const subject = NCERT.getSubject(cls, subjectKey);
+      const chapter = NCERT.getChapter(cls, subjectKey, chNum);
+      if (!subject || !chapter) return viewChapters(cls, subjectKey);
+
+      setMeta(
+        `NCERT Solutions Class ${cls} ${subject.label} Chapter ${chapter.num} — ${chapter.title}`,
+        `Free NCERT solutions PDF for Class ${cls} ${subject.label} Chapter ${chapter.num}: ${chapter.title}. Read online or download.`,
+        `/ncert/?class=${cls}&subject=${subjectKey}&ch=${chapter.num}`
+      );
+
+      const head = `
+        ${crumbs([
+          { label:'NCERT', href:'/ncert/' },
+          { label:`Class ${cls}`, href:`/ncert/?class=${cls}` },
+          { label:subject.label, href:`/ncert/?class=${cls}&subject=${subjectKey}` },
+          { label:`Ch ${chapter.num}` }
+        ])}
+        <div class="nc-sol-head">
+          <div class="kicker">Class ${cls} · ${esc(subject.label)} · Chapter ${chapter.num}</div>
+          <h1>${esc(chapter.title)}</h1>
+          <p>NCERT solutions, step by step.</p>
+        </div>`;
+
+      root.innerHTML = head + '<div class="nc-loading">Loading solutions…</div>';
+
+      let data = null;
+      try {
+        const snap = await getDoc(doc(db, 'ncertSolutions', NCERT.docId(cls, subjectKey, chapter.num)));
+        if (snap.exists()) data = snap.data();
+      } catch (e) { console.warn('[ncert] solution read failed:', e); }
+
+      // Legacy records point at the old Uploadcare CDN, which 404s for every
+      // file on this project. Treat those as "not published yet" rather than
+      // embedding a frame that shows Uploadcare's error page to visitors.
+      const deadHost = data && typeof data.pdfUrl === 'string'
+                    && /ucarecdn\.com/i.test(data.pdfUrl)
+                    && data.source !== 'drive';
+
+      // Nothing uploaded yet, still a draft, or a dead link → friendly placeholder.
+      if (!data || !data.isPublished || !data.pdfUrl || deadHost) {
+        root.innerHTML = head + `
+          <div class="nc-empty">
+            <div class="ic">✍️</div>
+            <h3>Solutions coming soon</h3>
+            <p>We haven't published this chapter yet. Browse the other chapters in the meantime, or book a free demo class and ask us directly.</p>
+          </div>
+          ${ctaBlock}`;
+        return;
+      }
+
+      const intro = data.intro ? `<div class="nc-intro">${fmt(data.intro)}</div>` : '';
+
+      // Two possible sources:
+      //   drive — a Google Drive share link (free, and its preview renders on
+      //           phones too, which a raw PDF iframe does not)
+      //   file  — a directly uploaded PDF served from a CDN
+      const isDrive = data.source === 'drive' && data.driveId;
+      const gid     = isDrive ? String(data.driveId) : '';
+      const openUrl = isDrive ? `https://drive.google.com/file/d/${gid}/view`     : String(data.pdfUrl);
+      const embedUrl= isDrive ? `https://drive.google.com/file/d/${gid}/preview`  : String(data.pdfUrl) + '#view=FitH';
+      const dlUrl   = isDrive ? `https://drive.google.com/uc?export=download&id=${gid}` : String(data.pdfUrl);
+
+      const meta = [
+        data.pdfName ? esc(data.pdfName) : 'Solutions PDF',
+        data.pdfSize ? fileSize(data.pdfSize) : ''
+      ].filter(Boolean).join(' · ');
+
+      // A raw PDF in an <iframe> is unreliable on phones (iOS Safari and several
+      // Android browsers render a blank box), so we only embed those on wider
+      // screens. Drive's preview is mobile-friendly, so it embeds everywhere.
+      const wide     = window.matchMedia('(min-width: 768px)').matches;
+      const canEmbed = isDrive || wide;
+
+      root.innerHTML = head + intro + `
+        <div class="nc-pdf">
+          <div class="nc-pdf-bar">
+            <div class="nc-pdf-meta"><span class="nc-pdf-ic">📄</span><span>${meta}</span></div>
+            <div class="nc-pdf-actions">
+              <a class="nc-btn nc-btn-primary" href="${esc(openUrl)}" target="_blank" rel="noopener">Open PDF ↗</a>
+              <a class="nc-btn" href="${esc(dlUrl)}" target="_blank" rel="noopener">⬇ Download</a>
+            </div>
+          </div>
+          ${canEmbed
+            ? `<iframe class="nc-pdf-frame" src="${esc(embedUrl)}" title="NCERT solutions for ${esc(chapter.title)}" loading="lazy" allow="autoplay"></iframe>`
+            : `<div class="nc-pdf-hint">Tap <strong>Open PDF</strong> above to read it in your phone's PDF viewer.</div>`}
+        </div>
+        <p class="nc-byline">Published by The NewTown Classes${data.updatedAt ? ' · updated ' + esc(String(data.updatedAt).slice(0,10)) : ''}.</p>
+        ${ctaBlock}`;
+    }
+
+    // ── Router ──
+    function route() {
+      const p = new URLSearchParams(location.search);
+      const cls = p.get('class'), subject = p.get('subject'), ch = p.get('ch');
+      window.scrollTo(0, 0);
+      if (cls && subject && ch) return viewSolution(cls, subject, ch);
+      if (cls && subject)       return viewChapters(cls, subject);
+      if (cls)                  return viewSubjects(cls);
+      return viewClasses();
+    }
+
+    window.addEventListener('popstate', route);
+    route();
+  </script>
+</body>
+</html>
