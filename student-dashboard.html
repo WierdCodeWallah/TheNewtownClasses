@@ -2493,10 +2493,472 @@ renderCards();
     window.asBackToList = function(){ document.getElementById('asReportView').style.display = 'none'; document.getElementById('asTestList').style.display = ''; };
     window.asPrintReport = function(){ const el = document.querySelector('#asReportContent .asr'); NTCAnswerSheetReport.print(el); };
 
+
+    // ══════════════════════════════════════════════════════════════
+    //  EXAM PROCTORING  (live-only, zero storage, zero monetary cost)
+    //  ────────────────────────────────────────────────────────────
+    //   • Camera is MANDATORY: no camera permission → the test will not open.
+    //   • Nothing is ever uploaded or saved — no photo, no video, not one
+    //     frame. Only text events land on the result document.
+    //   • Face tracking uses face-api.js (open-source, loaded from a CDN) as a
+    //     BEST-EFFORT layer: if it loads it flags "no face / looking away /
+    //     more than one person"; if the CDN is slow or the phone can't run it,
+    //     the exam still proceeds on camera on/off/covered/frozen detection.
+    //   • Serious violations raise a visible strike. THREE strikes auto-submit,
+    //     matching how tab-switching already ends the test.
+    // ══════════════════════════════════════════════════════════════
+    let _pStream = null, _pTimer = null, _pLog = [], _pPrev = null, _pActive = false;
+    let _pFace = null;                       // face-api namespace once loaded
+    let _pFaceReady = false, _pFaceTrying = false;
+    let _pStrikes = 0;
+    const P_MAX_STRIKES = 3;
+    // Per-episode latches so one continuous problem = one strike, not a storm.
+    let _pNoFaceHits = 0, _pAwayHits = 0;
+    let _pNoFaceLatched = false, _pMultiLatched = false, _pAwayLatched = false, _pDarkLatched = false;
+
+    const _pCanvas = document.createElement('canvas');
+    _pCanvas.width = 96; _pCanvas.height = 72;
+
+    function proctorLog(type, detail) {
+      const now = new Date().toISOString();
+      const last = _pLog[_pLog.length - 1];
+      if (last && last.type === type) { last.until = now; last.n = (last.n || 1) + 1; return; }
+      _pLog.push({ type, at: now, detail: detail || '' });
+      if (_pLog.length > 300) _pLog.splice(0, _pLog.length - 300);
+    }
+    window._proctorLogEvent = proctorLog;
+
+    function proctorSetState(ok, text) {
+      const box = document.getElementById('proctorState');
+      const vid = document.getElementById('proctorVideo');
+      if (box) {
+        box.textContent = text;
+        box.style.background = ok ? '#ecfdf5' : '#fef2f2';
+        box.style.color      = ok ? '#047857' : '#b91c1c';
+      }
+      if (vid) vid.style.borderColor = ok ? '#10b981' : '#ef4444';
+    }
+    function proctorShowStrikes() {
+      const el = document.getElementById('proctorStrikes');
+      if (!el) return;
+      if (_pStrikes > 0) {
+        el.style.display = 'block';
+        el.textContent = '⚠ Warning ' + _pStrikes + ' of ' + P_MAX_STRIKES;
+      } else { el.style.display = 'none'; }
+    }
+
+    // ── Strike: warn the student; auto-submit on the third ──
+    let _pStrikeQueue = [];
+    function proctorStrike(reason) {
+      if (!_pActive) return;
+      _pStrikes++;
+      proctorLog('strike', reason);
+      proctorShowStrikes();
+      if (_pStrikes >= P_MAX_STRIKES) {
+        proctorLog('auto_submit_strikes');
+        const t = document.getElementById('proctorStrikeTitle');
+        const m = document.getElementById('proctorStrikeMsg');
+        if (t) t.textContent = 'Test auto-submitted';
+        if (m) m.textContent = 'You were warned ' + P_MAX_STRIKES + ' times (' + reason + '). Your test has been submitted automatically.';
+        document.getElementById('proctorStrikeModal').style.display = 'flex';
+        // Give them a moment to read, then submit.
+        setTimeout(() => { if (_activeTest) submitOnlineTest(true); }, 2200);
+        return;
+      }
+      const t = document.getElementById('proctorStrikeTitle');
+      const m = document.getElementById('proctorStrikeMsg');
+      if (t) t.textContent = 'Warning ' + _pStrikes + ' of ' + P_MAX_STRIKES;
+      if (m) m.textContent = reason + '. Please face the screen and keep only yourself in view. After ' + P_MAX_STRIKES + ' warnings the test submits automatically.';
+      document.getElementById('proctorStrikeModal').style.display = 'flex';
+    }
+    window.proctorDismissStrike = function () {
+      const mod = document.getElementById('proctorStrikeModal');
+      if (mod) mod.style.display = 'none';
+    };
+
+    function proctorHasConsent() { return !!(profile && profile.proctorConsentAt); }
+
+    let _pConsentResolve = null;
+    function proctorAskConsent() {
+      return new Promise(resolve => {
+        _pConsentResolve = resolve;
+        document.getElementById('proctorConsentMsg').textContent = '';
+        document.getElementById('proctorConsentBox').checked = false;
+        document.getElementById('proctorConsent').style.display = 'flex';
+      });
+    }
+    window.proctorAcceptConsent = async function () {
+      if (!document.getElementById('proctorConsentBox').checked) {
+        document.getElementById('proctorConsentMsg').textContent = 'Please tick the box to continue.';
+        return;
+      }
+      const iso = new Date().toISOString();
+      try {
+        const token = await user.getIdToken();
+        await fetch(
+          `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${user.uid}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=proctorConsentAt`,
+          { method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify({ fields: { proctorConsentAt: { stringValue: iso } } }) });
+        profile.proctorConsentAt = iso;
+      } catch (e) { console.warn('[proctor] could not save consent:', e); }
+      document.getElementById('proctorConsent').style.display = 'none';
+      if (_pConsentResolve) { _pConsentResolve(true); _pConsentResolve = null; }
+    };
+    window.proctorDeclineConsent = function () {
+      document.getElementById('proctorConsent').style.display = 'none';
+      if (_pConsentResolve) { _pConsentResolve(false); _pConsentResolve = null; }
+    };
+
+    // ── Load face-api.js in the background (best-effort, never blocks) ──
+    function proctorLoadFace() {
+      if (_pFaceReady || _pFaceTrying) return;
+      _pFaceTrying = true;
+      const CDN = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js';
+      const MODELS = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model';
+      const s = document.createElement('script');
+      s.src = CDN;
+      s.onload = async () => {
+        try {
+          _pFace = window.faceapi;
+          await _pFace.nets.tinyFaceDetector.loadFromUri(MODELS);
+          _pFaceReady = true;
+          proctorLog('face_check_ready');
+        } catch (e) { _pFace = null; proctorLog('face_check_unavailable', 'model load failed'); }
+      };
+      s.onerror = () => { _pFace = null; proctorLog('face_check_unavailable', 'library load failed'); };
+      document.head.appendChild(s);
+    }
+
+    // ── Acquire the camera. MANDATORY: returns true only if granted. ──
+    async function proctorAcquire() {
+      // Guard: never leak a previous stream (this was the "camera still on" bug).
+      if (_pStream) { try { _pStream.getTracks().forEach(t => t.stop()); } catch (_) {} _pStream = null; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+      try {
+        _pStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+          audio: false
+        });
+        const vid = document.getElementById('proctorVideo');
+        if (vid) vid.srcObject = _pStream;
+        return true;
+      } catch (e) {
+        proctorLog('camera_denied', (e && e.name) || 'denied');
+        return false;
+      }
+    }
+
+    // ── Begin monitoring (stream already acquired) ──
+    function proctorStart() {
+      _pLog = _pLog.length ? _pLog : [];   // keep any pre-start entries (e.g. consent)
+      _pPrev = null; _pActive = true;
+      _pStrikes = 0; _pNoFaceHits = 0; _pAwayHits = 0;
+      _pNoFaceLatched = _pMultiLatched = _pAwayLatched = _pDarkLatched = false;
+      proctorShowStrikes();
+      proctorSetState(true, '● LIVE · NOT RECORDED');
+      proctorLog('camera_on');
+
+      if (_pStream) {
+        _pStream.getVideoTracks().forEach(t => {
+          t.addEventListener('ended', () => {
+            if (!_pActive) return;
+            proctorLog('camera_off', 'stream ended');
+            proctorSetState(false, '● CAMERA OFF');
+            proctorStrike('Camera was turned off');
+          });
+        });
+      }
+      proctorLoadFace();
+      _pTimer = setInterval(proctorTick, 4000);
+    }
+
+    async function proctorTick() {
+      if (!_pActive) return;
+      const vid = document.getElementById('proctorVideo');
+      const track = _pStream && _pStream.getVideoTracks()[0];
+      if (!track || track.readyState !== 'live' || !vid || !vid.videoWidth) {
+        proctorLog('camera_off', 'no live track');
+        proctorSetState(false, '● CAMERA OFF');
+        proctorStrike('Camera is not active');
+        return;
+      }
+
+      const ctx = _pCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(vid, 0, 0, _pCanvas.width, _pCanvas.height);
+      let px;
+      try { px = ctx.getImageData(0, 0, _pCanvas.width, _pCanvas.height).data; }
+      catch (_) { return; }
+
+      let sum = 0, diff = 0;
+      const n = px.length / 4;
+      const cur = new Float32Array(n);
+      for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+        const lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+        cur[j] = lum; sum += lum;
+        if (_pPrev) diff += Math.abs(lum - _pPrev[j]);
+      }
+      const bright = sum / n;
+      const motion = _pPrev ? diff / n : 999;
+      _pPrev = cur;
+
+      let ok = true, label = '● LIVE · NOT RECORDED';
+
+      if (bright < 12) {
+        proctorLog('camera_covered', 'brightness ' + bright.toFixed(1));
+        ok = false; label = '● CAMERA BLOCKED';
+        if (!_pDarkLatched) { _pDarkLatched = true; proctorStrike('Camera appears covered or dark'); }
+      } else {
+        _pDarkLatched = false;
+        if (motion < 0.35) { proctorLog('frame_frozen', 'motion ' + motion.toFixed(2)); }
+
+        // Face layer (only if the library loaded)
+        if (_pFaceReady && _pFace) {
+          try {
+            const opts = new _pFace.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 });
+            const faces = await _pFace.detectAllFaces(vid, opts);
+            if (faces.length === 0) {
+              _pNoFaceHits++; _pAwayHits = 0; _pMultiLatched = false; _pAwayLatched = false;
+              if (_pNoFaceHits >= 2) {          // ~8s with nobody visible
+                ok = false; label = '● FACE NOT VISIBLE';
+                proctorLog('no_face');
+                if (!_pNoFaceLatched) { _pNoFaceLatched = true; proctorStrike('Your face is not visible'); }
+              }
+            } else if (faces.length > 1) {
+              _pNoFaceHits = 0; _pAwayHits = 0; _pNoFaceLatched = false; _pAwayLatched = false;
+              ok = false; label = '● MORE THAN ONE PERSON';
+              proctorLog('multi_face', faces.length + ' people');
+              if (!_pMultiLatched) { _pMultiLatched = true; proctorStrike('More than one person is visible'); }
+            } else {
+              _pNoFaceHits = 0; _pNoFaceLatched = false; _pMultiLatched = false;
+              // One face — check it is roughly centred & near enough (looking away proxy).
+              const b = faces[0].box, W = vid.videoWidth, H = vid.videoHeight;
+              const cx = (b.x + b.width / 2) / W, area = (b.width * b.height) / (W * H);
+              const off = Math.abs(cx - 0.5);
+              if (off > 0.34 || area < 0.025) {
+                _pAwayHits++;
+                if (_pAwayHits >= 2) {           // ~8s turned away / too far
+                  ok = false; label = '● PLEASE FACE THE SCREEN';
+                  proctorLog('looking_away', 'off ' + off.toFixed(2) + ' area ' + area.toFixed(3));
+                  if (!_pAwayLatched) { _pAwayLatched = true; proctorStrike('You appear to be looking away'); }
+                }
+              } else { _pAwayHits = 0; _pAwayLatched = false; }
+            }
+          } catch (_) { /* detector hiccup — ignore this pass */ }
+        }
+      }
+      proctorSetState(ok, label);
+    }
+
+    // ── Stop & release the camera; return a text-only summary ──
+    function proctorStop() {
+      _pActive = false;
+      if (_pTimer) { clearInterval(_pTimer); _pTimer = null; }
+      if (_pStream) { try { _pStream.getTracks().forEach(t => t.stop()); } catch (_) {} _pStream = null; }
+      const vid = document.getElementById('proctorVideo');
+      if (vid) vid.srcObject = null;
+      const mod = document.getElementById('proctorStrikeModal');
+      if (mod) mod.style.display = 'none';
+      _pPrev = null;
+
+      const counts = {};
+      _pLog.forEach(e => { counts[e.type] = (counts[e.type] || 0) + (e.n || 1); });
+      const flagged = ['camera_off','camera_denied','camera_covered','frame_frozen',
+                       'no_face','multi_face','looking_away','tab_switch','fullscreen_exit','strike']
+                       .reduce((a, k) => a + (counts[k] || 0), 0);
+      return {
+        log: _pLog.slice(),
+        counts,
+        flagged,
+        strikes: _pStrikes,
+        cameraUsed: !!counts.camera_on,
+        faceCheck: !!_pFaceReady
+      };
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  JEE-style test navigation (one question at a time + palette)
+    //  ────────────────────────────────────────────────────────────
+    //  _jeeQs   flat list across all sections: {si,qi,sec,q,num,marks}
+    //  _jeeState[i]  'notVisited' | 'notAnswered' | 'answered' | 'marked' | 'ansMarked'
+    //  _otAnswers['<si>_<qi>']  the chosen option ('a'..'d') — the grader reads THIS
+    // ══════════════════════════════════════════════════════════════
+    let _jeeQs = [], _jeeState = [], _jeeIdx = 0, _otAnswers = {}, _jeeImgCache = {};
+
+    const _jeeEsc = s => String(s == null ? '' : s);
+
+    function jeeBuild(sections) {
+      _jeeQs = []; _jeeState = []; _otAnswers = {};
+      sections.forEach((sec, si) => {
+        (sec.questions || []).forEach((q, qi) => {
+          if (sec.type !== 'mcq') return;            // subjective can't be auto-graded here
+          _jeeQs.push({ si, qi, sec, q, num: q.num || (_jeeQs.length + 1), marks: sec.marksPerQ || 1 });
+          _jeeState.push('notVisited');
+        });
+      });
+    }
+
+    // Colour per palette state (matches the legend).
+    function jeeColour(st, isCurrent) {
+      const map = {
+        notVisited:  ['#e2e8f0', '#475569'],
+        notAnswered: ['#ef4444', '#fff'],
+        answered:    ['#059669', '#fff'],
+        marked:      ['#7c3aed', '#fff'],
+        ansMarked:   ['#7c3aed', '#fff']
+      };
+      const [bg, fg] = map[st] || map.notVisited;
+      const ring = isCurrent ? 'box-shadow:0 0 0 3px #0369a1;' : '';
+      const dot  = st === 'ansMarked' ? 'border-bottom:3px solid #10b981;' : '';
+      return `background:${bg};color:${fg};${ring}${dot}`;
+    }
+
+    window.jeeRenderPalette = function () {
+      const wrap = document.getElementById('jeePalette');
+      if (!wrap) return;
+      wrap.innerHTML = _jeeQs.map((_, i) =>
+        `<button onclick="jeeGoto(${i})" title="Question ${i + 1}"
+           style="aspect-ratio:1;min-height:34px;border:none;border-radius:6px;font-weight:800;font-size:.78rem;cursor:pointer;font-family:inherit;${jeeColour(_jeeState[i], i === _jeeIdx)}">${i + 1}</button>`
+      ).join('');
+      jeeUpdateCounts();
+    };
+
+    window.jeeUpdateCounts = function () {
+      const c = { notVisited: 0, notAnswered: 0, answered: 0, marked: 0, ansMarked: 0 };
+      _jeeState.forEach(st => { c[st] = (c[st] || 0) + 1; });
+      const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+      set('cntNotVisited', c.notVisited);
+      set('cntNotAnswered', c.notAnswered);
+      set('cntAnswered', c.answered);
+      set('cntMarked', c.marked);
+      set('cntAnsMarked', c.ansMarked);
+    };
+
+    // Fetch a question image once, cache it, inject into the current slot.
+    async function jeeFetchImg(key, testId, si, num, elId) {
+      const slot = document.getElementById(elId);
+      if (!slot) return;
+      if (_jeeImgCache[key] !== undefined) {
+        slot.innerHTML = _jeeImgCache[key]
+          ? `<img src="${_jeeImgCache[key]}" alt="Question figure" style="max-width:100%;max-height:340px;border-radius:10px;border:1px solid rgba(0,48,135,.1);background:#fff;display:block;">` : '';
+        return;
+      }
+      try {
+        const tok = await user.getIdToken();
+        const imgId = `${testId}__s${si}__q${num}`;
+        const res = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/questionImages/${imgId}?key=${FIREBASE_CONFIG.apiKey}`,
+          { headers: { Authorization: 'Bearer ' + tok } });
+        if (!res.ok) throw new Error('no img');
+        const doc = await res.json();
+        const data = doc.fields?.data?.stringValue || '';
+        _jeeImgCache[key] = data;
+        if (document.getElementById(elId)) jeeFetchImg(key, testId, si, num, elId);
+      } catch (_) { _jeeImgCache[key] = ''; }
+    }
+
+    // Render the question at index i.
+    window.jeeRenderQuestion = function (i) {
+      if (i < 0 || i >= _jeeQs.length) return;
+      _jeeIdx = i;
+      const item = _jeeQs[i];
+      const q = item.q, key = `${item.si}_${item.qi}`;
+      const chosen = _otAnswers[key] || '';
+      const label = document.getElementById('jeeQLabel');
+      const marks = document.getElementById('jeeQMarks');
+      if (label) label.textContent = 'Question ' + (i + 1) + ' of ' + _jeeQs.length;
+      if (marks) marks.textContent = item.marks + ' mark' + (item.marks > 1 ? 's' : '') +
+        (_activeTest && (_activeTest.test.negWrong > 0) ? ' · −' + _activeTest.test.negWrong + ' wrong' : '');
+
+      const imgId = 'jeeimg_' + i;
+      const imgSlot = q.img ? `<div id="${imgId}" style="margin:.7rem 0;min-height:30px;"><div style="display:inline-block;padding:.3rem .7rem;background:#f1f5f9;border-radius:8px;font-size:.72rem;color:#64748b;">⏳ Loading image…</div></div>` : '';
+
+      const opts = ['a', 'b', 'c', 'd'].map(o => {
+        const on = chosen === o;
+        return `<label onclick="jeePick('${o}')" style="display:flex;align-items:center;gap:.7rem;padding:.65rem .9rem;border-radius:10px;cursor:pointer;border:1.5px solid ${on ? '#0369a1' : 'rgba(0,48,135,.14)'};background:${on ? '#eff6ff' : '#fff'};transition:all .12s;">
+          <span style="width:18px;height:18px;border-radius:50%;border:2px solid ${on ? '#0369a1' : '#cbd5e1'};background:${on ? '#0369a1' : '#fff'};flex:none;position:relative;">${on ? '<span style=\'position:absolute;inset:3px;border-radius:50%;background:#fff;\'></span>' : ''}</span>
+          <span style="font-size:.92rem;color:#1e293b;"><strong style="color:#003087;">${o.toUpperCase()}.</strong> ${_jeeEsc(q[o] || '')}</span>
+        </label>`;
+      }).join('');
+
+      const area = document.getElementById('jeeQArea');
+      area.innerHTML = `
+        <div style="position:relative;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.5;"><span style="font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:rgba(0,48,135,0.06);transform:rotate(-28deg);letter-spacing:.14em;text-transform:uppercase;">The NewTown Classes</span></div>
+          <div style="position:relative;z-index:1;">
+            <p style="font-weight:600;color:#1e293b;font-size:1rem;line-height:1.6;margin-bottom:.5rem;">${_jeeEsc(q.text || '')}</p>
+            ${imgSlot}
+            <div style="display:grid;gap:.5rem;margin-top:.8rem;">${opts}</div>
+          </div>
+        </div>`;
+
+      if (q.img && _activeTest) jeeFetchImg('q' + i, _activeTest.testId, item.si, item.num, imgId);
+      try { if (typeof renderMathInElement === 'function') renderMathInElement(area, { delimiters: [{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false }); } catch (_) {}
+
+      // Visiting a question moves it out of "not visited".
+      if (_jeeState[i] === 'notVisited') _jeeState[i] = chosen ? 'answered' : 'notAnswered';
+      jeeRenderPalette();
+    };
+
+    // Student taps an option — record it and repaint (no auto-advance).
+    window.jeePick = function (opt) {
+      const item = _jeeQs[_jeeIdx];
+      if (!item) return;
+      _otAnswers[`${item.si}_${item.qi}`] = opt;
+      // Answering a plain question makes it 'answered'; a marked one becomes 'ansMarked'.
+      const st = _jeeState[_jeeIdx];
+      _jeeState[_jeeIdx] = (st === 'marked' || st === 'ansMarked') ? 'ansMarked' : 'answered';
+      jeeRenderQuestion(_jeeIdx);
+      // Pop the palette cell for the question just answered.
+      const cell = document.querySelector('#jeePalette button:nth-child(' + (_jeeIdx + 1) + ')');
+      if (cell) { cell.classList.add('jee-justset'); setTimeout(() => cell.classList.remove('jee-justset'), 320); }
+    };
+
+    window.jeeGoto = function (i) { jeeRenderQuestion(i); };
+    window.jeeNext = function () { if (_jeeIdx < _jeeQs.length - 1) jeeRenderQuestion(_jeeIdx + 1); };
+    window.jeePrev = function () { if (_jeeIdx > 0) jeeRenderQuestion(_jeeIdx - 1); };
+
+    window.jeeSaveNext = function () {
+      const item = _jeeQs[_jeeIdx];
+      const answered = !!_otAnswers[`${item.si}_${item.qi}`];
+      _jeeState[_jeeIdx] = answered ? 'answered' : 'notAnswered';
+      jeeUpdateCounts();
+      if (_jeeIdx < _jeeQs.length - 1) jeeRenderQuestion(_jeeIdx + 1); else jeeRenderPalette();
+    };
+
+    window.jeeClear = function () {
+      const item = _jeeQs[_jeeIdx];
+      delete _otAnswers[`${item.si}_${item.qi}`];
+      _jeeState[_jeeIdx] = 'notAnswered';
+      jeeRenderQuestion(_jeeIdx);
+    };
+
+    window.jeeSaveMark = function () {
+      const item = _jeeQs[_jeeIdx];
+      const answered = !!_otAnswers[`${item.si}_${item.qi}`];
+      _jeeState[_jeeIdx] = answered ? 'ansMarked' : 'marked';
+      jeeUpdateCounts();
+      if (_jeeIdx < _jeeQs.length - 1) jeeRenderQuestion(_jeeIdx + 1); else jeeRenderPalette();
+    };
+
+    window.jeeMarkNext = function () {
+      const item = _jeeQs[_jeeIdx];
+      const answered = !!_otAnswers[`${item.si}_${item.qi}`];
+      _jeeState[_jeeIdx] = answered ? 'ansMarked' : 'marked';
+      jeeUpdateCounts();
+      if (_jeeIdx < _jeeQs.length - 1) jeeRenderQuestion(_jeeIdx + 1); else jeeRenderPalette();
+    };
+
+    // Kept as an alias — old code and the onchange handlers call updateProgress().
+    window.updateProgress = function () { jeeUpdateCounts(); };
     window.openOnlineTest = async function(testId) {
       const overlay = document.getElementById('onlineTestOverlay');
       overlay.style.display = 'block';
       document.body.style.overflow = 'hidden';
+      // Reset views (a previous run may have hidden otBody / shown the JEE view).
+      document.getElementById('otLive').style.display = 'none';
+      document.getElementById('jeeActions').style.display = 'none';
+      document.getElementById('otBody').style.display = 'block';
       document.getElementById('otBody').innerHTML = '<div style="text-align:center;padding:3rem;color:#90a4ae;">⏳ Loading test…</div>';
       document.getElementById('otSubmitBar').style.display = 'none';
 
@@ -2553,173 +3015,108 @@ renderCards();
         _activeTest = { testId, test, sections };
         _testEntryTime = new Date(); // record when student starts
 
-        document.getElementById('otTitle').textContent = test.testName || 'Test';
-        const negInfo = (test.negWrong > 0 || test.negUnattempted > 0)
-          ? ` | ⚖️ Neg: −${test.negWrong} wrong${test.negUnattempted > 0 ? ', −' + test.negUnattempted + ' unattempted' : ''}`
-          : '';
-        document.getElementById('otMeta').textContent  = `Class ${test.class} · ${test.subject}${test.testSection ? ' · Sec ' + test.testSection : ''} · ${test.totalMarks || ''} marks · ${test.totalQ || sections.reduce((a,s)=>a+(s.questions?.length||0),0)} questions · ⏱ ${test.timeLimit || 60} min${negInfo}`;
-
-        // Render questions
-        let allQCount = 0;
-        const imagesToLoad = []; // [{ si, qi, qNum, elId }] — fetched lazily after render
-        document.getElementById('otBody').innerHTML = sections.map((sec, si) => {
-          const secTotal = (sec.marksPerQ || 1) * (sec.questions?.length || 0);
-          return `
-          <div style="margin-bottom:2rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:.7rem 1.1rem;background:linear-gradient(135deg,#003087,#0ea5e9);border-radius:12px;color:#fff;margin-bottom:1rem;">
-              <strong>${sec.title || 'Section ' + (si + 1)}</strong>
-              <span style="font-size:.8rem;opacity:.85;">${sec.marksPerQ || 1} mark${(sec.marksPerQ||1)>1?'s':''} × ${sec.questions?.length||0} = ${secTotal} marks</span>
-            </div>
-            ${(sec.questions || []).map((q, qi) => {
-              allQCount++;
-              const qNum   = q.num || qi + 1;
-              const imgEl  = `qimg_${si}_${qi}`;
-              // Image slot: placeholder shown while we fetch the questionImages doc.
-              // `q.img === true` on new tests with an attached diagram; older tests
-              // (pre-image feature) don't have this flag, so the slot stays empty.
-              const imgSlot = q.img ? `
-                <div id="${imgEl}" style="margin:.7rem 0;min-height:40px;">
-                  <div style="display:inline-block;padding:.35rem .75rem;background:#f1f5f9;border-radius:8px;font-size:.75rem;color:#64748b;">⏳ Loading image…</div>
-                </div>` : '';
-              if (q.img) imagesToLoad.push({ si, qi, qNum, elId: imgEl });
-
-              if (sec.type === 'mcq') {
-                return `
-                <div class="ot-question" id="otq_${si}_${qi}" style="background:transparent;padding:1rem 0;margin-bottom:.4rem;">
-                  <p style="font-weight:600;color:#1e293b;margin-bottom:.4rem;line-height:1.5;">
-                    <span style="color:#003087;font-weight:800;">Q.${qNum}.</span> ${q.text}
-                    <span style="font-size:.75rem;color:#90a4ae;font-weight:400;margin-left:.4rem;">(${sec.marksPerQ||1} mark${(sec.marksPerQ||1)>1?'s':''})</span>
-                  </p>
-                  ${imgSlot}
-                  <div style="padding-bottom:.6rem;border-bottom:1px solid rgba(0,48,135,.1);margin-bottom:.6rem;"></div>
-                  <div style="display:grid;gap:.45rem;">
-                    ${['a','b','c','d'].map(opt => `
-                      <label id="lbl_${si}_${qi}_${opt}" style="display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;border-radius:10px;cursor:pointer;border:1px solid rgba(0,48,135,.12);transition:all .15s;background:rgba(255,255,255,.45);">
-                        <input type="radio" name="ans_${si}_${qi}" value="${opt}" onchange="updateProgress()" style="accent-color:#003087;width:16px;height:16px;flex-shrink:0;"/>
-                        <span style="font-size:.9rem;"><strong style="color:#003087;min-width:1.4rem;display:inline-block;">${opt.toUpperCase()}.</strong> ${q[opt] || ''}</span>
-                      </label>`).join('')}
-                </div>`;
-              } else {
-                return `
-                <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:1.1rem;margin-bottom:.8rem;position:relative;overflow:hidden;"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;"><span style='font-family:\"Syne\",sans-serif;font-size:1rem;font-weight:800;color:rgba(0,48,135,0.07);white-space:nowrap;transform:rotate(-30deg);letter-spacing:.12em;text-transform:uppercase;user-select:none;'>THE NEWTOWN CLASSES</span></div>
-                  <p style="font-weight:600;color:#1e293b;margin-bottom:.4rem;"><span style="color:#003087;font-weight:800;">Q.${qNum}.</span> ${q.text}</p>
-                  ${imgSlot}
-                  <p style="font-size:.82rem;color:#92400e;font-style:italic;">📝 Subjective — write your answer on paper and submit separately.</p>
-                  </div>
-                </div>`;
-              }
-            }).join('')}
-          </div>`;
-        }).join('');
-
-        document.getElementById('otSubmitBar').style.display = 'flex';
-        updateProgress();
-
-        // ── Lazy-fetch any per-question images attached by the teacher ──
-        // One Firestore GET per image. We fire them in parallel but cap concurrency
-        // at 4 so a test with many diagrams doesn't stall the network.
-        if (imagesToLoad.length) {
-          const fetchQuestionImg = async ({ si, qNum, elId }) => {
-            const slot = document.getElementById(elId);
-            if (!slot) return;
-            try {
-              const tok  = await user.getIdToken();
-              const imgId = `${testId}__s${si}__q${qNum}`;
-              const res  = await fetch(
-                `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/questionImages/${imgId}?key=${FIREBASE_CONFIG.apiKey}`,
-                { headers: { Authorization: 'Bearer ' + tok } }
-              );
-              if (!res.ok) throw new Error('img not found');
-              const doc  = await res.json();
-              const data = doc.fields?.data?.stringValue || '';
-              if (data) {
-                slot.innerHTML = `<img src="${data}" alt="Question figure" style="max-width:100%;max-height:360px;border-radius:10px;border:1px solid rgba(0,48,135,.1);background:#fff;display:block;"/>`;
-              } else {
-                slot.innerHTML = '';
-              }
-            } catch {
-              slot.innerHTML = '<div style="font-size:.72rem;color:#90a4ae;">(image unavailable)</div>';
-            }
-          };
-          // Simple concurrency-limited runner.
-          (async () => {
-            const q = imagesToLoad.slice();
-            const workers = Array.from({ length: Math.min(4, q.length) }, async () => {
-              while (q.length) { await fetchQuestionImg(q.shift()); }
-            });
-            await Promise.all(workers);
-          })();
+        // ── Build the flat question list (JEE one-question-at-a-time) ──
+        jeeBuild(sections);
+        _jeeImgCache = {};
+        const showBody = (html) => {
+          document.getElementById('otLive').style.display = 'none';
+          document.getElementById('jeeActions').style.display = 'none';
+          const b = document.getElementById('otBody');
+          b.style.display = 'block'; b.innerHTML = html;
+        };
+        if (!_jeeQs.length) {
+          _activeTest = null;
+          showBody('<div style="text-align:center;padding:3rem;color:#90a4ae;">This test has no multiple-choice questions to attempt.</div>');
+          return;
         }
 
-        // Render math expressions (KaTeX) in questions and options
-        try {
-          if (typeof renderMathInElement === 'function') {
-            renderMathInElement(document.getElementById('otBody'), {
-              delimiters: [
-                {left:'\\(',right:'\\)',display:false},
-                {left:'\\[',right:'\\]',display:true}
-              ],
-              throwOnError: false
-            });
-          }
-        } catch(e) { console.warn('KaTeX render error:', e); }
+        // Header: candidate · class · subject · question count
+        const totalQCount = _jeeQs.length;
+        const negInfo = (test.negWrong > 0 || test.negUnattempted > 0)
+          ? ` · ⚖️ −${test.negWrong} wrong${test.negUnattempted > 0 ? ', −' + test.negUnattempted + ' skipped' : ''}` : '';
+        document.getElementById('otTitle').textContent = test.testName || 'Test';
+        document.getElementById('otMeta').textContent =
+          `${profile.name || 'Candidate'} · Class ${test.class} · ${test.subject} · ${totalQCount} questions${negInfo}`;
 
-        // ── Start countdown timer ──
+        // ── MANDATORY camera: one-time consent, then acquire. No camera → no test. ──
+        if (!proctorHasConsent()) {
+          const agreed = await proctorAskConsent();
+          if (!agreed) {
+            _activeTest = null;
+            proctorLog('consent_declined');
+            showBody(`<div style="max-width:520px;margin:3rem auto;padding:2rem;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,48,135,.08);text-align:center;">
+              <div style="font-size:2.4rem;">📷</div>
+              <h2 style="color:#003087;font-family:'Syne',sans-serif;margin:.5rem 0;">Camera needed to start</h2>
+              <p style="color:#546e7a;font-size:.92rem;line-height:1.55;margin-bottom:1.3rem;">This test is camera-monitored. You (and a parent, if under 18) need to agree before you can begin.</p>
+              <button onclick="openOnlineTest('${testId}')" style="background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border:none;padding:.7rem 1.6rem;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;margin-right:.5rem;">Try again</button>
+              <button onclick="closeOnlineTest()" style="background:#fff;border:1px solid rgba(0,48,135,.2);color:#546e7a;padding:.7rem 1.3rem;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;">Close</button>
+            </div>`);
+            return;
+          }
+        }
+
+        showBody('<div style="text-align:center;padding:3rem;color:#90a4ae;">📷 Starting camera…</div>');
+        const gotCam = await proctorAcquire();
+        if (!gotCam) {
+          _activeTest = null;
+          showBody(`<div style="max-width:540px;margin:3rem auto;padding:2rem;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,48,135,.08);text-align:center;">
+            <div style="font-size:2.4rem;">🚫📷</div>
+            <h2 style="color:#b91c1c;font-family:'Syne',sans-serif;margin:.5rem 0;">Camera is required</h2>
+            <p style="color:#546e7a;font-size:.92rem;line-height:1.6;margin-bottom:1rem;">We could not access your camera, so this test cannot start. Please:</p>
+            <ul style="text-align:left;max-width:420px;margin:0 auto 1.3rem;color:#546e7a;font-size:.88rem;line-height:1.7;">
+              <li>Allow camera access when the browser asks (tap the 🔒/📷 icon in the address bar → Allow).</li>
+              <li>Close any other app using the camera.</li>
+              <li>Then tap <strong>Try again</strong>.</li>
+            </ul>
+            <button onclick="openOnlineTest('${testId}')" style="background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border:none;padding:.7rem 1.6rem;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;margin-right:.5rem;">Try again</button>
+            <button onclick="closeOnlineTest()" style="background:#fff;border:1px solid rgba(0,48,135,.2);color:#546e7a;padding:.7rem 1.3rem;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;">Close</button>
+          </div>`);
+          return;
+        }
+
+        // ── Show the JEE layout and render the first question ──
+        document.getElementById('otBody').style.display = 'none';
+        document.getElementById('otLive').style.display = 'flex';
+        document.getElementById('jeeActions').style.display = 'flex';
+        jeeRenderQuestion(0);
+
+        // ── Fullscreen ──
+        try {
+          if (overlay.requestFullscreen) await overlay.requestFullscreen();
+          else if (overlay.webkitRequestFullscreen) await overlay.webkitRequestFullscreen();
+        } catch (e) { console.warn('Fullscreen request failed:', e); }
+
+        // ── Countdown timer (targets the header #otTimer) ──
         const timeLimitMins = test.timeLimit || 60;
-        let timeLeft = timeLimitMins * 60; // seconds
+        let timeLeft = timeLimitMins * 60;
         const timerEl = document.getElementById('otTimer');
         if (timerEl) {
           timerEl.style.display = 'block';
           const updateTimer = () => {
-            const mins = Math.floor(timeLeft / 60);
-            const secs = timeLeft % 60;
-            timerEl.textContent = '⏱ ' + String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
-            if (timeLeft <= 300 && timeLeft > 60) {
-              timerEl.style.color = '#d97706';
-            } else if (timeLeft <= 60) {
-              timerEl.style.color = '#dc2626';
-              timerEl.style.fontWeight = '800';
-            }
+            const mins = Math.floor(timeLeft / 60), secs = timeLeft % 60;
+            timerEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            if (timeLeft <= 60) { timerEl.style.color = '#dc2626'; timerEl.classList.add('jee-lowtime'); }
+            else if (timeLeft <= 300) { timerEl.style.color = '#d97706'; }
           };
           updateTimer();
           if (_timerHandle) clearInterval(_timerHandle);
           _timerHandle = setInterval(() => {
-            timeLeft--;
-            updateTimer();
+            timeLeft--; updateTimer();
             if (timeLeft <= 0) {
-              clearInterval(_timerHandle);
-              _timerHandle = null;
+              clearInterval(_timerHandle); _timerHandle = null;
               alert('⏰ Time is up! Your test will be auto-submitted now.');
               submitOnlineTest(true);
             }
           }, 1000);
         }
 
-        // ── Request fullscreen ──
-        try {
-          const overlay = document.getElementById('onlineTestOverlay');
-          if (overlay.requestFullscreen) await overlay.requestFullscreen();
-          else if (overlay.webkitRequestFullscreen) await overlay.webkitRequestFullscreen();
-        } catch(e) { console.warn('Fullscreen request failed:', e); }
+        // ── Start live proctoring (camera already acquired) ──
+        proctorStart();
       } catch(err) {
         document.getElementById('otBody').innerHTML = `<div style="text-align:center;padding:2rem;color:#ef4444;">❌ ${err.message}</div>`;
       }
     };
 
-    window.updateProgress = function() {
-      if (!_activeTest) return;
-      const { sections } = _activeTest;
-      let total = 0, answered = 0;
-      sections.forEach((sec, si) => {
-        if (sec.type !== 'mcq') return;
-        (sec.questions || []).forEach((q, qi) => {
-          total++;
-          if (document.querySelector(`input[name="ans_${si}_${qi}"]:checked`)) answered++;
-        });
-      });
-      const el = document.getElementById('otProgress');
-      if (el) el.textContent = `${answered} / ${total} answered`;
-    };
 
     window.closeOnlineTest = function() {
       if (_activeTest) {
@@ -2729,6 +3126,7 @@ renderCards();
         return;
       }
       if (_timerHandle) clearInterval(_timerHandle);
+      proctorStop();
       // Exit fullscreen
       if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
       document.getElementById('onlineTestOverlay').style.display = 'none';
@@ -2736,27 +3134,29 @@ renderCards();
     };
 
     // ── Auto-submit if student leaves the page or exits fullscreen ──
+    // Leaving the tab is a proctoring strike (warn; 3 strikes → auto-submit),
+    // consistent with the camera violations — not an instant submit.
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && _activeTest) {
-        submitOnlineTest(true);
+      if (document.hidden && _activeTest && _pActive) {
+        proctorLog('tab_switch');
+        proctorStrike('You left the test tab');
       }
     });
 
     document.addEventListener('fullscreenchange', () => {
-      if (!document.fullscreenElement && _activeTest) {
-        // Student pressed Escape or exited fullscreen — auto submit
-        setTimeout(() => {
-          if (_activeTest) submitOnlineTest(true);
-        }, 300);
+      if (!document.fullscreenElement && _activeTest && _pActive) {
+        proctorLog('fullscreen_exit');
+        proctorStrike('You exited full screen');
       }
     });
 
-    // Prevent back button during test
+    // Back button during a test: block navigation and count it as a strike.
     window.addEventListener('popstate', (e) => {
       if (_activeTest) {
         e.preventDefault();
         history.pushState(null, '', location.href);
-        submitOnlineTest(true);
+        if (_pActive) { proctorLog('back_button'); proctorStrike('You pressed the back button'); }
+        else submitOnlineTest(true);
       }
     });
     // Push initial state for popstate to work
@@ -2771,6 +3171,8 @@ renderCards();
       _activeTest = null;  // Prevent fullscreen/visibility listeners from submitting again.
       const btn = document.getElementById('otSubmitBtn');
       const submittedAtIso = new Date().toISOString();
+      // Releases the camera and returns text-only evidence — never an image.
+      const proctorReport = proctorStop();
       btn.disabled = true; btn.textContent = 'Grading…';
 
       // Grade with negative marking support
@@ -2787,8 +3189,7 @@ renderCards();
         (sec.questions || []).forEach((q, qi) => {
           if (sec.type !== 'mcq') return;
           totalQuestions++;
-          const sel = document.querySelector(`input[name="ans_${si}_${qi}"]:checked`);
-          const ans = sel ? sel.value : null;
+          const ans = _otAnswers[`${si}_${qi}`] || null;
           answers[`${si}_${qi}`] = ans;
           secMax += (sec.marksPerQ || 1);
           if (ans) {
@@ -2857,7 +3258,10 @@ renderCards();
               entryTime:    { stringValue: _testEntryTime ? _testEntryTime.toISOString() : '' },
               exitTime:     { stringValue: submittedAtIso },
               submittedAt:  { stringValue: submittedAtIso },
-              cycleAttempted: { integerValue: String(test.activeCycle || 1) }
+              cycleAttempted: { integerValue: String(test.activeCycle || 1) },
+              proctorLog:      { stringValue: JSON.stringify(proctorReport.log || []) },
+              proctorFlags:    { integerValue: String(proctorReport.flagged || 0) },
+              proctorCamera:   { booleanValue: !!proctorReport.cameraUsed }
             }})
           }
         );
@@ -2909,6 +3313,9 @@ renderCards();
     };
 
     function _showTestResult({ test, sections, answers, sectionScores, totalScore, totalMax, pct, totalAttempted, totalCorrect, totalWrong, totalUnattempted, totalQuestions, finalScore, totalNegWrongDeduction, totalNegUnattemptedDeduction, totalNegDeduction }) {
+      var _liv=document.getElementById('otLive'); if(_liv) _liv.style.display='none';
+      var _act=document.getElementById('jeeActions'); if(_act) _act.style.display='none';
+      var _ob=document.getElementById('otBody'); if(_ob) _ob.style.display='block';
       const hasNeg = (test.negWrong > 0 || test.negUnattempted > 0);
       const displayScore = hasNeg ? finalScore : totalScore;
       const grade = pct >= 80 ? '🏆 Excellent!' : pct >= 60 ? '👍 Good Work' : pct >= 40 ? '📚 Keep Practicing' : '💪 Study More';
@@ -3083,6 +3490,10 @@ renderCards();
       const timerEl = document.getElementById('otTimer');
       if (timerEl) timerEl.style.display = 'none';
       document.getElementById('otSubmitBar').style.display = 'none';
+      // Review uses the scrolling otBody, not the JEE live view.
+      var _liv=document.getElementById('otLive'); if(_liv) _liv.style.display='none';
+      var _act=document.getElementById('jeeActions'); if(_act) _act.style.display='none';
+      document.getElementById('otBody').style.display='block';
       document.getElementById('otTitle').textContent = 'Loading review…';
       document.getElementById('otMeta').textContent = '';
       document.getElementById('otBody').innerHTML = '<div style="text-align:center;padding:3rem;color:#90a4ae;">⏳ Loading your submission…</div>';
@@ -3944,31 +4355,207 @@ renderCards();
   .ot-question { transition: box-shadow .15s; }
   .ot-question:hover { box-shadow: 0 2px 12px rgba(0,48,135,.08); }
 </style>
-<div id="onlineTestOverlay" style="display:none;position:fixed;inset:0;background:#f5f7ff;z-index:200;overflow-y:auto;">
-
-  <!-- Header bar -->
-  <div style="background:rgba(0,48,135,.97);padding:.8rem 1.5rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;">
-    <div>
-      <div id="otTitle" style="font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1.1rem;">Test</div>
-      <div id="otMeta" style="font-size:.78rem;color:rgba(255,255,255,.65);margin-top:.1rem;"></div>
+<!-- ═══════ ONE-TIME PROCTORING CONSENT (students are minors) ═══════ -->
+<div id="proctorConsent" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(15,23,42,.72);align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:18px;max-width:460px;width:100%;padding:1.5rem;max-height:90vh;overflow:auto;">
+    <h3 style="color:#003087;font-family:'Syne',sans-serif;margin:0 0 .7rem;font-size:1.15rem;">📷 About the camera during tests</h3>
+    <div style="font-size:.88rem;line-height:1.65;color:#334155;">
+      <p style="margin:0 0 .6rem;">To keep tests fair, your camera stays on while you are writing a test.</p>
+      <ul style="margin:0 0 .8rem 1.1rem;padding:0;">
+        <li><strong>Nothing is recorded.</strong> No photo or video is ever saved or uploaded.</li>
+        <li>You will see your own camera in the corner the whole time.</li>
+        <li>Only notes such as “camera was switched off” are saved with your result.</li>
+      </ul>
+      <p style="margin:0 0 .9rem;padding:.6rem .8rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:.83rem;color:#9a3412;">
+        If you are under 18, please show this to a parent or guardian and get their permission before continuing.
+      </p>
     </div>
-    <div style="display:flex;gap:.6rem;align-items:center;">
-      <div id="otTimer" style="font-size:.88rem;font-weight:700;color:#0ea5e9;background:rgba(14,165,233,.15);padding:.3rem .8rem;border-radius:8px;display:none;">⏱ --:--</div>
-      <button onclick="closeOnlineTest()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:.35rem 1rem;border-radius:8px;font-family:inherit;font-size:.82rem;cursor:pointer;">✕ Exit</button>
+    <div id="proctorConsentMsg" style="font-size:.82rem;color:#dc2626;margin-bottom:.5rem;"></div>
+    <label style="display:flex;gap:.55rem;align-items:flex-start;font-size:.85rem;color:#334155;cursor:pointer;margin-bottom:.9rem;">
+      <input type="checkbox" id="proctorConsentBox" style="margin-top:.2rem;width:17px;height:17px;cursor:pointer;">
+      <span>I understand, and my parent or guardian agrees.</span>
+    </label>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+      <button onclick="proctorAcceptConsent()" style="flex:1;min-width:140px;padding:.7rem;border:none;border-radius:10px;background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;">Agree &amp; continue</button>
+      <button onclick="proctorDeclineConsent()" style="padding:.7rem 1rem;border:1px solid rgba(0,48,135,.2);border-radius:10px;background:#fff;color:#546e7a;font-weight:700;cursor:pointer;font-family:inherit;">Not now</button>
+    </div>
+  </div>
+</div>
+
+<div id="onlineTestOverlay" style="display:none;position:fixed;inset:0;background:#eef1f6;z-index:200;overflow-y:auto;">
+  <style>
+    /* ══════════ FULL-HEIGHT DESKTOP LAYOUT ══════════
+       otLive fills the viewport below the header, so the action bar sits at
+       the bottom of the SCREEN and the rail's Submit is always visible. */
+    #otLive { height: calc(100vh - 58px); height: calc(100dvh - 58px);
+      max-width: 1180px; margin: 0 auto; padding: .7rem; display: flex; flex-direction: column; }
+    #jeeRow { flex: 1; min-height: 0; display: flex; gap: .9rem; align-items: stretch; }
+    .lbl-short { display: none; }   /* desktop shows full labels; mobile swaps below */
+    #jeeCard { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    #jeeQArea { flex: 1; min-height: 0; overflow-y: auto; }
+    #jeeActions { flex: none; }
+    #jeeRail { width: 272px; flex: none; display: flex; flex-direction: column; gap: .6rem; min-height: 0; }
+    #jeePalBox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #jeePalette { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
+    #otSubmitBtn { flex: none; }
+
+    /* ══════════ MICRO-ANIMATIONS (transform/opacity only) ══════════ */
+    @keyframes jeeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes jeePop { 0% { transform: scale(.82); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+    @keyframes jeePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    @keyframes jeeShine { from { background-position: -180% 0; } to { background-position: 180% 0; } }
+
+    #jeeQArea > div { animation: jeeIn .3s cubic-bezier(.2,.7,.3,1); }
+    #jeeQArea label { transition: transform .14s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease; }
+    #jeeQArea label:hover { transform: translateX(3px); box-shadow: 0 6px 18px -12px rgba(0,48,135,.5); }
+    #jeeQArea label:active { transform: scale(.99); }
+
+    #jeeActions button, #otSubmitBtn { transition: transform .12s ease, box-shadow .14s ease, filter .14s ease; }
+    #jeeActions button:hover, #otSubmitBtn:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 8px 20px -10px rgba(0,48,135,.5); }
+    #jeeActions button:active, #otSubmitBtn:active { transform: translateY(0) scale(.97); }
+
+    #jeePalette button { transition: transform .12s ease, box-shadow .12s ease; }
+    #jeePalette button:hover { transform: scale(1.12); box-shadow: 0 4px 12px -4px rgba(0,48,135,.5); z-index: 1; }
+    #jeePalette button.jee-justset { animation: jeePop .28s ease; }
+
+    /* Camera "live" dot pulse */
+    #proctorState { position: relative; }
+    #proctorVideo { transition: border-color .2s ease; }
+
+    /* Timer urgency */
+    #otTimer.jee-lowtime { animation: jeePulse 1s ease-in-out infinite; }
+
+    /* Submit button subtle shine */
+    #otSubmitBtn { background: linear-gradient(110deg,#003087,#0ea5e9,#003087); background-size: 220% 100%; animation: jeeShine 6s linear infinite; }
+
+    /* ══════════ PHONE LAYOUT (≤820px) ══════════
+       Question scrolls full-width; the action bar is FIXED to the bottom of the
+       screen; the palette + Submit flow below the question (scroll to reach);
+       the camera is a small floating thumbnail. */
+    @media (max-width: 820px) {
+      #otLive { height: auto; display: block; padding: .6rem .6rem 84px; }   /* room for fixed bar */
+      #jeeRow { flex-direction: column; }
+      #jeeCard { min-height: 62vh; }
+      #jeeQArea { overflow: visible; }
+      #jeeRail { width: 100%; }
+      #jeePalBox { display: block; }
+      #jeePalette { max-height: none; }
+      /* Compact 2-row action bar: primary SAVE & NEXT full-width, rest below. */
+      #jeeActions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 235; background: #fff;
+                    border-top: 1px solid rgba(0,48,135,.14); box-shadow: 0 -4px 16px rgba(0,48,135,.12);
+                    padding: .4rem .4rem calc(.4rem + env(safe-area-inset-bottom)); gap: .35rem; }
+      #jeeActions > div { display: none; }                       /* the flex spacer */
+      .lbl-full { display: none; }                               /* swap to short labels */
+      .lbl-short { display: inline; }
+      #jeeActions button { flex: 1 1 0; font-size: .74rem !important; padding: .55rem .2rem !important; min-width: 0; white-space: nowrap; }
+      #jeeActions button:nth-child(1) { flex: 1 1 100%; font-size: .85rem !important; padding: .62rem !important; order: -1; }
+      /* Camera sits ABOVE the fixed action bar so the two never overlap. */
+      #jeeCamBox { position: fixed; bottom: 118px; right: .45rem; width: 84px; z-index: 236;
+                   background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.3); padding: .22rem; }
+      #jeeCamBox video { height: 60px; }
+      #jeeCamBox #proctorState { font-size: .46rem !important; padding: .15rem !important; }
+      #jeeCamBox #proctorStrikes { font-size: .5rem !important; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #jeeQArea > div, #jeePalette button.jee-justset, #otTimer.jee-lowtime, #otSubmitBtn { animation: none !important; }
+      #jeeQArea label, #jeeActions button, #otSubmitBtn, #jeePalette button { transition: none !important; }
+    }
+  </style>
+
+  <!-- ═══════ JEE-style exam header (TNC branded) ═══════
+       otTitle / otMeta / otTimer keep their IDs so the shared timer and the
+       review flow still target them. The camera does NOT live here any more —
+       it sits inside the right rail below, so it can never cover the timer. -->
+  <div style="background:#fff;border-bottom:2px solid #003087;padding:.5rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;position:sticky;top:0;z-index:10;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:.7rem;min-width:0;">
+      <img src="/assets/img/logo-mark.png" alt="TNC" style="width:38px;height:38px;border-radius:8px;flex:none;" onerror="this.style.display='none'">
+      <div style="min-width:0;">
+        <div id="otTitle" style="font-family:'Syne',sans-serif;font-weight:800;color:#003087;font-size:1rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Test</div>
+        <div id="otMeta" style="font-size:.72rem;color:#64748b;margin-top:.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:.7rem;align-items:center;flex:none;">
+      <div style="text-align:right;line-height:1.1;">
+        <div style="font-size:.6rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Remaining Time</div>
+        <div id="otTimer" style="font-size:1.15rem;font-weight:800;color:#0369a1;font-variant-numeric:tabular-nums;display:none;">--:--</div>
+      </div>
+      <button onclick="closeOnlineTest()" style="background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;padding:.4rem .9rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;flex:none;">Exit</button>
     </div>
   </div>
 
-  <!-- Test body -->
+  <!-- ═══════ LIVE TEST-TAKING (JEE one-question-at-a-time) ═══════ -->
+  <div id="otLive" style="display:none;max-width:1180px;margin:0 auto;padding:.8rem;">
+    <div id="jeeRow" style="display:flex;gap:.9rem;">
+
+      <!-- Left: the current question -->
+      <div id="jeeCard" style="background:#fff;border-radius:14px;border:1px solid rgba(0,48,135,.1);overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.7rem 1rem;border-bottom:1px solid rgba(0,48,135,.08);background:#f8fafc;">
+          <strong id="jeeQLabel" style="color:#003087;font-size:.95rem;">Question 1</strong>
+          <span id="jeeQMarks" style="font-size:.74rem;color:#64748b;"></span>
+        </div>
+        <div id="jeeQArea" style="padding:1.1rem 1.15rem;flex:1;overflow-y:auto;">
+          <div style="text-align:center;padding:3rem;color:#90a4ae;">⏳ Loading test…</div>
+        </div>
+        <!-- JEE action bar -->
+        <div id="jeeActions" style="display:none;border-top:1px solid rgba(0,48,135,.1);padding:.6rem;flex-wrap:wrap;gap:.45rem;background:#f8fafc;">
+          <button onclick="jeeSaveNext()" style="background:#059669;color:#fff;border:none;padding:.6rem 1rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:800;cursor:pointer;"><span class="lbl-full">SAVE &amp; NEXT</span><span class="lbl-short">Save &amp; Next ▶</span></button>
+          <button onclick="jeeClear()" style="background:#fff;color:#334155;border:1px solid rgba(0,48,135,.2);padding:.6rem 1rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;"><span class="lbl-full">CLEAR</span><span class="lbl-short">Clear</span></button>
+          <button onclick="jeeSaveMark()" style="background:#d97706;color:#fff;border:none;padding:.6rem 1rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:800;cursor:pointer;"><span class="lbl-full">SAVE &amp; MARK FOR REVIEW</span><span class="lbl-short">★ Save</span></button>
+          <button onclick="jeeMarkNext()" style="background:#0369a1;color:#fff;border:none;padding:.6rem 1rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:800;cursor:pointer;"><span class="lbl-full">MARK FOR REVIEW &amp; NEXT</span><span class="lbl-short">★ Next</span></button>
+          <div style="flex:1;"></div>
+          <button onclick="jeePrev()" style="background:#fff;color:#003087;border:1px solid rgba(0,48,135,.2);padding:.6rem .9rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;"><span class="lbl-full">◀ Back</span><span class="lbl-short">◀</span></button>
+          <button onclick="jeeNext()" style="background:#fff;color:#003087;border:1px solid rgba(0,48,135,.2);padding:.6rem .9rem;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;"><span class="lbl-full">Next ▶</span><span class="lbl-short">▶</span></button>
+        </div>
+      </div>
+
+      <!-- Right rail: camera + legend + palette -->
+      <aside id="jeeRail" style="width:270px;flex:none;display:flex;flex-direction:column;gap:.7rem;">
+        <!-- Camera self-view lives HERE (never over the timer) -->
+        <div id="jeeCamBox" style="background:#fff;border-radius:12px;border:1px solid rgba(0,48,135,.1);padding:.5rem;">
+          <video id="proctorVideo" autoplay playsinline muted
+            style="width:100%;height:150px;object-fit:cover;border-radius:8px;background:#0b1220;border:2px solid #10b981;display:block;"></video>
+          <div id="proctorState" style="margin-top:.35rem;font-size:.62rem;font-weight:800;letter-spacing:.02em;text-align:center;padding:.25rem .3rem;border-radius:6px;background:#ecfdf5;color:#047857;">
+            ● LIVE · NOT RECORDED
+          </div>
+          <div id="proctorStrikes" style="display:none;margin-top:.3rem;font-size:.66rem;font-weight:800;text-align:center;color:#b91c1c;"></div>
+        </div>
+
+        <!-- Legend counts -->
+        <div style="background:#fff;border-radius:12px;border:1px solid rgba(0,48,135,.1);padding:.6rem .7rem;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem .5rem;font-size:.68rem;color:#334155;">
+            <div><b id="cntNotVisited" style="display:inline-block;min-width:20px;text-align:center;background:#e2e8f0;color:#475569;border-radius:4px;padding:0 .2rem;">0</b> Not Visited</div>
+            <div><b id="cntNotAnswered" style="display:inline-block;min-width:20px;text-align:center;background:#ef4444;color:#fff;border-radius:4px;padding:0 .2rem;">0</b> Not Answered</div>
+            <div><b id="cntAnswered" style="display:inline-block;min-width:20px;text-align:center;background:#059669;color:#fff;border-radius:4px;padding:0 .2rem;">0</b> Answered</div>
+            <div><b id="cntMarked" style="display:inline-block;min-width:20px;text-align:center;background:#7c3aed;color:#fff;border-radius:4px;padding:0 .2rem;">0</b> Marked</div>
+            <div style="grid-column:1/-1;"><b id="cntAnsMarked" style="display:inline-block;min-width:20px;text-align:center;background:#7c3aed;color:#fff;border-radius:4px;padding:0 .2rem;border-bottom:3px solid #10b981;">0</b> Answered &amp; Marked (evaluated)</div>
+          </div>
+        </div>
+
+        <!-- Palette -->
+        <div id="jeePalBox" style="background:#fff;border-radius:12px;border:1px solid rgba(0,48,135,.1);padding:.6rem;">
+          <div id="jeePalette" style="display:grid;grid-template-columns:repeat(5,1fr);gap:.35rem;"></div>
+          <button onclick="submitOnlineTest()" id="otSubmitBtn" style="width:100%;margin-top:.6rem;background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border:none;padding:.7rem;border-radius:10px;font-family:inherit;font-size:.9rem;font-weight:800;cursor:pointer;">Submit Test</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ═══════ RESULT / REVIEW (scrolling) — kept from before ═══════ -->
   <div style="max-width:780px;margin:0 auto;padding:1.5rem 1rem;" id="otBody">
     <div style="text-align:center;padding:3rem;color:#90a4ae;">⏳ Loading test…</div>
   </div>
 
-  <!-- Sticky submit bar -->
-  <div id="otSubmitBar" style="display:none;position:sticky;bottom:0;background:#fff;border-top:1px solid rgba(0,48,135,.1);padding:.75rem 1.5rem .3rem;flex-direction:column;gap:0;flex-wrap:wrap;"><div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;width:100%;margin-bottom:.25rem;">
-    <div id="otProgress" style="font-size:.85rem;color:#546e7a;">0 / 0 answered</div>
-    <button id="otSubmitBtn" onclick="submitOnlineTest()" style="background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border:none;padding:.75rem 2rem;border-radius:12px;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;">Submit Test →</button>
-  </div>
-  <div style="text-align:center;font-size:.65rem;font-weight:700;color:rgba(0,48,135,.4);letter-spacing:.16em;text-transform:uppercase;font-family:'Syne',sans-serif;padding:.1rem 0 .2rem;width:100%;">THE NEWTOWN CLASSES Test Portal &nbsp;·&nbsp; All Rights Reserved</div>
+  <!-- Legacy submit bar (results/review use display:none; kept so old refs resolve) -->
+  <div id="otSubmitBar" style="display:none;"><div><span id="otProgress"></span></div></div>
+
+  <!-- ═══════ PROCTORING WARNING (per strike) ═══════ -->
+  <div id="proctorStrikeModal" style="display:none;position:fixed;inset:0;z-index:320;background:rgba(127,29,29,.35);align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:1.4rem;text-align:center;border-top:5px solid #dc2626;">
+      <div style="font-size:2rem;">⚠️</div>
+      <h3 id="proctorStrikeTitle" style="color:#b91c1c;font-family:'Syne',sans-serif;margin:.4rem 0;">Warning</h3>
+      <p id="proctorStrikeMsg" style="font-size:.9rem;color:#334155;line-height:1.6;margin:0 0 1rem;"></p>
+      <button onclick="proctorDismissStrike()" style="background:#003087;color:#fff;border:none;padding:.6rem 1.6rem;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">I understand</button>
+    </div>
   </div>
 
 </div>

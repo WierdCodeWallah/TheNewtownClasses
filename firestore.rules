@@ -74,7 +74,10 @@ service cloud.firestore {
       allow list:   if isStaff();
       allow create, delete: if isAdmin() || isOwner();
       allow update: if isAdmin() || isOwner()
-                    || (request.auth.uid == uid && onlyChanges(['photoUrl']));
+                    // Students may self-update only their photo and their
+                    // one-time proctoring-consent timestamp (set before their
+                    // first camera-monitored test). Nothing else.
+                    || (request.auth.uid == uid && onlyChanges(['photoUrl','proctorConsentAt']));
 
       // ─── students/{uid}/offlineResults/{resultId} ─────────────────
       // Marks for offline (in-class) tests, uploaded from the teacher

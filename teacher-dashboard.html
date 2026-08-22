@@ -2317,6 +2317,9 @@
           answers:(()=>{ try { return JSON.parse(f.answers?.stringValue||'{}')||{}; } catch(_) { return {}; } })(),
           entryTime:f.entryTime?.stringValue||'',
           exitTime:f.exitTime?.stringValue||'',
+          proctorFlags:parseInt(f.proctorFlags?.integerValue||'0'),
+          proctorCamera:f.proctorCamera?.booleanValue===true,
+          proctorLog:(()=>{ try { return JSON.parse(f.proctorLog?.stringValue||'[]')||[]; } catch(_) { return []; } })(),
           submittedAt:f.submittedAt?.stringValue||'' };
       }).filter(r=>r.testId===testId).sort((a,b)=>(b.submittedAt||'')>(a.submittedAt||'')?1:-1);
 
@@ -2359,6 +2362,7 @@
               <th style="text-align:center;">CORRECT</th>
               <th style="text-align:center;">ENTRY TIME</th>
               <th style="text-align:center;">TIME TAKEN</th>
+              <th style="text-align:center;">📷 CAMERA</th>
               <th>SUBMITTED</th>
               <th style="text-align:center;">ACTIONS</th>
             </tr></thead>
@@ -2394,6 +2398,17 @@
                 const corDisp = r.correctCount ? r.correctCount + '/' + r.totalQuestions : '—';
                 const corCol = r.totalQuestions > 0 && r.correctCount >= r.totalQuestions * 0.6 ? '#059669' : r.correctCount > 0 ? '#d97706' : '#dc2626';
                 const submittedFmt = r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+                // Proctoring cell: green if clean & camera on, amber if camera
+                // was off, red with a count if events were flagged. Clicking
+                // opens the full text log for that student.
+                let proctorCell;
+                if (r.proctorCamera && r.proctorFlags === 0) {
+                  proctorCell = '<span style="color:#059669;font-weight:700;">✓ Clean</span>';
+                } else if (!r.proctorCamera && r.proctorFlags === 0) {
+                  proctorCell = '<span style="color:#d97706;font-weight:700;">Camera off</span>';
+                } else {
+                  proctorCell = `<button onclick="showProctorLog(${i})" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:.74rem;padding:.2rem .5rem;border-radius:7px;cursor:pointer;font-family:inherit;">⚠ ${r.proctorFlags} flag${r.proctorFlags===1?'':'s'}</button>`;
+                }
                 // Escape the name for safe use inside a single-quoted JS string in onclick.
                 const nameArg = String(r.studentName || r.studentId || 'this student')
                   .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -2407,6 +2422,7 @@
                   <td data-label="Correct" style="text-align:center;font-weight:700;color:${corCol};">${corDisp}</td>
                   <td data-label="Entry time" style="text-align:center;font-size:.76rem;color:#546e7a;">${fmtTime(r.entryTime)}</td>
                   <td data-label="Time taken" style="text-align:center;font-weight:700;color:${timeTakenCol};">${timeTaken}</td>
+                  <td data-label="Camera" style="text-align:center;font-size:.78rem;">${proctorCell}</td>
                   <td data-label="Submitted" style="font-size:.76rem;color:#546e7a;">${submittedFmt}</td>
                   <td data-label="Actions" style="text-align:center;white-space:nowrap;">
                     <button onclick="viewStudentAnswers(${i})" class="btn btn-outline" style="font-size:.74rem;padding:.28rem .6rem;white-space:nowrap;">🔍 View</button>
@@ -2469,6 +2485,39 @@
       viewResults(testId);
       window.loadMyTests();
     } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  // Full text-only proctoring log for one student. There are never any
+  // images here — only events such as "camera off" or "tab switch".
+  window.showProctorLog = function(i) {
+    const r = _trCtx.results[i];
+    if (!r) return;
+    const LABEL = {
+      camera_on:'Camera turned on', camera_off:'Camera went off',
+      camera_denied:'Camera permission denied', camera_covered:'Camera appears covered / dark',
+      camera_unsupported:'Device has no camera support', consent_declined:'Declined camera — sat without it',
+      frame_frozen:'No movement (possible still photo)', no_face:'Face not visible',
+      multi_face:'More than one person visible', tab_switch:'Switched tab / left the app',
+      fullscreen_exit:'Exited full screen', looking_away:'Looking away from screen',
+      back_button:'Pressed the back button', strike:'⚠ Warning issued',
+      consent_declined:'Declined camera — could not start', auto_submit_strikes:'Auto-submitted (3 warnings)',
+      face_check_ready:'Face check active', face_check_unavailable:'Face check unavailable on device'
+    };
+    const fmt = iso => { try { return new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}); } catch(_) { return iso; } };
+    const rows = (r.proctorLog||[]).map(e => {
+      const bad = e.type !== 'camera_on';
+      const span = e.until && e.until !== e.at ? ` – ${fmt(e.until)}` : '';
+      return `<div style="display:flex;gap:.6rem;padding:.4rem .2rem;border-bottom:1px solid rgba(0,48,135,.06);font-size:.84rem;">
+        <span style="min-width:130px;color:#546e7a;font-variant-numeric:tabular-nums;">${fmt(e.at)}${span}</span>
+        <span style="color:${bad?'#b91c1c':'#047857'};font-weight:${bad?700:500};">${escapeHtml(LABEL[e.type]||e.type)}${e.n&&e.n>1?` ×${e.n}`:''}${e.detail?` <span style="color:#90a4ae;font-weight:400;">(${escapeHtml(e.detail)})</span>`:''}</span>
+      </div>`;
+    }).join('') || '<div style="color:#90a4ae;padding:1rem 0;">No events recorded.</div>';
+    const body = $('resultsModalBody');
+    body.innerHTML = `
+      <button onclick="viewResults('${escapeHtml(r.testId)}')" style="background:none;border:none;color:#003087;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:.8rem;">← Back to results</button>
+      <h3 style="color:#003087;font-family:'Syne',sans-serif;margin:0 0 .3rem;">📷 Camera activity — ${escapeHtml(r.studentName)}</h3>
+      <p style="font-size:.8rem;color:#90a4ae;margin:0 0 1rem;">Live monitoring only. No photo or video was recorded — these are the notes logged during the test.</p>
+      <div style="border:1px solid rgba(0,48,135,.1);border-radius:12px;padding:.5rem .8rem;background:#fff;">${rows}</div>`;
   };
 
   window.viewStudentAnswers = function(i) {
