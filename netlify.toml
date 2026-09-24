@@ -5,6 +5,26 @@
 [build]
   publish = "."
 
+# Serve portal HTML directly: avoid fetching a second HTML page and document.write
+# through the directory shims. force overrides the existing directory index files.
+[[redirects]]
+  from = "/learn"
+  to = "/student-dashboard.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/teach"
+  to = "/teacher-dashboard.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/command-center"
+  to = "/admin-panel.html"
+  status = 200
+  force = true
+
 # Clean public routes. Old .html URLs redirect to these names, and the clean
 # names rewrite back to the existing static files behind the scenes.
 [[redirects]]

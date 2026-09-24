@@ -131,6 +131,8 @@ function docToClass(doc) {
     id,
     className    : fsRead(f.className),
     subject      : fsRead(f.subject),
+    chapter      : fsRead(f.chapter) || '',
+    module       : fsRead(f.module) || '',
     classGrade   : fsRead(f.classGrade),
     teacherUid   : fsRead(f.teacherUid),
     teacherName  : fsRead(f.teacherName),
@@ -171,11 +173,17 @@ export async function saveClass(authToken, classDoc) {
 }
 
 export async function fetchClasses(authToken) {
-  const res = await fetch(`${FS_BASE}/liveClasses?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
-    { headers: { Authorization: `Bearer ${authToken}` } });
-  const data = await res.json();
-  if (!data.documents) return [];
-  return data.documents.map(docToClass).sort((a, b) => (b.scheduledTs || 0) - (a.scheduledTs || 0));
+  const documents = [];
+  let pageToken = '';
+  do {
+    const res = await fetch(`${FS_BASE}/liveClasses?key=${FIREBASE_CONFIG.apiKey}&pageSize=200${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`,
+      { headers: { Authorization: `Bearer ${authToken}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Could not load classes. Please retry.');
+    documents.push(...(data.documents || []));
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return documents.map(docToClass).sort((a, b) => (b.scheduledTs || 0) - (a.scheduledTs || 0));
 }
 
 export async function updateClass(authToken, classId, fields) {

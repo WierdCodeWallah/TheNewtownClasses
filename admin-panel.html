@@ -516,8 +516,9 @@
 <!-- Shared role / content-type access rules -->
 <script src="/assets/js/content-access.js"></script>
 <script src="/assets/js/ncert-chapters.js"></script>
+<script src="/assets/js/portal-shell.js"></script>
 </head>
-<body>
+<body data-portal="admin">
 
 <!-- ═══════════════════════════════
      MAIN NAV
@@ -621,12 +622,20 @@
       </div>
       <div class="stat-box">
         <div class="num" id="otherCount">—</div>
-        <div class="lbl">Foundation</div>
+        <div class="lbl">Other classes</div>
       </div>
     </div>
-    <div class="card" style="text-align:center;">
-      <div class="card-title" style="justify-content:center;">👋 Welcome to the Admin Panel</div>
-      <p class="card-sub" style="margin-bottom:0;">Use the sidebar on the left to manage students, teachers, content, attendance, tests, and live classes.</p>
+    <div class="card admin-shortcuts">
+      <div class="card-title">Your daily workspace</div>
+      <p class="card-sub">Start with the task you need today.</p>
+      <div class="admin-shortcut-grid">
+        <button type="button" data-admin-go="all-students"><span>Students</span><small>Find an account</small></button>
+        <button type="button" data-admin-go="add-student"><span>Add student</span><small>Create an account</small></button>
+        <button type="button" data-admin-go="teachers"><span>Teachers</span><small>Manage your team</small></button>
+        <button type="button" data-admin-go="attendance"><span>Attendance</span><small>Register & history</small></button>
+        <button type="button" data-admin-go="upload-material"><span>Study material</span><small>Browse & publish</small></button>
+        <button type="button" data-admin-go="live-classes"><span>Live classes</span><small>View your schedule</small></button>
+      </div>
     </div>
   </div>
 
@@ -832,6 +841,7 @@
         <label>Chapter Name *</label>
         <input type="text" id="pdfChapterName" placeholder="e.g. Chapter 1 – Physical World"/>
       </div>
+      <div class="field"><label for="pdfModule">Module (optional)</label><input id="pdfModule" type="text" placeholder="e.g. Practice 1"/></div>
       <div class="field">
         <label>Category *</label>
         <select id="pdfCategory" required style="padding:.65rem .9rem;background:#f5f7ff;border:1px solid rgba(0,48,135,.12);border-radius:10px;font-family:inherit;font-size:.9rem;width:100%;">
@@ -1035,7 +1045,7 @@
   <!-- ─── TEACHER MANAGEMENT ─── -->
   <div class="card">
     <div class="card-title">👨‍🏫 Teacher Management</div>
-    <p class="card-sub">Create teacher accounts. Teachers can log in at <strong>teacher-login.html</strong>, take attendance, and publish tests.</p>
+    <p class="card-sub">Create an account and choose the subjects this teacher can teach.</p>
 
     <div class="form-grid">
       <div class="field">
@@ -1339,6 +1349,8 @@
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     var target = document.getElementById('tab-' + tab);
     if (target) target.classList.add('active');
+    const loader = { 'upload-material':'loadPdfList', 'live-classes':'loadAdminClasses', 'tests':'loadTestList', 'teachers':'loadTeacherList' }[tab];
+    if (loader && typeof window[loader] === 'function' && !target.dataset.portalLoaded) { target.dataset.portalLoaded = 'true'; window[loader](); }
     // Close mobile sidebar after a tap
     var sb = document.getElementById('sidebar');
     var ov = document.getElementById('sidebarOverlay');
@@ -1424,9 +1436,6 @@
       setTimeout(() => { $('mainContent').style.opacity = '1'; }, 50);
       $('logoutBtn').style.display     = 'block';
       loadStudents();
-      loadPdfList();
-      loadTestList();
-      loadTeacherList();
     } else {
       window.location.href = '/login/admin';
     }
@@ -1957,14 +1966,14 @@
   // ── Load all students ──
   window.loadStudents = async () => {
     const tbody = $('studentTableBody');
+    PortalUI.clearBrowser(tbody);
     tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr>';
     try {
       const adminToken = await auth.currentUser.getIdToken();
-      const res = await fetch(
+      const data = await PortalUI.fetchList(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
-      const data = await res.json();
       allStudents = (data.documents || []).map(d => {
         const f = d.fields || {};
         const subjArr = (f.subjects?.arrayValue?.values || [])
@@ -1978,7 +1987,7 @@
           // Missing enrollmentType → treated as 'normal' by helpers below
           enrollmentType: f.enrollmentType?.stringValue || 'normal',
           phone:     f.phone?.stringValue     || '—',
-          uid:       f.uid?.stringValue       || '',
+          uid:       f.uid?.stringValue       || (d.name || '').split('/').pop() || '',
           createdAt: f.createdAt?.stringValue || ''
         };
       });
@@ -2032,6 +2041,11 @@
   }
 
   function renderTable(students) {
+    const anchor = $('studentTableBody').closest('.table-wrap');
+    anchor.id = 'adminStudentBrowserAnchor';
+    PortalUI.collection({host:$('studentTableBody'),before:anchor.id,items:sortStudentsForTable(students),title:'Find a student',searchLabel:'Search name, student ID or subject',facets:['class','board','subject'],pageSize:matchMedia('(max-width:600px)').matches?3:8,render:renderStudentRows});
+  }
+  function renderStudentRows(students) {
     const tbody = $('studentTableBody');
     if (!students.length) {
       tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎓</div>No students match. Try clearing filters.</div></td></tr>';
@@ -2064,26 +2078,26 @@
 
       // Board tag (fallback to gray if value not in map)
       const boardCls  = BOARD_TAG_CLASS[s.board] || 'tag-gray';
-      const boardCell = s.board ? `<span class="tag ${boardCls}">${s.board}</span>` : `<span class="tag tag-gray">—</span>`;
+      const boardCell = s.board ? `<span class="tag ${boardCls}">${_bulkEsc(s.board)}</span>` : `<span class="tag tag-gray">—</span>`;
 
       // Subjects: ONLY the subjects the student is enrolled in (not all 5)
       const subjCell = (s.subjects && s.subjects.length)
         ? s.subjects.map(sub =>
-            `<span class="tag ${SUBJECT_TAG_CLASS[sub] || 'tag-gray'}" style="margin:1px 2px;">${sub}</span>`
+            `<span class="tag ${SUBJECT_TAG_CLASS[sub] || 'tag-gray'}" style="margin:1px 2px;">${_bulkEsc(sub)}</span>`
           ).join('')
         : `<span class="tag tag-gray">—</span>`;
 
       rows.push(`
       <tr>
-        <td><strong>${s.studentId}</strong></td>
-        <td>${s.name}</td>
-        <td><span class="tag tag-blue">Class ${s.class}</span></td>
-        <td>${boardCell}</td>
-        <td style="min-width:240px;white-space:normal;">${subjCell}</td>
-        <td><span class="tag ${tagCls}">${etLabel}</span></td>
-        <td>${s.phone}</td>
+        <td data-label="Student ID"><strong>${_bulkEsc(s.studentId)}</strong></td>
+        <td data-label="Name">${_bulkEsc(s.name)}</td>
+        <td data-label="Class"><span class="tag tag-blue">Class ${_bulkEsc(s.class)}</span></td>
+        <td data-label="Board">${boardCell}</td>
+        <td data-label="Subjects" style="min-width:240px;white-space:normal;">${subjCell}</td>
+        <td data-label="Enrollment"><span class="tag ${tagCls}">${_bulkEsc(etLabel)}</span></td>
+        <td data-label="Phone">${_bulkEsc(s.phone)}</td>
         <td>
-          <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.uid}', '${s.name}')">Delete</button>
+          <button class="btn btn-danger btn-sm" data-uid="${_bulkEsc(s.uid)}" data-name="${_bulkEsc(s.name)}" onclick="deleteStudent(this.dataset.uid, this.dataset.name)">Delete</button>
         </td>
       </tr>`);
     });
@@ -2127,10 +2141,11 @@
       if (!authRes.ok) throw new Error(authData.error || `Auth delete failed (HTTP ${authRes.status})`);
 
       // 2. Delete the Firestore profile (admin token; rules allow admin delete).
-      await fetch(
+      const profileRes = await fetch(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}`,
         { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } }
       );
+      if (!profileRes.ok) throw new Error('Login account removed, but the student profile could not be removed. Refresh and retry.');
       allStudents = allStudents.filter(s => s.uid !== uid);
       updateStats();
       renderTable(allStudents);
@@ -2192,6 +2207,7 @@
             class:       { stringValue: cls },
             subject:     { stringValue: subject },
             chapterName: { stringValue: chapter },
+            module:      { stringValue: $('pdfModule').value.trim() },
             pdfUrl:      { stringValue: viewUrl },
             fileType:    { stringValue: fileType },
             category:    { stringValue: category },
@@ -2205,7 +2221,7 @@
       const catLabel = CHAPTER_CATEGORY_LABELS[category] || category;
       showMsg('pdfUploadMsg','success', `✅ "${chapter}" saved under ${catLabel} for Class ${cls} – ${subject}`);
       $('pdfClass').value = ''; $('pdfSubject').value = '';
-      $('pdfChapterName').value = ''; $('pdfDriveLink').value = '';
+      $('pdfChapterName').value = ''; $('pdfDriveLink').value = ''; $('pdfModule').value = '';
       if ($('pdfTargetBoard')) $('pdfTargetBoard').value = '';
       // Keep the last-used category so repeated uploads don't force re-select.
       loadPdfList();
@@ -2216,19 +2232,21 @@
 
   window.loadPdfList = async () => {
     const wrap = $('pdfListWrap');
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
     try {
       const adminToken = await auth.currentUser.getIdToken();
-      const res  = await fetch(
+      const data = await PortalUI.fetchList(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/chapters?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
-      const data = await res.json();
       const docs = (data.documents || []).map(d => ({
         docId:       d.fields?.docId?.stringValue       || d.name.split('/').pop(),
         class:       d.fields?.class?.stringValue       || '',
         subject:     d.fields?.subject?.stringValue     || '',
         chapterName: d.fields?.chapterName?.stringValue || '',
+        targetBoard: d.fields?.targetBoard?.stringValue || '',
+        module: d.fields?.module?.stringValue || '',
         pdfUrl:      d.fields?.pdfUrl?.stringValue      || '',
         category:    d.fields?.category?.stringValue    || 'notes',
         // Missing contentType on legacy docs → 'regular'
@@ -2236,11 +2254,7 @@
         storagePath: d.fields?.storagePath?.stringValue || ''
       }));
 
-      if (!docs.length) {
-        wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📄</div>No PDFs uploaded yet.</div>';
-        return;
-      }
-
+      PortalUI.collection({host:wrap,items:docs,title:'Class materials',drill:['class','subject','chapter'],facets:['class','board','subject','chapter','module','category'],labels:{category:'Resource type'},render: visible => {
       wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.88rem;">
         <thead><tr style="background:#f5f7ff;">
           <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Chapter</th>
@@ -2249,7 +2263,7 @@
           <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Subject</th>
           <th style="padding:.6rem 1rem;text-align:left;color:#546e7a;font-size:.75rem;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Actions</th>
         </tr></thead>
-        <tbody>${docs.map(d => `
+        <tbody>${visible.map(d => `
           <tr style="border-bottom:1px solid #f3f4f6;">
             <td style="padding:.65rem 1rem;font-weight:600;">${d.chapterName}</td>
             <td style="padding:.65rem 1rem;"><span class="tag tag-blue">${CHAPTER_CATEGORY_LABELS[d.category] || d.category}</span></td>
@@ -2261,6 +2275,7 @@
             </td>
           </tr>`).join('')}
         </tbody></table>`;
+      }});
     } catch (err) {
       wrap.innerHTML = `<div class="empty-state">❌ ${err.message}</div>`;
     }
@@ -2283,7 +2298,6 @@
   const _origLoadStudents = window.loadStudents;
   window.loadStudents = async () => {
     await _origLoadStudents();
-    loadPdfList();
   };
 
   function showMsg(id, type, msg) {
@@ -2462,15 +2476,15 @@
 
   window.loadTestList = async function() {
     const wrap = $('testListWrap');
+    PortalUI.clearBrowser(wrap);
     if (!wrap) return;
     wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
     try {
       const adminToken = await auth.currentUser.getIdToken();
-      const res = await fetch(
+      const json = await PortalUI.fetchList(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
         { headers: { Authorization: 'Bearer ' + adminToken } }
       );
-      const json = await res.json();
       console.log('loadTestList response:', JSON.stringify(json).substring(0,500));
       const docs = (json.documents || []).map(d => {
         const f = d.fields || {};
@@ -2479,6 +2493,9 @@
           testName: f.testName?.stringValue || '',
           class: f.class?.stringValue || '',
           subject: f.subject?.stringValue || '',
+          targetBoard: f.targetBoard?.stringValue || '',
+          chapter: f.chapter?.stringValue || f.chapterName?.stringValue || '',
+          module: f.module?.stringValue || '',
           totalMarks: parseInt(f.totalMarks?.integerValue || '0'),
           totalQ: parseInt(f.totalQ?.integerValue || '0'),
           isActive: f.isActive?.booleanValue !== false,
@@ -2486,15 +2503,12 @@
           createdAt: f.createdAt?.stringValue || ''
         };
       }).filter(d => d.testId);
-      if (docs.length === 0) {
-        wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div>No tests created yet.</div>'; return;
-      }
-
       // Arrange tests by Class → Subject with group headers (numeric-aware
       // class sort: 1,2,…10,11), each group sorted by test name.
+      PortalUI.collection({host:wrap,items:docs,title:'Tests by class and subject',drill:['class','subject','chapter'],render: visible => {
       const _classNum = c => { const m = String(c||'').match(/\d+/); return m ? parseInt(m[0],10) : 9999; };
       const _gmap = new Map();
-      docs.forEach(d => {
+      visible.forEach(d => {
         const key = (d.class||'—') + '||' + (d.subject||'—');
         if (!_gmap.has(key)) _gmap.set(key, { class: d.class||'—', subject: d.subject||'—', items: [] });
         _gmap.get(key).items.push(d);
@@ -2522,6 +2536,7 @@
               </div>
             </div>`).join('')}
         </div>`).join('');
+      }});
     } catch(err) {
       wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div>${err.message}</div>`;
     }
@@ -2825,14 +2840,14 @@
   window.loadTeacherList = async function() {
     const wrap = $('teacherListWrap');
     if (!wrap) return;
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div>';
     try {
       const adminToken = await auth.currentUser.getIdToken();
-      const res = await fetch(
+      const data = await PortalUI.fetchList(
         `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/teachers?key=${FIREBASE_CONFIG.apiKey}&pageSize=100`,
         { headers: { Authorization: 'Bearer ' + adminToken } }
       );
-      const data = await res.json();
       const docs = (data.documents || []).map(d => {
         const f = d.fields || {};
         const subjectsArr = (f.subjects?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean);
@@ -2851,7 +2866,7 @@
         wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">👨‍🏫</div>No teacher accounts yet. Add one above.</div>'; return;
       }
 
-      wrap.innerHTML = docs.map(t => `
+      PortalUI.collection({host:wrap,items:docs,title:'Your teaching team',searchLabel:'Search name, email or subject',facets:['subject'],pageSize:matchMedia('(max-width:600px)').matches?3:6,render:page=>{wrap.innerHTML = page.map(t => `
         <div class="teacher-card-item">
           <div>
             <strong style="color:#003087;">${_bulkEsc(t.name)}</strong>
@@ -2861,7 +2876,7 @@
             <button onclick="editTeacherSubjects('${t.uid}')" class="btn btn-outline btn-sm">✏️ Edit Subjects</button>
             <button onclick="deleteTeacher('${t.uid}')" class="btn btn-danger btn-sm">🗑 Delete</button>
           </div>
-        </div>`).join('');
+        </div>`).join('');}});
     } catch (err) {
       wrap.innerHTML = `<div class="empty-state">❌ ${err.message}</div>`;
     }
@@ -2957,11 +2972,11 @@
   // ══════════════════════════════════════════════
   async function adminFsGet(path) {
     const adminToken = await auth.currentUser.getIdToken();
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
-      { headers: { Authorization: 'Bearer ' + adminToken } }
-    );
-    return res.json();
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`;
+    const init = { headers: { Authorization: 'Bearer ' + adminToken } };
+    if (path.split('/').length % 2) return PortalUI.fetchList(url, init);
+    const response = await fetch(url, init);
+    return response.json();
   }
   async function adminFsPatch(path, fields) {
     const adminToken = await auth.currentUser.getIdToken();
@@ -2997,17 +3012,24 @@
     return true;
   }
 
+  let _attnRosterKey = '';
+  let _attnLoadVersion = 0;
   let _attnStudents = [];   // loaded roster for present marking
 
   // Tick / untick every student at once (header "select all" box).
   window.attnToggleAll = function(master) {
-    document.querySelectorAll('[data-attn-present]').forEach(b => { b.checked = master.checked; });
+    document.querySelectorAll('[data-attn-present]').forEach(b => { if (!b.closest('tr').hidden) b.checked = master.checked; });
+    $('attnStudentsWrap').dispatchEvent(new Event('input'));
   };
 
   // ── Load roster for present marking ──
   window.loadAttendanceStudents = async function() {
     const sel = attnSelection();
     if (!attnValidate(sel)) return;
+    const loadVersion = ++_attnLoadVersion;
+    const rosterKey = JSON.stringify(sel) + attnTodayStr();
+    _attnStudents = []; _attnRosterKey = '';
+    if ($('attnStudentsWrap')._portalBrowser) $('attnStudentsWrap')._portalBrowser.remove();
     const card = $('attnStudentsCard');
     const wrap = $('attnStudentsWrap');
     card.style.display = 'block';
@@ -3040,6 +3062,8 @@
         } catch (_e) {}
         return { ...st, status };
       }));
+      if (loadVersion !== _attnLoadVersion || rosterKey !== JSON.stringify(attnSelection()) + attnTodayStr()) return;
+      _attnRosterKey = rosterKey;
       _attnStudents = withStatus;
       const subjLabel = _bulkEsc(sel.subject);
       wrap.innerHTML = `
@@ -3059,6 +3083,8 @@
             </tbody>
           </table>
         </div>`;
+      PortalUI.roster('attnStudentsWrap');
+      document.dispatchEvent(new Event('portal:attendance-loaded'));
     } catch (e) { wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${_bulkEsc(e.message)}</div>`; }
   };
 
@@ -3068,6 +3094,7 @@
     const sel = attnSelection();
     if (!sel.subject) { showMsg('attnSaveMsg', 'error', 'Select a subject.'); return; }
     if (!_attnStudents.length) { showMsg('attnSaveMsg', 'error', 'Load students first.'); return; }
+    if (_attnRosterKey !== JSON.stringify(sel) + attnTodayStr()) { showMsg('attnSaveMsg', 'error', 'The class or subject changed. Load this roster before saving.'); return; }
     const sk = viewAttSubjectKey(sel.subject);
     const today = attnTodayStr();
     const recId = `${today}__${sk}`;
@@ -3240,7 +3267,7 @@
           <button class="btn btn-outline btn-sm" onclick="viewAttChangeMonth(1)">›</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;align-items:start;">
+      <div class="admin-calendar-layout">
         <div>
           <div style="display:flex;gap:.9rem;font-size:.72rem;font-weight:800;margin-bottom:.6rem;">
             <span style="display:inline-flex;align-items:center;gap:.3rem;color:#16a34a;"><span style="width:11px;height:11px;background:linear-gradient(135deg,#34d399,#16a34a);border-radius:4px;"></span>Present</span>
@@ -3324,6 +3351,7 @@
 
   window.loadAdminClasses = async function() {
     const wrap   = document.getElementById('lcAdminList');
+    PortalUI.clearBrowser(wrap);
     if (!wrap) return;
     const filter = document.getElementById('adminLcFilter')?.value || 'all';
     const grade  = document.getElementById('adminLcGrade')?.value  || '';
@@ -3347,6 +3375,7 @@
         return;
       }
 
+      PortalUI.collection({host:wrap,items:classes,title:'Class schedule',facets:['board','subject','chapter','module'],render: visible => {
       wrap.innerHTML = `
         <div style="overflow-x:auto;">
           <table class="report-table">
@@ -3364,7 +3393,7 @@
               </tr>
             </thead>
             <tbody>
-              ${classes.map(c => {
+              ${visible.map(c => {
                 const tStatus = classTimeStatus(c.scheduledTs, c.durationMins);
                 const isEnded = c.status === 'ended' || tStatus === 'ended';
                 const badge   = c.status === 'cancelled' ? STATUS_BADGE.cancelled
@@ -3428,6 +3457,7 @@
             </tbody>
           </table>
         </div>`;
+      }});
     } catch(e) {
       wrap.innerHTML = `<div style="color:#ef4444;font-size:.85rem;">${e.message}</div>`;
     }
@@ -3554,7 +3584,7 @@
   };
 
   // Load admin classes on page load
-  window.addEventListener('load', () => setTimeout(loadAdminClasses, 1500));
+  // Class data loads when its workspace is opened.
 
   // ══════════════════════════════════════════════
   //  NCERT SOLUTIONS — admin-only PDF upload
@@ -3953,6 +3983,12 @@
   }
 </style>
 
+<link rel="stylesheet" href="/assets/css/portal-shell.css"/>
+<script src="/assets/js/portal-workspaces.js"></script>
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<link rel="stylesheet" href="/assets/css/portal-experience.css">
+<link rel="stylesheet" href="/assets/css/admin-workspace.css">
+<script src="/assets/js/admin-workspace.js"></script>
+<script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>
-                   

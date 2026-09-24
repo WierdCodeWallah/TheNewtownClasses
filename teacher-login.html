@@ -264,7 +264,7 @@
     }
   </style>
 </head>
-<body>
+<body data-login="teacher">
 
   <!-- NAV -->
   <nav class="login-nav">
@@ -273,13 +273,21 @@
   </nav>
 
   <!-- LOGIN FORM -->
-  <div class="login-wrapper">
+  <main class="login-wrapper">
+    <section class="login-story" aria-label="Your learning space">
+      <span class="experience-kicker">THE NEWTOWN LEARNING SPACE</span>
+      <h2>Great teaching.<br><em>Made a little simpler.</em></h2><p>More time for your students. One space for your classes, lessons and progress.</p>
+      <div class="study-scene" aria-hidden="true"><img src="/assets/images/study-orbit.svg" width="540" height="400" alt=""><i class="study-orbit"></i><i class="study-orbit"></i></div>
+      <button class="scene-toggle" type="button" aria-pressed="false" onclick="const paused=this.closest('.login-story').classList.toggle('scene-paused');this.setAttribute('aria-pressed',String(paused));this.textContent=paused?'Play animation':'Pause animation'">Pause animation</button>
+      <div class="login-story-footer"><span>Learn with purpose</span><span>Grow every day</span></div>
+    </section>
     <div class="login-card">
 
+      <nav class="login-role-switch" aria-label="Choose portal"><a href="/login/student">Student</a><a href="/login/teacher" aria-current="page">Teacher</a></nav>
       <div class="login-header">
         <div class="login-icon">👨‍🏫</div>
-        <h1>Teacher Login</h1>
-        <p>Sign in to access your teacher dashboard</p>
+        <span class="experience-kicker">TEACHER PORTAL</span><h1>Welcome back.</h1>
+        <p>Your next great lesson starts here.</p>
       </div>
 
       <form class="login-form" id="teacherLoginForm">
@@ -293,12 +301,12 @@
           <label for="loginPassword">Password</label>
           <div class="password-wrap">
             <input type="password" id="loginPassword" placeholder="Enter your password" required autocomplete="current-password"/>
-            <button type="button" class="toggle-password" id="togglePwBtn" aria-label="Show password">👁</button>
+            <button type="button" class="toggle-password" id="togglePwBtn" aria-label="Show password">Show</button>
           </div>
         </div>
 
         <!-- Error message -->
-        <div id="loginError" class="login-error"></div>
+        <div id="loginError" class="login-error" role="alert"></div>
 
         <!-- Debug info -->
         <div id="debugInfo" class="debug-info"></div>
@@ -310,7 +318,7 @@
         Admin? <a href="/login/admin">Login here</a> &nbsp;|&nbsp; Student? <a href="/login/student">Login here</a>
       </div>
     </div>
-  </div>
+  </main>
 
   <!-- FOOTER -->
   <div class="page-footer">
@@ -343,10 +351,12 @@
     toggleBtn.addEventListener('click', () => {
       if (passIn.type === 'password') {
         passIn.type = 'text';
-        toggleBtn.textContent = '🙈';
+        toggleBtn.textContent = 'Hide';
+        toggleBtn.setAttribute('aria-label', 'Hide password');
       } else {
         passIn.type = 'password';
-        toggleBtn.textContent = '👁';
+        toggleBtn.textContent = 'Show';
+        toggleBtn.setAttribute('aria-label', 'Show password');
       }
     });
 
@@ -570,47 +580,10 @@
     }
   </style>
 
-  <script>
-  (function () {
-    if (window.__ntcModernLoaded) return;
-    window.__ntcModernLoaded = true;
-    var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    function init() {
-      document.querySelectorAll('.login-card, .page-footer, .login-footer').forEach(function (el) {
-        if (!el.hasAttribute('data-reveal')) el.setAttribute('data-reveal', '');
-      });
-      if (rm || !('IntersectionObserver' in window)) {
-        document.querySelectorAll('[data-reveal]').forEach(function (el) { el.classList.add('is-visible'); });
-      } else {
-        var io = new IntersectionObserver(function (entries) {
-          entries.forEach(function (e) {
-            if (e.isIntersecting) { e.target.classList.add('is-visible'); io.unobserve(e.target); }
-          });
-        }, { threshold: 0.12 });
-        document.querySelectorAll('[data-reveal]').forEach(function (el) { io.observe(el); });
-      }
-      if (rm) return;
-      document.addEventListener('click', function (ev) {
-        var a = ev.target.closest && ev.target.closest('a[href]');
-        if (!a) return;
-        var href = a.getAttribute('href') || '';
-        if (a.target === '_blank' || a.hasAttribute('download')) return;
-        if (/^(mailto:|tel:|javascript:|whatsapp:)/i.test(href)) return;
-        if (href.startsWith('#')) return;
-        if (/^https?:\/\//i.test(href)) {
-          try { var u = new URL(href, location.href); if (u.host !== location.host) return; }
-          catch (e) { return; }
-        }
-        ev.preventDefault();
-        document.body.classList.add('page-leaving');
-        setTimeout(function () { location.href = href; }, 380);
-      }, true);
-      window.addEventListener('pageshow', function () { document.body.classList.remove('page-leaving'); });
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-    else init();
-  })();
-  </script>
 
+
+<link rel="stylesheet" href="/assets/css/portal-experience.css">
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>

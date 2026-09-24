@@ -1,0 +1,40 @@
+/* Owner tools: readable forms, shorter lists and comfortable touch targets. */
+body[data-portal=admin] .main-content .page{max-width:1200px;margin:auto}
+body[data-portal=admin] .admin-overview-hero{margin-bottom:18px!important}
+body[data-portal=admin] .stats-row{gap:12px;margin-bottom:18px}
+body[data-portal=admin] .stat-box{border:1px solid #e5e4f0;border-radius:16px;background:#ffffffeb;padding:20px}
+body[data-portal=admin] .stat-box .num{color:#514475!important;font-weight:700!important}
+.admin-shortcut-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.admin-shortcut-grid button{font:inherit;text-align:left;padding:20px;border:1px solid #e4dff2;background:linear-gradient(125deg,#faf9ff,#f1eefb);border-radius:14px;cursor:pointer;color:#3c3558;min-height:96px}
+.admin-shortcut-grid span,.admin-shortcut-grid small{display:block}.admin-shortcut-grid span{font-size:15px;font-weight:600}.admin-shortcut-grid small{margin-top:6px;font-size:12px;color:#706581}.admin-shortcut-grid button:hover{border-color:#b4a5d3;background:#efebfa}
+body[data-portal=admin] :is(.field,.form-group){min-width:0}
+body[data-portal=admin] .form-group label{display:block;font-size:12px;font-weight:600;color:#53627a;margin-bottom:7px}
+body[data-portal=admin] .form-group select{width:100%;min-height:44px;border:1px solid #e1dfee;border-radius:10px;padding:10px;color:#26334b;font:inherit}
+body[data-portal=admin] :is(button.btn,.portal-reset,.portal-pagination button){min-height:44px}
+body[data-portal=admin] .chip-check{min-height:44px;align-items:center}
+body[data-portal=admin] .teacher-card-item{gap:16px;align-items:flex-start;border-color:#e4e0ef;margin-top:12px;overflow-wrap:anywhere}
+body[data-portal=admin] .portal-advanced>.card{margin:12px 0 0!important}
+body[data-portal=admin] #viewAttBody{overflow-wrap:anywhere}
+body[data-portal=admin] #viewAttBody .admin-calendar-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:20px;align-items:start}
+body[data-portal=admin] .admin-dialog{z-index:10000!important;padding:16px!important}
+body[data-portal=admin] .admin-dialog>div{max-height:calc(100dvh - 32px)!important;overflow-y:auto;overscroll-behavior:contain;min-width:0;max-width:100%;overflow-wrap:anywhere}
+body[data-portal=admin] .admin-dialog :is(input,select,textarea){min-height:44px;font-size:16px!important}
+body[data-portal=admin] .admin-dialog button{min-height:44px;min-width:44px}
+@media(max-width:900px){
+ body[data-portal=admin] .dash-body{min-height:calc(100dvh - 136px)!important}
+ body[data-portal=admin] .nav #logoutBtn{min-height:40px}
+ body[data-portal=admin] .main-content .form-grid{grid-template-columns:1fr!important}
+ body[data-portal=admin] .main-content :is(.field,.form-group) :is(input:not([type=checkbox]),select,textarea){font-size:16px!important}
+ body[data-portal=admin] .teacher-card-item{flex-direction:column}
+ body[data-portal=admin] .admin-shortcut-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ body[data-portal=admin] .admin-shortcut-grid button{padding:16px;min-height:96px}
+ body[data-portal=admin] .admin-shortcut-grid span{font-size:13px}.admin-shortcut-grid small{font-size:11px}
+ body[data-portal=admin] #studentTableBody tr:not(.group-header){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:14px}
+ body[data-portal=admin] #studentTableBody td{margin:0;min-width:0!important;overflow-wrap:anywhere}
+ body[data-portal=admin] #studentTableBody td:nth-child(5){grid-column:1/-1}
+ body[data-portal=admin] #studentTableBody td:nth-child(8){grid-column:2;align-self:end;justify-self:end}
+ body[data-portal=admin] #studentTableBody tr.group-header td{font-size:11px!important}
+ body[data-portal=admin] .student-filter-bar{width:100%;display:flex;gap:8px;flex-wrap:wrap}
+ body[data-portal=admin] .student-filter-bar button{width:auto!important;flex:1 1 auto}
+ body[data-portal=admin] .admin-dialog>div{padding:20px!important}
+}

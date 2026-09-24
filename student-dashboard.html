@@ -26,6 +26,7 @@
   <script src="/assets/js/content-access.js"></script>
   <!-- Shared AI answer-sheet report renderer -->
   <script src="/assets/js/answersheet-report.js"></script>
+  <script src="/assets/js/portal-shell.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; -webkit-text-size-adjust: 100%; }
@@ -485,7 +486,7 @@
     }
   </style>
 </head>
-<body>
+<body data-portal="student">
 
   <!-- ── TOP NAV ── -->
   <nav class="dash-nav">
@@ -493,7 +494,7 @@
       <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
         <span></span><span></span><span></span>
       </button>
-      <a href="/" class="logo">The NewTown <span>Classes</span></a>
+      <span class="logo">The NewTown <span>Classes</span></span>
     </div>
     <div class="dash-nav-right">
       <span class="class-badge" id="classBadge">CLASS 11</span>
@@ -601,7 +602,7 @@
 
       <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <a href="/">Home</a> <span class="sep">/</span>
+        <span class="breadcrumb-home">Home</span> <span class="sep">/</span>
         <span>Dashboard</span> <span class="sep">/</span>
         <span id="breadcrumbSection">Chapterwise Test</span>
       </div>
@@ -665,16 +666,16 @@
             <div class="ada-header-bg"></div>
             <div class="ada-avatar" aria-hidden="true">
               <div class="ada-avatar-ring"></div>
-              <div class="ada-avatar-core">🤖</div>
+              <div class="ada-avatar-core">✦</div>
               <span class="ada-avatar-spark s1"></span>
               <span class="ada-avatar-spark s2"></span>
               <span class="ada-avatar-spark s3"></span>
             </div>
             <div class="ada-header-text">
-              <div class="ada-title">TNC Assistance</div>
+              <div class="ada-title">Your study companion</div>
               <div class="ada-subtitle">
                 <span class="ada-status-dot"></span>
-                Online · Always here to help
+                AI support · One question at a time
               </div>
             </div>
             <button id="chatClearBtn" type="button" class="ada-newchat" title="Start a new conversation">
@@ -689,7 +690,7 @@
           <form id="chatForm" class="ada-composer">
             <div class="ada-input-wrap">
               <textarea id="chatInput" class="ada-input" rows="1"
-                        placeholder="Ask anything… (e.g. Explain Newton's third law)"
+                        aria-label="Ask your study companion" placeholder="What would you like to understand?"
                         maxlength="4000"></textarea>
             </div>
             <button id="chatSendBtn" type="submit" class="ada-send" aria-label="Send">
@@ -1244,13 +1245,19 @@
       </div>
 
       <div id="attendanceSection" style="display:none;">
+        <div class="experience-hero"><span class="experience-kicker">YOUR LEARNING RHYTHM</span><h2>My attendance</h2><p>Your attendance, one subject at a time. Select a month to see how you've been showing up.</p></div>
+        <div class="attendance-summary" aria-live="polite">
+          <div class="attendance-stat"><span>Present</span><strong id="attendancePresent">—</strong> <small>classes</small></div>
+          <div class="attendance-stat"><span>Absent</span><strong id="attendanceAbsent">—</strong> <small>classes</small></div>
+          <div class="attendance-stat"><span>Attendance</span><strong id="attendanceRate">—</strong> <small>of marked classes</small></div>
+        </div>
         <div class="attn-hero attn-anim">
           <h2>📋 My Attendance</h2>
         </div>
 
         <div class="attn-card attn-controls attn-anim">
           <div class="attn-field">
-            <span class="attn-label">Subject</span>
+            <label class="attn-label" for="attnStudentSubject">Subject</label>
             <select id="attnStudentSubject" class="attn-select" onchange="renderAttendanceCalendar()">
               <option value="">Select subject</option>
             </select>
@@ -1316,7 +1323,7 @@ const sectionMeta = {
   mock:        { title: 'Mock Tests',        desc: 'Full-length mock exams',            badge: 'badge-pdf', badgeText: 'EXAM', icon: '🎯' },
   notes:       { title: 'Chapter Notes',     desc: 'Study notes for revision',          badge: 'badge-notes', badgeText: 'NOTES', icon: '📖' },
   onlinetest:  { title: 'Online Tests',      desc: 'Auto-graded MCQ tests',             badge: 'badge-mcq', badgeText: 'LIVE', icon: '✏️' },
-  results:     { title: 'My Test Results',   desc: 'Your test scores from the last 30 days', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
+  results:     { title: 'My Test Results',   desc: 'Your scores, progress and next steps.', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
   recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
   chatbot:     { title: '💬 Ask a Doubt',     desc: 'Ask a question or connect with a teacher', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
   attendance:  { title: '📋 My Attendance',   desc: 'Green marks the days you were present', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📋' },
@@ -1351,6 +1358,12 @@ function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 // ── Switch sidebar section ──
 function switchSection(el, section) {
+  window._portalRenderSequence = (window._portalRenderSequence || 0) + 1;
+  // Dispose the old browser, including its render callbacks. Merely hiding it
+  // lets an empty destination retain controls backed by the previous tab's data.
+  PortalUI.clearBrowser('testGrid');
+  document.getElementById('testGrid').replaceChildren();
+  document.getElementById('emptyState').style.display = 'none';
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
   currentSection = section;
@@ -1361,7 +1374,7 @@ function switchSection(el, section) {
   document.getElementById('breadcrumbSection').textContent = meta.title || '';
 
   // Toggle views
-  document.getElementById('pdfViewer').classList.remove('open');
+  closePdfViewer();
   const lcSection  = document.getElementById('liveClassesSection');
   const recSection = document.getElementById('recordingsSection');
   const cbSection  = document.getElementById('chatbotSection');
@@ -1430,8 +1443,8 @@ function switchSection(el, section) {
       void attSection.offsetWidth;
       attSection.classList.add('attn-enter');
     }
-    document.getElementById('pageTitle').textContent = '📋 My Attendance';
-    document.getElementById('pageDesc').textContent  = 'Green marks the days you were present';
+    document.getElementById('pageTitle').textContent = 'My Attendance';
+    document.getElementById('pageDesc').textContent  = 'Your monthly record, updated by your teacher.';
     document.getElementById('breadcrumbSection').textContent = 'My Attendance';
   } else if (section === 'answersheet') {
     document.getElementById('testGrid').style.display = 'none';
@@ -1455,6 +1468,7 @@ function switchSection(el, section) {
     renderCards();
   }
 
+  window.scrollTo({top:0,behavior:'instant'});
   // Close mobile sidebar
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('open');
@@ -1476,6 +1490,14 @@ function openTest(name) {
 }
 function closePdfViewer() {
   document.getElementById('pdfViewer').classList.remove('open');
+  const frame = document.getElementById('pdfFrame');
+  frame.src = 'about:blank';
+  frame.style.display = 'none';
+  const image = document.getElementById('imgViewer');
+  image.removeAttribute('src');
+  image.style.display = 'none';
+  document.getElementById('pdfOpenTab').removeAttribute('href');
+  document.getElementById('pdfTitle').textContent = '';
 }
 
 // ── Mobile sidebar toggle ──
@@ -1802,18 +1824,23 @@ renderCards();
     //  RENDER CARDS — load chapters from Firestore
     //  (overrides the hardcoded version in main script)
     // ══════════════════════════════════════════════
+    let _chapterCache = null, _chapterCacheTime = 0;
     window.renderCards = async function() {
-      if (currentSection === 'upload') return;
+      const section = currentSection;
+      const request = window._portalRenderSequence = (window._portalRenderSequence || 0) + 1;
+      const isCurrent = () => request === window._portalRenderSequence && currentSection === section;
+      if (section === 'upload') return;
 
       const grid  = document.getElementById('testGrid');
       const empty = document.getElementById('emptyState');
       if (!grid) return;
+      PortalUI.clearBrowser(grid);
 
       grid.innerHTML  = '<div style="text-align:center;padding:3rem;color:#90a4ae;">⏳ Loading…</div>';
       empty.style.display = 'none';
 
-      // ── My Results section: this student's own results, last 30 days ──
-      if (currentSection === 'results') {
+      // ── My Results section: this student's own results, last 12 months ──
+      if (section === 'results') {
         try {
           // Results are mirrored locally for instant display, then merged with
           // direct Firestore reads so the tab recovers after cache clears/devices change.
@@ -1961,6 +1988,8 @@ renderCards();
             .filter(r => r.submittedMs >= cutoffMs)
             .sort((a, b) => b.submittedMs - a.submittedMs);
 
+          // A late empty response must not clear a tab opened during the reads.
+          if (!isCurrent()) return;
           if (results.length === 0) {
             grid.innerHTML = ''; empty.style.display = 'block';
             document.querySelector('#emptyState p').textContent = 'No test results in the last 12 months. Take a test to see your scores here.';
@@ -2038,7 +2067,10 @@ renderCards();
             .filter(r => mode === 'all' || (r.source || 'online') === mode)
             .map(normalizeTopic))].sort();
 
-          window.ntcApplyResultFilters = function() {
+          let resultPage = 0;
+          window.ntcApplyResultFilters = function(keepPage = false) {
+            if (!isCurrent()) return;
+            if (!keepPage) resultPage = 0;
             const subjectSel = document.getElementById('resultSubjectFilter');
             const modeSel = document.getElementById('resultModeFilter');
             const topicSel = document.getElementById('resultTopicFilter');
@@ -2057,27 +2089,29 @@ renderCards();
             const graphType = monthPoints.length > 5 ? 'heartbeat' : 'bar';
             const controls = document.getElementById('resultFilterControls');
             if (controls) controls.innerHTML = `
-              <div class="result-filter-field"><label>Subject</label><select id="resultSubjectFilter" onchange="window.ntcApplyResultFilters()">${subjects.map(s => `<option value="${resultEscape(s)}"${s === selectedSubject ? ' selected' : ''}>${resultEscape(s)}</option>`).join('')}</select></div>
-              <div class="result-filter-field"><label>Online / Offline</label><select id="resultModeFilter" onchange="window.ntcApplyResultFilters()">
+              <div class="result-filter-field"><label for="resultSubjectFilter">Subject</label><select id="resultSubjectFilter" onchange="window.ntcApplyResultFilters()">${subjects.map(s => `<option value="${resultEscape(s)}"${s === selectedSubject ? ' selected' : ''}>${resultEscape(s)}</option>`).join('')}</select></div>
+              <div class="result-filter-field"><label for="resultModeFilter">Test format</label><select id="resultModeFilter" onchange="window.ntcApplyResultFilters()">
                 <option value="all"${selectedMode === 'all' ? ' selected' : ''}>All</option>
                 <option value="online"${selectedMode === 'online' ? ' selected' : ''}>Online</option>
                 <option value="offline"${selectedMode === 'offline' ? ' selected' : ''}>Offline</option>
               </select></div>
-              <div class="result-filter-field"><label>Test Topic</label><select id="resultTopicFilter" onchange="window.ntcApplyResultFilters()">
+              <div class="result-filter-field"><label for="resultTopicFilter">Topic</label><select id="resultTopicFilter" onchange="window.ntcApplyResultFilters()">
                 <option value="all"${selectedTopic === 'all' ? ' selected' : ''}>All topics</option>
                 ${topics.map(t => `<option value="${resultEscape(t)}"${t === selectedTopic ? ' selected' : ''}>${resultEscape(t)}</option>`).join('')}
               </select></div>`;
             const graph = document.getElementById('resultGraphWrap');
             if (graph) graph.innerHTML = `
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin-bottom:1rem;">
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem;"><div style="font-size:.72rem;color:#64748b;">Topic Progress</div><div style="font-size:1.55rem;font-weight:800;color:${pctColor(topicAvg)};">${topicAvg}%</div></div>
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem;"><div style="font-size:.72rem;color:#64748b;">Subject Overall</div><div style="font-size:1.55rem;font-weight:800;color:${pctColor(subjectAvg)};">${subjectAvg}%</div></div>
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem;"><div style="font-size:.72rem;color:#64748b;">Tests Shown</div><div style="font-size:1.55rem;font-weight:800;color:#003087;">${topicRows.length}</div></div>
+              <div class="result-metrics">
+                <div class="result-metric"><span>Filtered average</span><strong>${topicRows.length ? topicAvg + '%' : '—'}</strong></div>
+                <div class="result-metric"><span>Subject average</span><strong>${subjectAvg}%</strong></div>
+                <div class="result-metric"><span>Tests found</span><strong>${topicRows.length}</strong></div>
               </div>
-              <div style="font-weight:800;color:#003087;margin-bottom:.45rem;">Month-wise ${graphType === 'heartbeat' ? 'Heartbeat' : 'Bar'} Graph</div>
-              ${graphType === 'heartbeat' ? renderSparkline(monthPoints) : renderBars(monthPoints)}`;
+              <details class="result-trend"><summary>Explore your monthly progress</summary><div class="result-chart">${graphType === 'heartbeat' ? renderSparkline(monthPoints) : renderBars(monthPoints)}</div></details>`;
             const list = document.getElementById('resultCardsWrap');
-            if (list) list.innerHTML = topicRows.length ? topicRows.map(r => {
+            const resultPageSize = window.matchMedia('(max-width:600px)').matches ? 3 : 6;
+            const resultPages = Math.max(1, Math.ceil(topicRows.length / resultPageSize));
+            resultPage = Math.max(0, Math.min(resultPage, resultPages - 1));
+            if (list) list.innerHTML = topicRows.length ? topicRows.slice(resultPage * resultPageSize, (resultPage + 1) * resultPageSize).map(r => {
               const meta = testMetaMap[r.testId] || { testName: '(Test)', subject: '' };
               const displayScore = Number.isFinite(r.finalScore) ? r.finalScore : r.score;
               const scoreText = `${Math.round(displayScore * 100) / 100} / ${r.totalMarks || '?'}`;
@@ -2088,7 +2122,7 @@ renderCards();
               const shownName = isOffline ? r.testName : meta.testName;
               const typeLabel = isOffline ? (r.testType === 'subjective' ? 'SUBJECTIVE' : 'MCQ') : 'ONLINE';
               const dateMs = r.submittedMs || (r.testDate ? Date.parse(r.testDate) : 0);
-              const gradeIcon = pct >= 80 ? '🏆' : pct >= 60 ? '👍' : pct >= 40 ? '📚' : '💪';
+              const gradeIcon = isOffline ? '↗' : '✓';
               // Online results can be re-opened to the exact post-submission review
               // page (question-by-question, correct option + unattempted shown).
               // Offline results are teacher-uploaded scores with no answer key,
@@ -2110,24 +2144,33 @@ renderCards();
                 </div>
               </div>`;
             }).join('') : '<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:#90a4ae;">No tests match this filter.</div>';
+            list?.querySelectorAll('.test-card[onclick]').forEach(card => {
+              card.tabIndex=0;card.setAttribute('role','button');
+              card.onkeydown=event=>{if(event.target===card&&(event.key==='Enter'||event.key===' ')){event.preventDefault();card.click();}};
+            });
+            const pager=document.getElementById('resultPager');
+            pager.innerHTML=`<span role="status">${topicRows.length} tests · ${resultPage+1} / ${resultPages}</span><div><button type="button" data-result-page="-1" aria-label="Previous results" ${resultPage===0?'disabled':''}>←</button><button type="button" data-result-page="1" aria-label="Next results" ${resultPage>=resultPages-1?'disabled':''}>→</button></div>`;
+            pager.querySelectorAll('button').forEach(button=>button.onclick=()=>{resultPage+=Number(button.dataset.resultPage);window.ntcApplyResultFilters(true);document.querySelector('.result-overview').scrollIntoView({block:'start',behavior:'instant'});});
           };
 
+          if (!isCurrent()) return;
           grid.innerHTML = `
-            <div style="grid-column:1/-1;background:#fff;border:1px solid rgba(0,48,135,.08);border-radius:14px;padding:1rem 1.1rem;box-shadow:0 2px 14px rgba(0,0,0,.04);">
-              <div style="font-weight:800;color:#003087;margin-bottom:.8rem;">Result Progress</div>
+            <div class="result-overview">
+              <span class="experience-kicker">SMALL STEPS. REAL PROGRESS.</span><h2>Your progress at a glance.</h2><p>Explore scores by subject and topic from the last 12 months.</p>
               <div id="resultFilterControls" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem;margin-bottom:1rem;"></div>
               <div id="resultGraphWrap"></div>
             </div>
-            <div id="resultCardsWrap" style="display:contents;"></div>`;
+            <div id="resultCardsWrap" style="display:contents;"></div><div class="result-pager" id="resultPager"></div>`;
           window.ntcApplyResultFilters();
         } catch(err) {
+          if (!isCurrent()) return;
           grid.innerHTML = `<div style="color:#ef4444;padding:2rem;">${err.message}</div>`;
         }
         return;
       }
 
       // ── Online Test section: load from 'tests' collection ──
-      if (currentSection === 'onlinetest') {
+      if (section === 'onlinetest') {
         try {
           const classVal = profile.class || studentClass;
           const token = await user.getIdToken();
@@ -2135,11 +2178,10 @@ renderCards();
           // Fetch all tests first. We'll then probe each test's deterministic
           // result doc (testResults/{testId}__{cycle}__{uid}) — a direct GET
           // succeeds when the student owns the result, no query needed.
-          const testRes = await fetch(
+          const testJson = await PortalUI.fetchList(
             `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/tests?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
             { headers: { Authorization: 'Bearer ' + token } }
           );
-          const testJson = await testRes.json();
           // attemptedSet is populated AFTER we know which tests exist (below).
           const attemptedSet = new Set();
 
@@ -2150,6 +2192,9 @@ renderCards();
               testName: f.testName?.stringValue || '',
               class: f.class?.stringValue || '',
               subject: f.subject?.stringValue || '',
+              chapter: f.chapter?.stringValue || f.chapterName?.stringValue || '',
+              module: f.module?.stringValue || '',
+              topic: f.topic?.stringValue || '',
               totalMarks: parseInt(f.totalMarks?.integerValue || '0'),
               totalQ: parseInt(f.totalQ?.integerValue || '0'),
               timeLimit: parseInt(f.timeLimit?.integerValue || '60'),
@@ -2203,6 +2248,7 @@ renderCards();
             t.alreadyAttempted = attemptedSet.has(t.testId + '__' + t.activeCycle);
           });
 
+          if (!isCurrent()) return;
           if (allTests.length === 0) {
             grid.innerHTML = ''; empty.style.display = 'block';
             document.querySelector('#emptyState p').textContent = 'No online tests available for your class yet. Check back soon!';
@@ -2213,6 +2259,7 @@ renderCards();
           const tests = allTests.slice().sort((a, b) =>
             (a.subject || 'General').localeCompare(b.subject || 'General') ||
             (a.testName || '').localeCompare(b.testName || ''));
+          PortalUI.collection({host:grid, key:'online-tests', title:'Your test library', eyebrow:'PRACTICE WITH PURPOSE', facets:['subject','chapter','module'], drill:true, items:tests, render: tests => {
           let _lastSubject = null;
           grid.innerHTML = tests.map(t => {
             let header = '';
@@ -2250,7 +2297,9 @@ renderCards();
               </div>
             </div>`;
           }).join('');
+          }});
         } catch(err) {
+          if (!isCurrent()) return;
           grid.innerHTML = `<div style="color:#ef4444;padding:2rem;">${err.message}</div>`;
         }
         return;
@@ -2259,7 +2308,12 @@ renderCards();
       try {
         const classVal = profile.class || studentClass;
         const q    = query(collection(db, 'chapters'), where('class', '==', classVal));
-        const snap = await getDocs(q);
+        if (!_chapterCache || Date.now() - _chapterCacheTime > 60000) {
+          _chapterCache = getDocs(q).catch(error => { _chapterCache = null; throw error; });
+          _chapterCacheTime = Date.now();
+        }
+        const snap = await _chapterCache;
+        if (!isCurrent()) return;
 
         if (snap.empty) {
           grid.innerHTML      = '';
@@ -2277,7 +2331,7 @@ renderCards();
           : ['regular']);
         const chapters = allChapters.filter(ch => {
           const cat = ch.category || 'notes';
-          if (cat !== currentSection) return false;
+          if (cat !== section) return false;
           // Role-based content filter: default missing contentType to 'regular'.
           const ctype = (window.ContentAccess
             ? window.ContentAccess.normalizeContentType(ch.contentType)
@@ -2295,14 +2349,15 @@ renderCards();
         if (chapters.length === 0) {
           grid.innerHTML      = '';
           empty.style.display = 'block';
-          const friendly = (sectionMeta[currentSection] && sectionMeta[currentSection].title) || 'this section';
+          const friendly = (sectionMeta[section] && sectionMeta[section].title) || 'this section';
           document.querySelector('#emptyState p').textContent = `No ${friendly.toLowerCase()} uploaded yet for Class ${classVal}. Check back soon!`;
           return;
         }
 
-        const meta = sectionMeta[currentSection] || { icon: '📄', badge: 'badge-pdf', badgeText: 'PDF' };
+        const meta = sectionMeta[section] || { icon: '📄', badge: 'badge-pdf', badgeText: 'PDF' };
 
-        grid.innerHTML = chapters.map(ch => {
+        PortalUI.collection({host:grid, key:'materials-'+section, title:'Choose your next chapter', eyebrow:'SUBJECT → CHAPTER → MODULE', facets:['subject','chapter','module'], drill:true, items:chapters, render: visible => {
+        grid.innerHTML = visible.map(ch => {
           // Escape quotes in name/url for inline onclick
           const safeName = (ch.chapterName || '').replace(/'/g, "\\'");
           const safeUrl  = (ch.pdfUrl      || '').replace(/'/g, "\\'");
@@ -2321,8 +2376,10 @@ renderCards();
               </div>
             </div>`;
         }).join('');
+        }});
 
       } catch (e) {
+        if (!isCurrent()) return;
         grid.innerHTML      = '';
         empty.style.display = 'block';
         console.error('renderCards error:', e);
@@ -3700,6 +3757,12 @@ renderCards();
     const presentSet = new Set(_attnRecords.filter(r => r.subjectKey === sk && r.status === 'present').map(r => r.date));
     const absentSet  = new Set(_attnRecords.filter(r => r.subjectKey === sk && r.status === 'absent').map(r => r.date));
     const todayStatus = absentSet.has(today) ? 'absent' : (presentSet.has(today) ? 'present' : '');
+    const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    const presentCount = [...presentSet].filter(date => date.startsWith(monthPrefix)).length;
+    const absentCount = [...absentSet].filter(date => date.startsWith(monthPrefix)).length;
+    document.getElementById('attendancePresent').textContent = presentCount;
+    document.getElementById('attendanceAbsent').textContent = absentCount;
+    document.getElementById('attendanceRate').textContent = presentCount + absentCount ? Math.round(presentCount / (presentCount + absentCount) * 100) + '%' : '—';
 
     // Calendar grid — green = present, red = absent
     const firstDay = new Date(year, month, 1).getDay();
@@ -3714,7 +3777,7 @@ renderCards();
       const isToday = ds === today;
       const cls = `attn-day${present ? ' is-present' : absent ? ' is-absent' : ''}${isToday ? ' is-today' : ''}`;
       const tip = present ? ' · Present' : absent ? ' · Absent' : '';
-      cells += `<div class="${cls}" title="${ds}${tip}" style="animation-delay:${d * 14}ms">${d}</div>`;
+      cells += `<div class="${cls}" aria-label="${ds}${tip || ' · Not marked'}" title="${ds}${tip || ' · Not marked'}">${d}</div>`;
     }
     calWrap.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.85rem;">
@@ -3763,10 +3826,11 @@ renderCards();
   window.loadStudentClasses = async function() {
     const wrap = document.getElementById('lcStudentList');
     if (!wrap) return;
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;font-size:.88rem;">Loading…</div>';
     try {
       const token   = await user.getIdToken();
-      const grade   = studentClass;
+      const grade   = window._studentProfile?.class || studentClass;
       const _prof   = window._studentProfile || {};
       const _allowedCT = (window.ContentAccess
         ? window.ContentAccess.allowedContentTypes(_prof.enrollmentType)
@@ -3862,16 +3926,9 @@ renderCards();
         </div>`;
       };
 
-      let html = '';
-      if (upcoming.length) {
-        html += `<div style="font-size:.75rem;font-weight:700;color:#003087;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem;">Upcoming &amp; Active</div>`;
-        html += upcoming.map(renderCard).join('');
-      }
-      if (past.length) {
-        html += `<div style="font-size:.75rem;font-weight:700;color:#90a4ae;letter-spacing:.1em;text-transform:uppercase;margin:.9rem 0 .6rem;">Past Classes</div>`;
-        html += past.map(renderCard).join('');
-      }
-      wrap.innerHTML = html;
+      PortalUI.collection({host:wrap,items:[...upcoming,...past],title:'Your class schedule',facets:['subject','chapter','module'],render: visible => {
+        wrap.innerHTML = visible.map(renderCard).join('');
+      }});
 
     } catch(e) {
       wrap.innerHTML = `<div style="color:#ef4444;font-size:.85rem;padding:.8rem;">${lcEscape(e.message)}</div>`;
@@ -3881,7 +3938,7 @@ renderCards();
   // Refresh every 60s when live classes section is visible, so the Join button
   // appears automatically at T-5 minutes without the student having to reload.
   setInterval(() => {
-    if (document.getElementById('liveClassesSection')?.style.display === 'block') {
+    if (!document.hidden && document.getElementById('liveClassesSection')?.style.display === 'block') {
       loadStudentClasses();
     }
   }, 60000);
@@ -3895,10 +3952,11 @@ renderCards();
   window.loadStudentRecordings = async function() {
     const wrap = document.getElementById('recStudentList');
     if (!wrap) return;
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;font-size:.88rem;">Loading…</div>';
     try {
       const token   = await user.getIdToken();
-      const grade   = studentClass;
+      const grade   = window._studentProfile?.class || studentClass;
       const _prof   = window._studentProfile || {};
       const _allowedCT = (window.ContentAccess
         ? window.ContentAccess.allowedContentTypes(_prof.enrollmentType)
@@ -3934,7 +3992,8 @@ renderCards();
         return;
       }
 
-      wrap.innerHTML = recs.map(c => {
+      PortalUI.collection({host:wrap,items:recs,title:'Recorded lessons',facets:['subject','chapter','module'],render: visible => {
+      wrap.innerHTML = visible.map(c => {
         const url = c.recordingUrl;
         const pwd = c.recordingPassword || '';
         const src = c.recordingSource || 'other';
@@ -3967,6 +4026,7 @@ renderCards();
         </div>`;
       }).join('');
 
+      }});
     } catch(e) {
       wrap.innerHTML = `<div style="color:#ef4444;font-size:.85rem;padding:.8rem;">${lcEscape(e.message)}</div>`;
     }
@@ -4016,7 +4076,7 @@ renderCards();
     const name = chatEscape(((window._studentProfile||{}).name)||'there').split(' ')[0] || 'there';
     m.innerHTML = `
       <div class="ada-welcome">
-        <div class="ada-welcome-icon">✨</div>
+        <div class="ada-welcome-icon" aria-hidden="true">✦</div>
         <div class="ada-welcome-title">Hi ${name}! What's on your mind?</div>
         <div class="ada-welcome-sub">
           Ask anything about Physics, Chemistry, Maths, Biology or Computer Science.
@@ -6009,6 +6069,7 @@ renderCards();
       bd.className = 'ntc-pf-backdrop';
       bd.setAttribute('role', 'dialog');
       bd.setAttribute('aria-modal', 'true');
+      bd.setAttribute('aria-labelledby', 'studentProfileHeading');
       bd.innerHTML =
         '<div class="ntc-pf-modal" role="document">' +
           '<button class="ntc-pf-close" aria-label="Close">&times;</button>' +
@@ -6017,12 +6078,12 @@ renderCards();
               '<span class="ntc-pf-photo-init">S</span>' +
               '<img alt="" hidden>' +
             '</div>' +
-            '<label class="ntc-pf-upload" title="Change photo">' +
-              '<input type="file" accept="image/*">' +
-              '<span aria-hidden="true">📷</span>' +
+            '<label class="ntc-pf-upload" title="Change photo" role="button" tabindex="0" aria-label="Change profile photo">' +
+              '<input type="file" accept="image/*" aria-label="Change profile photo">' +
+              '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="4"/></svg>' +
             '</label>' +
           '</div>' +
-          '<h2 class="ntc-pf-name">Student</h2>' +
+          '<h2 class="ntc-pf-name" id="studentProfileHeading">Student</h2>' +
           '<div class="ntc-pf-sub">Tap the camera icon to update photo</div>' +
           '<div class="ntc-pf-rows">' +
             '<div class="ntc-pf-row"><span class="ntc-pf-lbl">Student ID</span><span class="ntc-pf-val" data-pf="id">—</span></div>' +
@@ -6036,17 +6097,36 @@ renderCards();
       document.body.appendChild(bd);
 
       // Open / close
-      btn.addEventListener('click', function () { bd.classList.add('open'); });
+      var previousOverflow;
+      function closeProfile() {
+        if (!bd.classList.contains('open')) return;
+        bd.classList.remove('open');
+        document.body.style.overflow=previousOverflow;
+        btn.focus();
+      }
+      btn.addEventListener('click', function () {
+        previousOverflow=document.body.style.overflow;
+        bd.classList.add('open');document.body.style.overflow='hidden';
+        bd.querySelector('.ntc-pf-close').focus();
+      });
       bd.addEventListener('click', function (e) {
-        if (e.target === bd || e.target.classList.contains('ntc-pf-close')) bd.classList.remove('open');
+        if (e.target === bd || e.target.classList.contains('ntc-pf-close')) closeProfile();
       });
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') bd.classList.remove('open');
+        if (!bd.classList.contains('open')) return;
+        if (e.key === 'Escape') closeProfile();
+        if (e.key === 'Tab') {
+          var controls=Array.from(bd.querySelectorAll('button,[tabindex="0"]')).filter(el=>!el.disabled&&el.getClientRects().length);
+          var first=controls[0],last=controls[controls.length-1];
+          if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+          else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+        }
       });
 
       // Photo upload — Uploadcare (cloud) + Firestore (sync) + localStorage (instant cache)
       var fileInput = bd.querySelector('.ntc-pf-upload input');
       var uploadBtn = bd.querySelector('.ntc-pf-upload');
+      uploadBtn.addEventListener('keydown',function(event){if(event.key==='Enter'||event.key===' '){event.preventDefault();fileInput.click();}});
       var subEl     = bd.querySelector('.ntc-pf-sub');
       var defaultSubText = subEl ? subEl.textContent : '';
 
@@ -6243,6 +6323,10 @@ renderCards();
   })();
   </script>
 
+<link rel="stylesheet" href="/assets/css/portal-shell.css"/>
+<script src="/assets/js/portal-workspaces.js"></script>
+<link rel="stylesheet" href="/assets/css/portal-experience.css">
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>
-      

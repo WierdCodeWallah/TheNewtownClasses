@@ -21,13 +21,12 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <!-- PDF.js for reading PDF files -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- Mammoth.js for reading DOCX files -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <!-- Shared role-based content access helper -->
   <script src="/assets/js/content-access.js"></script>
   <!-- Shared AI answer-sheet report renderer -->
   <script src="/assets/js/answersheet-report.js"></script>
+  <script src="/assets/js/portal-shell.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
@@ -480,7 +479,7 @@
 
     @media (max-width: 480px) {
       .nav { min-height: 48px; }
-      .nav > a.logo {
+      .nav > .logo {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -510,14 +509,14 @@
   @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 </style>
 </head>
-<body>
+<body data-portal="teacher">
 
 <!-- NAV -->
 <nav class="nav">
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">
     <span></span><span></span><span></span>
   </button>
-  <a href="/" class="logo">The NewTown <span>Classes</span></a>
+  <span class="logo">The NewTown <span>Classes</span></span>
   <div class="nav-right">
     <span class="teacher-name" id="teacherNameDisplay">Teacher</span>
     <span class="teacher-badge">Teacher</span>
@@ -639,6 +638,7 @@
           <label>Topic</label>
           <input type="text" id="testTopic" placeholder="e.g. Factorisation"/>
         </div>
+        <div class="field"><label for="testModule">Module (optional)</label><input id="testModule" type="text" placeholder="e.g. Practice 1"/></div>
         <div class="field">
           <label>Time Limit (minutes) *</label>
           <input type="number" id="testTimeLimit" value="60" min="5" max="300"/>
@@ -847,6 +847,7 @@
             <option>English</option><option>All Subjects</option>
           </select>
         </div>
+        <div class="field"><label for="offlineBoard">Board</label><select id="offlineBoard"><option value="">All boards</option><option>CBSE</option><option>ICSE</option></select></div>
         <div class="field">
           <label>Test Type *</label>
           <select id="offlineTestType">
@@ -958,6 +959,8 @@
           <label>Class Name *</label>
           <input id="lcName" type="text" placeholder="e.g. Organic Chemistry – Ch.4" autocomplete="off"/>
         </div>
+        <div class="field"><label for="lcChapter">Chapter (optional)</label><input id="lcChapter" type="text" placeholder="e.g. Thermodynamics"/></div>
+        <div class="field"><label for="lcModule">Module (optional)</label><input id="lcModule" type="text" placeholder="e.g. Revision"/></div>
         <div class="field">
           <label>Subject *</label>
           <input id="lcSubject" type="text" placeholder="e.g. Chemistry" autocomplete="off"/>
@@ -1164,11 +1167,11 @@
   // Firestore REST helper
   async function fsGet(path) {
     const token = await user.getIdToken();
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}&pageSize=500`,
-      { headers: { Authorization: 'Bearer ' + token } }
-    );
-    return res.json();
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/${path}?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`;
+    const init = { headers: { Authorization: 'Bearer ' + token } };
+    if (path.split('/').length % 2) return PortalUI.fetchList(url, init);
+    const response = await fetch(url, init);
+    return response.json();
   }
   async function fsPatch(path, fields) {
     const token = await user.getIdToken();
@@ -1222,6 +1225,7 @@
     const sb = $('sidebar'); const ov = $('sidebarOverlay');
     if (sb) sb.classList.remove('open');
     if (ov) ov.classList.remove('open');
+    window.scrollTo({top:0,behavior:'instant'});
   };
 
   // ── Mobile sidebar toggle ──
@@ -1240,7 +1244,7 @@
     });
   }
   if ($('offlineDate')) $('offlineDate').value = new Date().toISOString().slice(0, 10);
-  ['offlineClass','offlineSubject'].forEach(id => {
+  ['offlineClass','offlineBoard','offlineSubject'].forEach(id => {
     const el = $(id);
     if (el) el.addEventListener('change', () => {
       _offlineStudents = [];
@@ -1683,6 +1687,7 @@
 
   // ── Extract text from PDF using PDF.js ──
   async function extractTextFromPDF(file) {
+    await PortalUI.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
     const arrayBuf = await file.arrayBuffer();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
@@ -1698,6 +1703,7 @@
 
   // ── Extract text from DOCX using Mammoth.js ──
   async function extractTextFromDOCX(file) {
+    await PortalUI.loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
     const arrayBuf = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer: arrayBuf });
     return result.value;
@@ -1996,6 +2002,7 @@
         class:{stringValue:cls}, subject:{stringValue:subj}, testName:{stringValue:name},
         chapter:{stringValue:chapter},
         topic:{stringValue:topic},
+        module:{stringValue:$('testModule').value.trim()},
         sections:{stringValue:JSON.stringify(sections)},
         totalMarks:{integerValue:String(totalMarks)}, totalQ:{integerValue:String(totalQ)},
         isActive:{booleanValue:true},
@@ -2045,6 +2052,7 @@
       $('testClass').value=''; $('testSubject').value=''; $('testName').value=''; $('testTimeLimit').value='60';
       if ($('testChapter')) $('testChapter').value = '';
       if ($('testTopic')) $('testTopic').value = '';
+      if ($('testModule')) $('testModule').value = '';
       $('negWrong').value='0'; $('negUnattempted').value='0';
       if ($('testType')) $('testType').value='regular';
       if ($('testTargetBoard')) $('testTargetBoard').value = '';
@@ -2124,6 +2132,8 @@
       setVal('testClass',     f.class?.stringValue || '');
       setVal('testSubject',   f.subject?.stringValue || '');
       setVal('testName',      f.testName?.stringValue || '');
+      setVal('testModule', f.module?.stringValue || '');
+      PortalUI.openTask?.('tab-tests', 'create');
       setVal('testChapter',   f.chapter?.stringValue || f.chapterName?.stringValue || f.unit?.stringValue || '');
       setVal('testTopic',     f.topic?.stringValue || f.topicName?.stringValue || f.lesson?.stringValue || '');
       setVal('testTimeLimit', parseInt(f.timeLimit?.integerValue || '60'));
@@ -2189,6 +2199,7 @@
     $('testClass').value=''; $('testSubject').value=''; $('testName').value=''; $('testTimeLimit').value='60';
     if ($('testChapter')) $('testChapter').value = '';
     if ($('testTopic')) $('testTopic').value = '';
+      if ($('testModule')) $('testModule').value = '';
     $('negWrong').value='0'; $('negUnattempted').value='0';
     if ($('testType')) $('testType').value='regular';
     if ($('testTargetBoard')) $('testTargetBoard').value='';
@@ -2201,8 +2212,10 @@
     showMsg('testMsg', 'info', 'Edit cancelled. The builder is ready for a new test.');
   };
 
+  let _teacherTestsForStats = null;
   window.loadMyTests = async function() {
     const wrap = $('testListWrap');
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Loading...</div>';
     try {
       const json = await fsGet('tests');
@@ -2210,6 +2223,7 @@
         const f=d.fields||{};
         return { testId:f.testId?.stringValue||'', testName:f.testName?.stringValue||'',
           class:f.class?.stringValue||'', subject:f.subject?.stringValue||'',
+          targetBoard:f.targetBoard?.stringValue||'', module:f.module?.stringValue||'',
           chapter:f.chapter?.stringValue||f.chapterName?.stringValue||f.unit?.stringValue||'',
           topic:f.topic?.stringValue||f.topicName?.stringValue||f.lesson?.stringValue||'',
           totalMarks:parseInt(f.totalMarks?.integerValue||'0'),
@@ -2224,11 +2238,14 @@
           negUnattempted:parseFloat(f.negUnattempted?.doubleValue||f.negUnattempted?.integerValue||'0') };
       }).filter(d=>d.testId && isMyTeacherTest(d));
 
-      if (!docs.length) { wrap.innerHTML='<div style="text-align:center;padding:2rem;color:#90a4ae;">No tests yet.</div>'; return; }
+      _teacherTestsForStats = docs;
+      if ($('studioTestsCount')) $('studioTestsCount').textContent = String(docs.length);
+      if ($('studioActiveTestsCount')) $('studioActiveTestsCount').textContent = String(docs.filter(test => test.isActive).length);
 
       // ── Group tests by Class → Subject so the list reads cleanly. ──
       // Sort order: Class (numeric-aware) → Subject (A→Z) → Name (A→Z).
-      const groups = groupAndSortTests(docs);
+      PortalUI.collection({host:wrap,items:docs,title:'Your published tests',drill:['class','subject','chapter'],render: visible => {
+      const groups = groupAndSortTests(visible);
       wrap.innerHTML = groups.map(g => `
         <div class="test-group">
           <div class="test-group-head">Class ${escapeHtml(g.class)} · ${escapeHtml(g.subject)} <span class="test-group-count">${g.items.length}</span></div>
@@ -2245,6 +2262,7 @@
               </div>
             </div>`).join('')}
         </div>`).join('');
+      }});
     } catch(e) { wrap.innerHTML=`<div style="color:#ef4444;">${e.message}</div>`; }
   };
 
@@ -2593,6 +2611,8 @@
   // ════════════════════════════════
 
   let _offlineStudents = [];
+  let _offlineRosterKey = '';
+  let _offlineLoadVersion = 0;
 
   function offlineSubjectKey(s) {
     return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/science/g, '').replace(/mathematics/g, 'maths').replace(/[^a-z0-9]+/g, '').trim();
@@ -2610,9 +2630,16 @@
     const cls = $('offlineClass')?.value || '';
     const subject = $('offlineSubject')?.value || '';
     if (!cls || !subject) { showMsg('offlineMsg', 'error', 'Select class and subject first.'); return; }
+    const board = $('offlineBoard')?.value || '';
+    const rosterKey = [cls,board,subject].join('|');
+    const loadVersion = ++_offlineLoadVersion;
+    _offlineStudents = []; _offlineRosterKey = '';
+    if (wrap._portalBrowser) wrap._portalBrowser.remove();
     wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading students...</div>';
     try {
       const json = await fsGet('students');
+      if (loadVersion !== _offlineLoadVersion || rosterKey !== [$('offlineClass').value,$('offlineBoard').value,$('offlineSubject').value].join('|')) return;
+      _offlineRosterKey = rosterKey;
       const subjectKey = offlineSubjectKey(subject);
       _offlineStudents = (json.documents || []).map(d => {
         const f = d.fields || {};
@@ -2621,6 +2648,8 @@
         return { uid, name: f.name?.stringValue || '', studentId: f.studentId?.stringValue || '', class: f.class?.stringValue || '', board: f.board?.stringValue || '', subjects };
       }).filter(st => {
         if (!st.uid || st.class !== cls) return false;
+        const board = $('offlineBoard')?.value || '';
+        if (board && st.board !== board) return false;
         if (!subjectKey || subjectKey === 'allsubjects') return true;
         if (!st.subjects.length) return true;
         return st.subjects.some(s => offlineSubjectKey(s) === subjectKey);
@@ -2648,6 +2677,7 @@
             </tbody>
           </table>
         </div>`;
+      PortalUI.roster('offlineStudentsWrap');
     } catch(e) {
       wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${htmlEscape(e.message)}</div>`;
     }
@@ -2656,6 +2686,7 @@
   window.saveOfflineMarks = async function() {
     const cls = $('offlineClass')?.value || '';
     const subject = $('offlineSubject')?.value || '';
+    if (_offlineRosterKey !== [cls,$('offlineBoard').value,subject].join('|')) { showMsg('offlineMsg','error','Load students for the selected class, board and subject first.'); return; }
     const testType = $('offlineTestType')?.value || 'mcq';
     const testName = ($('offlineTestName')?.value || '').trim();
     const topic = ($('offlineTopic')?.value || '').trim();
@@ -2795,17 +2826,24 @@
     }
   }
 
+  let _attnRosterKey = '';
+  let _attnLoadVersion = 0;
   let _attnStudents = [];   // loaded roster for present marking
 
   // Tick / untick every student at once (header "select all" box).
   window.attnToggleAll = function(master) {
-    document.querySelectorAll('[data-attn-present]').forEach(b => { b.checked = master.checked; });
+    document.querySelectorAll('[data-attn-present]').forEach(b => { if (!b.closest('tr').hidden) b.checked = master.checked; });
+    $('attnStudentsWrap').dispatchEvent(new Event('input'));
   };
 
   // ── Load roster for present marking ──
   window.loadAttendanceStudents = async function() {
     const sel = attnSelection();
     if (!attnValidate(sel)) return;
+    const loadVersion = ++_attnLoadVersion;
+    const rosterKey = JSON.stringify(sel) + attnTodayStr();
+    _attnStudents = []; _attnRosterKey = '';
+    if ($('attnStudentsWrap')._portalBrowser) $('attnStudentsWrap')._portalBrowser.remove();
     const card = $('attnStudentsCard');
     const wrap = $('attnStudentsWrap');
     card.style.display = 'block';
@@ -2838,6 +2876,8 @@
         } catch (_e) {}
         return { ...st, status };
       }));
+      if (loadVersion !== _attnLoadVersion || rosterKey !== JSON.stringify(attnSelection()) + attnTodayStr()) return;
+      _attnRosterKey = rosterKey;
       _attnStudents = withStatus;
       const subjLabel = htmlEscape(sel.subject);
       wrap.innerHTML = `
@@ -2857,6 +2897,8 @@
             </tbody>
           </table>
         </div>`;
+      PortalUI.roster('attnStudentsWrap');
+      document.dispatchEvent(new Event('portal:attendance-loaded'));
     } catch (e) { wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${htmlEscape(e.message)}</div>`; }
   };
 
@@ -2866,6 +2908,7 @@
     const sel = attnSelection();
     if (!sel.subject) { showMsg('attnSaveMsg', 'error', 'Select a subject.'); return; }
     if (!_attnStudents.length) { showMsg('attnSaveMsg', 'error', 'Load students first.'); return; }
+    if (_attnRosterKey !== JSON.stringify(sel) + attnTodayStr()) { showMsg('attnSaveMsg', 'error', 'The class or subject changed. Load this roster before saving.'); return; }
     const sk = attnSubjectKey(sel.subject);
     const today = attnTodayStr();
     const recId = `${today}__${sk}`;
@@ -2926,8 +2969,8 @@
     }
 
     try {
-      const testsJson = await fsGet('tests');
-      const tests = (testsJson.documents || []).map(d => {
+      const testsJson = _teacherTestsForStats ? null : await fsGet('tests');
+      const tests = _teacherTestsForStats || (testsJson.documents || []).map(d => {
         const f = d.fields || {};
         return {
           testId: f.testId?.stringValue || '',
@@ -3215,6 +3258,8 @@
 
       await saveClass(authToken, {
         className:     name,
+        chapter:       $('lcChapter').value.trim(),
+        module:        $('lcModule').value.trim(),
         subject,
         classGrade:    grade,
         teacherUid:    user.uid,
@@ -3233,7 +3278,7 @@
       });
 
       // Reset form
-      ['lcName','lcSubject','lcDate','lcTime','lcZoomUrl','lcZoomPasscode']
+      ['lcChapter','lcModule','lcName','lcSubject','lcDate','lcTime','lcZoomUrl','lcZoomPasscode']
         .forEach(id => document.getElementById(id) && (document.getElementById(id).value = ''));
       $('lcGrade').value = '';
       $('lcDuration').value = 60;
@@ -3253,6 +3298,7 @@
 
   window.loadTeacherClasses = async function() {
     const wrap = document.getElementById('lcTeacherList');
+    PortalUI.clearBrowser(wrap);
     if (!wrap) return;
     try {
       const token   = await user.getIdToken();
@@ -3264,7 +3310,8 @@
         return;
       }
 
-      wrap.innerHTML = classes.map(c => {
+      PortalUI.collection({host:wrap,items:classes,title:'Your classes',facets:['class','board','subject','chapter','module','status'],render: visible => {
+      wrap.innerHTML = visible.map(c => {
         const tStatus = classTimeStatus(c.scheduledTs, c.durationMins);
         const isEnded = c.status === 'ended' || tStatus === 'ended';
         const badge   = c.status === 'cancelled' ? STATUS_BADGE.cancelled
@@ -3324,6 +3371,7 @@
           ${recBlock}
         </div>`;
       }).join('');
+      }});
     } catch(e) {
       wrap.innerHTML = `<div style="color:#ef4444;font-size:.85rem;">${htmlEscape(e.message)}</div>`;
     }
@@ -3437,7 +3485,7 @@
 
   // Refresh class list every 60 seconds when tab is active
   setInterval(() => {
-    if (document.getElementById('tab-liveclasses')?.classList.contains('active')) {
+    if (!document.hidden && document.getElementById('tab-liveclasses')?.classList.contains('active')) {
       loadTeacherClasses();
     }
   }, 60000);
@@ -3796,22 +3844,25 @@
 
   window.loadMySubjectiveTests = async function(){
     const wrap = $('subjListWrap'); if(!wrap) return;
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>';
     try {
       const json = await fsGet('subjectiveTests');
       const docs = (json.documents||[]).map(d => { const f=d.fields||{}; return {
         testId:f.testId?.stringValue||'', testName:f.testName?.stringValue||'',
-        class:f.class?.stringValue||'', subject:f.subject?.stringValue||'',
+        class:f.class?.stringValue||'', subject:f.subject?.stringValue||'', targetBoard:f.targetBoard?.stringValue||'',
         totalMarks:parseFloat(f.totalMarks?.doubleValue||f.totalMarks?.integerValue||'0'),
         isActive:f.isActive?.booleanValue!==false, teacherUid:f.teacherUid?.stringValue||''
       };}).filter(d => d.testId && d.teacherUid === user.uid);
-      if(!docs.length){ wrap.innerHTML='<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No answer-sheet assignments yet.</div>'; return; }
-      wrap.innerHTML = docs.map(d => `<div class="test-list-item">
+
+      PortalUI.collection({host:wrap,items:docs,title:'Answer-sheet assignments',facets:['class','board','subject'],render: visible => {
+      wrap.innerHTML = visible.map(d => `<div class="test-list-item">
         <div><strong style="color:#003087;">${escapeHtml(d.testName)}</strong>
           <div style="font-size:.78rem;color:#546e7a;">Class ${escapeHtml(d.class)} · ${escapeHtml(d.subject)} · ${d.totalMarks} marks · <span style="color:${d.isActive?'#059669':'#dc2626'}">${d.isActive?'Active':'Inactive'}</span></div>
         </div>
         <div style="display:flex;gap:.4rem;"><button onclick="toggleSubjActive('${d.testId}',${!d.isActive})" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .75rem;">${d.isActive?'Pause':'Activate'}</button></div>
       </div>`).join('');
+      }});
     } catch(e){ wrap.innerHTML='<div style="color:#ef4444;">'+e.message+'</div>'; }
   };
   window.toggleSubjActive = async function(id, active){
@@ -4378,5 +4429,10 @@
   }
 </style>
 
+<link rel="stylesheet" href="/assets/css/portal-shell.css"/>
+<script src="/assets/js/portal-workspaces.js"></script>
+<link rel="stylesheet" href="/assets/css/portal-experience.css">
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>

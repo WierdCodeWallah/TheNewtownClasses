@@ -27,3 +27,4 @@ Desktop.ini
 *.log
 *.tmp
 test_write_*.txt
+qa/artifacts/
