@@ -57,9 +57,10 @@
       label.htmlFor = select.id;
       select.dataset.facet = name;
       select.addEventListener('change', () => {
+        window.PortalUI.navigation?.capture();
         state.filters[name] = select.value;
         facets.slice(index + 1).forEach(next => {state.filters[next] = '';});
-        state.page = 0; draw();
+        state.page = 0; draw(); window.PortalUI.navigation?.record();
       });
       label.append(select); filterWrap.append(label);
     });
@@ -67,9 +68,10 @@
     let timer;
     host._portalDispose = () => clearTimeout(timer);
     search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => {state.search = search.value.trim().toLowerCase(); state.page = 0; draw();}, 120); });
-    box.querySelector('[data-reset]').onclick = () => {clearTimeout(timer);state.filters = {}; state.search = ''; state.page = 0; state.refine=false;search.value = ''; draw();};
-    box.querySelector('.portal-refine').onclick=()=>{state.refine=!state.refine;draw();};
-    box.querySelectorAll('[data-page]').forEach(button => {button.onclick = () => {state.page += Number(button.dataset.page); draw();};});
+    box.querySelector('[data-reset]').onclick = () => {window.PortalUI.navigation?.capture();clearTimeout(timer);state.filters = {}; state.search = ''; state.page = 0; state.refine=false;search.value = ''; draw();window.PortalUI.navigation?.record();};
+    box.querySelector('.portal-refine').onclick=()=>{window.PortalUI.navigation?.capture();state.refine=!state.refine;draw();window.PortalUI.navigation?.record();};
+    box.querySelectorAll('[data-page]').forEach(button => {button.onclick = () => {window.PortalUI.navigation?.capture();state.page += Number(button.dataset.page); draw();window.PortalUI.navigation?.record();};});
+    box._portalNav = {key:host.id+':'+key, read:()=>JSON.parse(JSON.stringify(state)), restore:saved=>{clearTimeout(timer);Object.assign(state,JSON.parse(JSON.stringify(saved)));search.value=state.search||'';draw();}};
 
     function draw() {
       if (host._portalBrowser !== box) return;
@@ -114,7 +116,7 @@
           const button = document.createElement('button');
           button.type = 'button'; button.className = 'portal-choice';
           button.innerHTML = '<span class="portal-choice-icon" aria-hidden="true">'+(stage === 'class' ? esc(value) : stage === 'subject' ? subjectIcon(value) : '↳')+'</span><span><strong>'+esc((stage==='class'?'Class ':'')+value)+'</strong><small>'+count+' '+(count===1?'item':'items')+'</small></span><span aria-hidden="true">→</span>';
-          button.onclick = () => {state.filters[stage] = value; state.page=0; draw();}; choices.append(button);
+          button.onclick = () => {window.PortalUI.navigation?.capture();state.filters[stage] = value; state.page=0; draw();window.PortalUI.navigation?.record();}; choices.append(button);
         });
         options.render([]);
       } else {
@@ -131,6 +133,7 @@
       document.dispatchEvent(new CustomEvent('portal:collection-rendered',{detail:box}));
     }
     draw();
+    window.PortalUI.navigation?.collectionReady(box);
   }
 
   // Keep roster inputs in the DOM so marks and attendance survive searches/pages.
@@ -173,9 +176,9 @@
     const host = $(id); if (!host || host._portalTasks) return;
     const tabs=document.createElement('div'); tabs.className='portal-task-tabs'; tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','Workspace views');
     panes=panes.filter(p=>p.element); if(panes.length<2)return;
-    function select(index) {panes.forEach((p,i)=>{p.element.hidden=i!==index; const b=tabs.children[i]; b.setAttribute('aria-selected',String(i===index)); b.tabIndex=i===index?0:-1;});}
+    function select(index, silent) {if(!silent)window.PortalUI.navigation?.capture();panes.forEach((p,i)=>{p.element.hidden=i!==index; const b=tabs.children[i]; b.setAttribute('aria-selected',String(i===index)); b.tabIndex=i===index?0:-1;});if(!silent)window.PortalUI.navigation?.record();}
     panes.forEach((pane,i)=>{const button=document.createElement('button');button.type='button';button.textContent=pane.label;button.setAttribute('role','tab');if(!pane.element.id)pane.element.id='portal-pane-'+(++sequence);button.id=pane.element.id+'-tab';button.setAttribute('aria-controls',pane.element.id);pane.element.setAttribute('role','tabpanel');pane.element.setAttribute('aria-labelledby',button.id);button.onclick=()=>select(i);button.onkeydown=e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const next=(i+(e.key==='ArrowRight'?1:-1)+panes.length)%panes.length;select(next);tabs.children[next].focus();}};tabs.append(button);});
-    host.prepend(tabs);host._portalTasks={select,panes};select(initial||0);
+    host.prepend(tabs);host._portalTasks={select,panes};select(initial||0,true);
   }
 
   // Fetch every REST list page. Never persist private portal data on disk.
@@ -196,6 +199,111 @@
     host._portalCurrentKey=null;
   }
   window.PortalUI={collection,roster,tasks,esc,subject,field,fetchList,loadScript,clearBrowser};
+
+  // Menu handlers live in each portal's Firebase module, which only defines them
+  // once Firebase has loaded. A tap before then used to throw and leave the menu
+  // blank; queue it instead (latest call per function wins) and run it when ready.
+  const waiting=new Map();let waitTimer=0,waitUntil=0;
+  window.ntcCall=function(name,...args){
+    if(typeof window[name]==='function')return window[name](...args);
+    waiting.delete(name);waiting.set(name,args);waitUntil=Date.now()+60000;
+    if(waitTimer)return;
+    waitTimer=setInterval(()=>{
+      waiting.forEach((queued,fn)=>{
+        if(typeof window[fn]!=='function')return;
+        waiting.delete(fn);
+        try{window[fn](...queued);}catch(error){console.error(fn,error);}
+      });
+      if(!waiting.size||Date.now()>waitUntil){waiting.clear();clearInterval(waitTimer);waitTimer=0;}
+    },100);
+  };
+
+  function navigation(sidebar) {
+    const key='ntcPortalNavigation';
+    const previous=history.state?.[key];
+    const session=previous?.session||String(Date.now())+'-'+Math.random().toString(36).slice(2);
+    let index=previous?.index||0, applying=false, pending=null;
+    const snapshots=new Map();
+    const active=()=>sidebar.querySelector('.sidebar-item.active')?.dataset.section||'';
+    const visible=element=>Boolean(element.getClientRects().length);
+    const bar=document.createElement('div');bar.className='portal-back-bar';
+    bar.innerHTML='<button type="button" class="portal-back-button" aria-label="Go back to previous menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg><span>Back</span></button><span class="portal-back-context"></span>';
+    document.querySelector('.main-content')?.prepend(bar);
+    const back=bar.querySelector('button');
+    function read() {
+      const panes=[], browsers={};
+      document.querySelectorAll('[role=tablist]').forEach(tabs=>{
+        const host=tabs.parentElement;
+        if(host._portalTasks&&visible(tabs))panes.push([host.id,host._portalTasks.panes.findIndex(p=>!p.element.hidden)]);
+      });
+      document.querySelectorAll('.portal-browser').forEach(box=>{if(box._portalNav&&visible(box))browsers[box._portalNav.key]=box._portalNav.read();});
+      return {section:active(),panes,browsers,scroll:window.scrollY};
+    }
+    function state() {return {...(history.state||{}),[key]:{session,index,section:active()}};}
+    function updateButton() {
+      // The root Back button stays in the portal; browser Back may still leave
+      // the root normally. Never trap users or treat navigation as sign-out.
+      back.disabled=index===0;
+      back.title=index?'Previous menu':'You are at the first menu';
+      const item=sidebar.querySelector('.sidebar-item.active');
+      bar.querySelector('.portal-back-context').textContent=item?.textContent.trim()||'';
+    }
+    function capture() {
+      if(applying)return;
+      pending=null;snapshots.set(index,read());
+    }
+    function record() {
+      if(applying)return;
+      pending=null;
+      const next=read(),old=snapshots.get(index);
+      const signature=value=>JSON.stringify(value&&{section:value.section,panes:value.panes,browsers:value.browsers});
+      if(signature(old)===signature(next)){updateButton();return;}
+      index++;snapshots.set(index,next);history.pushState(state(),'');updateButton();
+    }
+    function applyCollection(box) {
+      if(!pending||pending.section!==active()||!box._portalNav||!pending.browsers[box._portalNav.key])return;
+      const wasApplying=applying;applying=true;
+      try {box._portalNav.restore(pending.browsers[box._portalNav.key]);} finally {applying=wasApplying;}
+    }
+    function restore(saved) {
+      applying=true;pending=saved;
+      try {
+        if(active()!==saved.section) [...sidebar.querySelectorAll('[data-section]')].find(item=>item.dataset.section===saved.section)?.click();
+        saved.panes.forEach(([id,pane])=>$(id)?._portalTasks?.select(pane,true));
+        document.querySelectorAll('.portal-browser').forEach(applyCollection);
+        window.scrollTo({top:saved.scroll||0,behavior:'instant'});
+      } finally {applying=false;updateButton();}
+    }
+    function closeSurface() {
+      const picker=$('portal-app-picker');
+      if(picker?.open){picker.dispatchEvent(new Event('cancel',{cancelable:true}));return true;}
+      if(sidebar.classList.contains('open')){$('sidebarOverlay')?.click();return true;}
+      if($('pdfViewer')?.classList.contains('open')){window.closePdfViewer?.();return true;}
+      const profile=document.querySelector('.ntc-pf-backdrop.open');
+      if(profile){profile.querySelector('.ntc-pf-close')?.click();return true;}
+      return false;
+    }
+    function allowed() {return window.PortalUI.beforeBack?.()!==false;}
+    back.onclick=()=>{if(!allowed()||closeSurface())return;if(index>0){snapshots.set(index,read());history.back();}};
+    // Capture the old view before inline section handlers replace its DOM.
+    sidebar.addEventListener('click',event=>{if(event.target.closest('[data-section]'))capture();},true);
+    window.addEventListener('popstate',event=>{
+      const entry=event.state?.[key];
+      if(!entry||entry.session!==session)return;
+      if(!allowed()||closeSurface()){history.pushState(state(),'');return;}
+      snapshots.set(index,read());index=entry.index;
+      restore(snapshots.get(index)||{section:entry.section,panes:[],browsers:{},scroll:0});
+    });
+    window.PortalUI.navigation={capture,record,collectionReady:applyCollection,sectionChanged:()=>{
+      if(!applying&&snapshots.get(index)?.section!==active())record();
+    }};
+    snapshots.set(index,read());history.replaceState(state(),'');
+    if(previous?.section&&previous.section!==active()) {
+      const saved={section:previous.section,panes:[],browsers:{},scroll:0};
+      snapshots.set(index,saved);restore(saved);history.replaceState(state(),'');
+    }
+    updateButton();
+  }
 
   function init() {
     const role=document.body.dataset.portal; if(!role)return;
@@ -230,8 +338,10 @@
           tabs.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.section===active)));
         }
       }
+      window.PortalUI.navigation?.sectionChanged();
     }
     new MutationObserver(sync).observe(sidebar,{attributes:true,attributeFilter:['class'],subtree:true});sync();
+    navigation(sidebar);
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&sidebar.classList.contains('open')){$('sidebarOverlay')?.click();more.focus();}});
     document.querySelectorAll('.field').forEach(container=>{const label=container.querySelector('label');const control=container.querySelector('input,select,textarea');if(label&&control?.id&&!label.htmlFor)label.htmlFor=control.id;});
     document.dispatchEvent(new Event('portal:ready'));

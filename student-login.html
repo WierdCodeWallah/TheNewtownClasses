@@ -276,168 +276,6 @@
       .login-card { padding: 1.5rem 1rem; }
     }
   </style>
-</head>
-<body data-login="student">
-
-  <!-- NAV -->
-  <nav class="login-nav">
-    <a href="/" class="logo">The NewTown <span>Classes</span></a>
-    <a href="/" class="back-link">&larr; Back to Home</a>
-  </nav>
-
-  <!-- LOGIN FORM -->
-  <main class="login-wrapper">
-    <section class="login-story" aria-label="Your learning space">
-      <span class="experience-kicker">THE NEWTOWN LEARNING SPACE</span>
-      <h2>A little curiosity.<br><em>A world of possibility.</em></h2><p>Your lessons, practice and progress. A space to make every day count.</p>
-      <div class="study-scene" aria-hidden="true"><img src="/assets/images/study-orbit.svg" width="540" height="400" alt=""><i class="study-orbit"></i><i class="study-orbit"></i></div>
-      <button class="scene-toggle" type="button" aria-pressed="false" onclick="const paused=this.closest('.login-story').classList.toggle('scene-paused');this.setAttribute('aria-pressed',String(paused));this.textContent=paused?'Play animation':'Pause animation'">Pause animation</button>
-      <div class="login-story-footer"><span>Learn with purpose</span><span>Grow every day</span></div>
-    </section>
-    <div class="login-card">
-
-      <nav class="login-role-switch" aria-label="Choose portal"><a href="/login/student" aria-current="page">Student</a><a href="/login/teacher">Teacher</a></nav>
-      <div class="login-header">
-        <div class="login-icon">🎓</div>
-        <span class="experience-kicker">STUDENT PORTAL</span><h1>Welcome back.</h1>
-        <p>Pick up where your curiosity left off.</p>
-      </div>
-
-      <form class="login-form" id="studentLoginForm" onsubmit="return handleLogin(event)">
-
-        <div class="form-field">
-          <label for="studentId">Student ID</label>
-          <input type="text" id="studentId" placeholder="e.g. NTC-2026-0012" required autocomplete="username" />
-        </div>
-
-        <div class="form-field">
-          <label for="password">Password</label>
-          <div class="password-wrap">
-            <input type="password" id="password" placeholder="Enter your password" required autocomplete="current-password" />
-            <button type="button" class="toggle-password" onclick="togglePass()" aria-label="Show password">Show</button>
-          </div>
-        </div>
-
-        <div class="form-field">
-          <label for="classSelect">Class</label>
-          <select id="classSelect" required>
-            <option value="" disabled selected>Select your class</option>
-            <option value="7">Class 7</option>
-            <option value="8">Class 8</option>
-            <option value="9">Class 9</option>
-            <option value="10">Class 10</option>
-            <option value="11">Class 11</option>
-            <option value="12">Class 12</option>
-          </select>
-        </div>
-
-        <!-- Error message -->
-        <div id="loginError" class="login-error" role="alert"></div>
-
-        <button type="submit" class="login-btn" id="loginBtn">Login &rarr;</button>
-      </form>
-
-      <div class="login-footer">
-        Forgot your ID or password? <a href="https://wa.me/919874461218" target="_blank">Contact us on WhatsApp</a>
-      </div>
-    </div>
-  </main>
-
-  <!-- FOOTER -->
-  <div class="page-footer">
-    &copy; 2026 <a href="/">The NewTown Classes</a>. All rights reserved.
-  </div>
-
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp }                        from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword,
-             setPersistence, browserLocalPersistence,
-             onAuthStateChanged }
-                                                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, doc, getDoc }            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { FIREBASE_CONFIG, initAppCheck }        from "/assets/js/firebase-config.js";
-
-    const app  = initializeApp(FIREBASE_CONFIG);
-    await initAppCheck(app);
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
-
-    // ── Helper: convert Student ID → internal email ──
-    function toEmail(studentId) {
-      return studentId.trim().toLowerCase().replace(/\s+/g, '') + '@ntcportal.local';
-    }
-
-    // ── If already logged in, skip straight to dashboard ──
-    // Wait for auth state to fully load from storage first
-    await auth.authStateReady();
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      try {
-        const snap = await getDoc(doc(db, 'students', currentUser.uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          window.location.href = '/learn?class=' +
-            encodeURIComponent(data.class) + '&id=' + encodeURIComponent(data.studentId);
-        }
-      } catch (e) {
-        console.warn('Auto-redirect failed:', e.message);
-      }
-    }
-
-    // ── Login handler ──
-    window.handleLogin = async function(e) {
-      e.preventDefault();
-      const studentId   = document.getElementById('studentId').value.trim();
-      const password    = document.getElementById('password').value;
-      const btn         = document.getElementById('loginBtn');
-      const errDiv      = document.getElementById('loginError');
-
-      errDiv.textContent = '';
-      btn.disabled = true;
-      btn.textContent = 'Signing in…';
-
-      try {
-        // Always persist login across browser/app restarts until user signs out
-        await setPersistence(auth, browserLocalPersistence);
-
-        // Sign in
-        const cred = await signInWithEmailAndPassword(auth, toEmail(studentId), password);
-
-        // Load student data from Firestore
-        const snap = await getDoc(doc(db, 'students', cred.user.uid));
-        if (!snap.exists()) throw new Error('Student profile not found. Contact admin.');
-
-        const data = snap.data();
-        window.location.href = '/learn?class=' +
-          encodeURIComponent(data.class) + '&id=' + encodeURIComponent(data.studentId);
-
-      } catch (err) {
-        let msg = 'Login failed. Please check your credentials.';
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' ||
-            err.code === 'auth/invalid-credential') {
-          msg = 'Invalid Student ID or password. Please try again.';
-        } else if (err.code === 'auth/too-many-requests') {
-          msg = 'Too many failed attempts. Please try again after a few minutes.';
-        } else if (err.message) {
-          msg = err.message;
-        }
-        errDiv.textContent = msg;
-        btn.disabled = false;
-        btn.textContent = 'Login →';
-      }
-    };
-
-    // ── Toggle password visibility ──
-    window.togglePass = function() {
-      const input = document.getElementById('password');
-      const btn   = document.querySelector('.toggle-password');
-      const show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      btn.textContent = show ? 'Hide' : 'Show';
-      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-    };
-  </script>
 
   <!-- ════════════════════════════════════════════════════════════════
        MODERN ENHANCEMENTS — 2026 (purely additive)
@@ -590,11 +428,160 @@
       .login-btn { font-size: .85rem !important; }
     }
   </style>
+  <link rel="stylesheet" href="/assets/css/portal-experience.css">
+  <link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js">
+  <link rel="modulepreload" href="/assets/js/firebase-config.js">
+  <script src="/assets/js/login-boot.js"></script>
+</head>
+<body data-login="student">
+
+  <!-- NAV -->
+  <nav class="login-nav">
+    <a href="/" class="logo">The NewTown <span>Classes</span></a>
+    <a href="/" class="back-link">&larr; Back to Home</a>
+  </nav>
+
+  <!-- LOGIN FORM -->
+  <main class="login-wrapper">
+    <section class="login-story" aria-label="Your learning space">
+      <span class="experience-kicker">THE NEWTOWN LEARNING SPACE</span>
+      <h2>A little curiosity.<br><em>A world of possibility.</em></h2><p>Your lessons, practice and progress. A space to make every day count.</p>
+      <div class="study-scene" aria-hidden="true"><img src="/assets/images/study-orbit.svg" width="540" height="400" alt=""><i class="study-orbit"></i><i class="study-orbit"></i></div>
+      <button class="scene-toggle" type="button" aria-pressed="false" onclick="const paused=this.closest('.login-story').classList.toggle('scene-paused');this.setAttribute('aria-pressed',String(paused));this.textContent=paused?'Play animation':'Pause animation'">Pause animation</button>
+      <div class="login-story-footer"><span>Learn with purpose</span><span>Grow every day</span></div>
+    </section>
+    <div class="login-card">
+
+      <nav class="login-role-switch" aria-label="Choose portal"><a href="/login/student" aria-current="page">Student</a><a href="/login/teacher">Teacher</a></nav>
+      <div class="login-header">
+        <div class="login-icon">🎓</div>
+        <span class="experience-kicker">STUDENT PORTAL</span><h1>Welcome back.</h1>
+        <p>Pick up where your curiosity left off.</p>
+      </div>
+
+      <form class="login-form" id="studentLoginForm">
+
+        <div class="form-field">
+          <label for="studentId">Student ID</label>
+          <input type="text" id="studentId" placeholder="e.g. NTC-2026-0012" required autocomplete="username" />
+        </div>
+
+        <div class="form-field">
+          <label for="password">Password</label>
+          <div class="password-wrap">
+            <input type="password" id="password" placeholder="Enter your password" required autocomplete="current-password" />
+            <button type="button" class="toggle-password" aria-label="Show password">Show</button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="classSelect">Class</label>
+          <select id="classSelect" required>
+            <option value="" disabled selected>Select your class</option>
+            <option value="7">Class 7</option>
+            <option value="8">Class 8</option>
+            <option value="9">Class 9</option>
+            <option value="10">Class 10</option>
+            <option value="11">Class 11</option>
+            <option value="12">Class 12</option>
+          </select>
+        </div>
+
+        <!-- Error message -->
+        <div id="loginError" class="login-error" role="alert"></div>
+
+        <button type="submit" class="login-btn" id="loginBtn">Login &rarr;</button>
+      </form>
+
+      <div class="login-footer">
+        Forgot your ID or password? <a href="https://wa.me/919874461218" target="_blank">Contact us on WhatsApp</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <div class="page-footer">
+    &copy; 2026 <a href="/">The NewTown Classes</a>. All rights reserved.
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp }                        from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc }            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { FIREBASE_CONFIG, initAppCheck }        from "/assets/js/firebase-config.js";
+
+    const app  = initializeApp(FIREBASE_CONFIG);
+    await initAppCheck(app);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    const { setBusy, showError } = window.ntcLogin;
+    let busy = false;
+
+    // ── Helper: convert Student ID → internal email ──
+    function toEmail(studentId) {
+      return studentId.trim().toLowerCase().replace(/\s+/g, '') + '@ntcportal.local';
+    }
+
+    function dashboardUrl(data) {
+      return '/learn?class=' + encodeURIComponent(data.class) + '&id=' + encodeURIComponent(data.studentId);
+    }
+
+    // ── Login handler (login-boot.js queues any submit made before this point) ──
+    // Auth persistence is already "local" by default, so sign-in survives restarts.
+    window.ntcLogin.ready(async function (form) {
+      if (busy) return;
+      busy = true;
+      showError(form, '');
+      setBusy(form, true);
+      const studentId = document.getElementById('studentId').value.trim();
+      const password  = document.getElementById('password').value;
+
+      try {
+        const cred = await signInWithEmailAndPassword(auth, toEmail(studentId), password);
+        const snap = await getDoc(doc(db, 'students', cred.user.uid));
+        if (!snap.exists()) throw new Error('Student profile not found. Contact admin.');
+        window.location.replace(dashboardUrl(snap.data()));
+      } catch (err) {
+        let msg = 'Login failed. Please check your credentials.';
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' ||
+            err.code === 'auth/invalid-credential') {
+          msg = 'Invalid Student ID or password. Please try again.';
+        } else if (err.code === 'auth/too-many-requests') {
+          msg = 'Too many failed attempts. Please try again after a few minutes.';
+        } else if (err.code === 'auth/network-request-failed') {
+          msg = 'Network error. Check your internet connection.';
+        } else if (err.message) {
+          msg = err.message;
+        }
+        showError(form, msg);
+        setBusy(form, false);
+        busy = false;
+      }
+    });
+
+    // ── If already logged in, skip straight to dashboard ──
+    try {
+      await auth.authStateReady();
+      if (auth.currentUser && !busy) {
+        const snap = await getDoc(doc(db, 'students', auth.currentUser.uid));
+        if (snap.exists() && !busy) window.location.replace(dashboardUrl(snap.data()));
+      }
+    } catch (e) {
+      console.warn('Auto-redirect failed:', e.message);
+    }
+  </script>
 
 
 
-<link rel="stylesheet" href="/assets/css/portal-experience.css">
-<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+
+<link rel="stylesheet" href="/assets/css/portal-controls.css">
+<script src="/assets/js/portal-controls.js" defer></script>
 <script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>

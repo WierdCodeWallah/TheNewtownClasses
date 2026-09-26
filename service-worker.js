@@ -32,11 +32,13 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
+  event.waitUntil(Promise.all([
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k)))
-    )
-  );
+    ),
+    // Start page requests while the worker boots instead of after it.
+    self.registration.navigationPreload ? self.registration.navigationPreload.enable() : null
+  ]));
   self.clients.claim();
 });
 
@@ -51,12 +53,14 @@ self.addEventListener('fetch', event => {
   // we don't want to serve stale dashboards from cache.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).catch(() =>
-        caches.match('/index.html').then(r => r || new Response(
-          '<h1>You are offline</h1><p>Reconnect to use The NewTown Classes.</p>',
-          { headers: { 'Content-Type': 'text/html' } }
-        ))
-      )
+      Promise.resolve(event.preloadResponse)
+        .then(preloaded => preloaded || fetch(req))
+        .catch(() =>
+          caches.match('/index.html').then(r => r || new Response(
+            '<h1>You are offline</h1><p>Reconnect to use The NewTown Classes.</p>',
+            { headers: { 'Content-Type': 'text/html' } }
+          ))
+        )
     );
   }
 });

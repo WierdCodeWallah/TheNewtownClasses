@@ -17,7 +17,6 @@
   <meta name="theme-color" content="#0b2d7b">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <!-- EmailJS SDK for sending email notifications -->
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <!-- KaTeX for math rendering in tests -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"/>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -485,6 +484,11 @@
       overflow-wrap: anywhere;
     }
   </style>
+  <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
+       they load so it never flashes unstyled. The timer is a safety net. -->
+  <style>html:not(.ntc-styled) body{visibility:hidden}</style>
+  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
+  <noscript><style>html body{visibility:visible}</style></noscript>
 </head>
 <body data-portal="student">
 
@@ -529,7 +533,7 @@
 
       <div class="sidebar-section">
         <div class="sidebar-heading">Attendance</div>
-        <div class="sidebar-item" data-section="attendance" onclick="switchSection(this,'attendance');loadAttendance();">
+        <div class="sidebar-item" data-section="attendance" onclick="switchSection(this,'attendance');ntcCall('loadAttendance');">
           <span class="icon">📋</span> My Attendance
         </div>
       </div>
@@ -551,7 +555,7 @@
         <div class="sidebar-item" data-section="results" onclick="switchSection(this,'results')">
           <span class="icon">📊</span> My Results
         </div>
-        <div class="sidebar-item" data-section="answersheet" onclick="switchSection(this,'answersheet');loadAnswerSheetTests();">
+        <div class="sidebar-item" data-section="answersheet" onclick="switchSection(this,'answersheet');ntcCall('loadAnswerSheetTests');">
           <span class="icon">🧠</span> Answer-Sheet AI
         </div>
       </div>
@@ -565,17 +569,17 @@
 
       <div class="sidebar-section">
         <div class="sidebar-heading">Live Classes</div>
-        <div class="sidebar-item" data-section="liveclasses" onclick="switchSection(this,'liveclasses');loadStudentClasses();">
+        <div class="sidebar-item" data-section="liveclasses" onclick="switchSection(this,'liveclasses');ntcCall('loadStudentClasses');">
           <span class="icon">🔴</span> Live Classes
         </div>
-        <div class="sidebar-item" data-section="recordings" onclick="switchSection(this,'recordings');loadStudentRecordings();">
+        <div class="sidebar-item" data-section="recordings" onclick="switchSection(this,'recordings');ntcCall('loadStudentRecordings');">
           <span class="icon">📼</span> Recorded Classes
         </div>
       </div>
 
       <div class="sidebar-section">
         <div class="sidebar-heading">Help</div>
-        <div class="sidebar-item" data-section="chatbot" onclick="switchSection(this,'chatbot');initChatbot();">
+        <div class="sidebar-item" data-section="chatbot" onclick="switchSection(this,'chatbot');ntcCall('initChatbot');">
           <span class="icon">💬</span> Ask a Doubt
         </div>
       </div>
@@ -637,7 +641,7 @@
       ══════════════════════════════ -->
       <div id="liveClassesSection" style="display:none;">
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem;">
-          <button onclick="loadStudentClasses()" style="background:none;border:1px solid rgba(0,48,135,.2);color:#003087;padding:.35rem .9rem;border-radius:8px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;">⟳ Refresh</button>
+          <button onclick="ntcCall('loadStudentClasses')" style="background:none;border:1px solid rgba(0,48,135,.2);color:#003087;padding:.35rem .9rem;border-radius:8px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;">⟳ Refresh</button>
         </div>
         <div id="lcStudentList">
           <div style="text-align:center;padding:2rem;color:#90a4ae;">Loading classes…</div>
@@ -649,7 +653,7 @@
       ══════════════════════════════ -->
       <div id="recordingsSection" style="display:none;">
         <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem;">
-          <button onclick="loadStudentRecordings()" style="background:none;border:1px solid rgba(0,48,135,.2);color:#003087;padding:.35rem .9rem;border-radius:8px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;">⟳ Refresh</button>
+          <button onclick="ntcCall('loadStudentRecordings')" style="background:none;border:1px solid rgba(0,48,135,.2);color:#003087;padding:.35rem .9rem;border-radius:8px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;">⟳ Refresh</button>
         </div>
         <div id="recStudentList">
           <div style="text-align:center;padding:2rem;color:#90a4ae;">Loading recordings…</div>
@@ -1573,7 +1577,7 @@ renderCards();
   const user = auth.currentUser;
 
   if (!user) {
-    window.location.href = '/login/student';
+    window.location.replace('/login/student');
   } else {
 
     // ── Load student profile via REST API ──
@@ -3208,16 +3212,14 @@ renderCards();
     });
 
     // Back button during a test: block navigation and count it as a strike.
-    window.addEventListener('popstate', (e) => {
+    PortalUI.beforeBack = () => {
       if (_activeTest) {
-        e.preventDefault();
-        history.pushState(null, '', location.href);
         if (_pActive) { proctorLog('back_button'); proctorStrike('You pressed the back button'); }
         else submitOnlineTest(true);
+        return false;
       }
-    });
-    // Push initial state for popstate to work
-    history.pushState(null, '', location.href);
+      return true;
+    };
 
     window.submitOnlineTest = async function(autoSubmit) {
       if (!_activeTest || _submittingOnlineTest) return;
@@ -3655,7 +3657,7 @@ renderCards();
     logoutEl.addEventListener('click', async (e) => {
       e.preventDefault();
       await signOut(auth);
-      window.location.href = '/login/student';
+      window.location.replace('/login/student');
     });
   }
 
@@ -6205,7 +6207,7 @@ renderCards();
         try {
           if (typeof window._ntcSignOut === 'function') await window._ntcSignOut();
         } catch (e) { console.warn('signOut error:', e); }
-        location.href = '/login/student';
+        location.replace('/login/student');
       });
 
       return true;
@@ -6327,6 +6329,9 @@ renderCards();
 <script src="/assets/js/portal-workspaces.js"></script>
 <link rel="stylesheet" href="/assets/css/portal-experience.css">
 <link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<script>document.documentElement.classList.add('ntc-styled');</script>
+<link rel="stylesheet" href="/assets/css/portal-controls.css">
+<script src="/assets/js/portal-controls.js" defer></script>
 <script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>

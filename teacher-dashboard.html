@@ -508,6 +508,11 @@
     }
   @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 </style>
+  <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
+       they load so it never flashes unstyled. The timer is a safety net. -->
+  <style>html:not(.ntc-styled) body{visibility:hidden}</style>
+  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
+  <noscript><style>html body{visibility:visible}</style></noscript>
 </head>
 <body data-portal="teacher">
 
@@ -534,27 +539,27 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-heading">Teaching</div>
-      <div class="sidebar-item active" data-section="tests" onclick="switchTab('tests')">
+      <div class="sidebar-item active" data-section="tests" onclick="ntcCall('switchTab','tests')">
         <span class="icon">✏️</span> Online Tests
       </div>
-      <div class="sidebar-item" data-section="answersheets" onclick="switchTab('answersheets');loadMySubjectiveTests();loadReviewSheets();">
+      <div class="sidebar-item" data-section="answersheets" onclick="ntcCall('switchTab','answersheets');ntcCall('loadMySubjectiveTests');ntcCall('loadReviewSheets');">
         <span class="icon">🧠</span> AI Answer Sheets
         <span id="reviewBadge" class="badge" style="display:none;">0</span>
       </div>
-      <div class="sidebar-item" data-section="offline-results" onclick="switchTab('offline-results')">
+      <div class="sidebar-item" data-section="offline-results" onclick="ntcCall('switchTab','offline-results')">
         <span class="icon">%</span> Offline Marks
       </div>
-      <div class="sidebar-item" data-section="liveclasses" onclick="switchTab('liveclasses')">
+      <div class="sidebar-item" data-section="liveclasses" onclick="ntcCall('switchTab','liveclasses')">
         <span class="icon">🔴</span> Live Classes
       </div>
-      <div class="sidebar-item" data-section="attendance" onclick="switchTab('attendance')">
+      <div class="sidebar-item" data-section="attendance" onclick="ntcCall('switchTab','attendance')">
         <span class="icon">📅</span> Attendance
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Support</div>
-      <div class="sidebar-item" data-section="doubts" onclick="switchTab('doubts')">
+      <div class="sidebar-item" data-section="doubts" onclick="ntcCall('switchTab','doubts')">
         <span class="icon">💬</span> Student Doubts
         <span id="doubtBadge" class="badge" style="display:none;">0</span>
       </div>
@@ -562,7 +567,7 @@
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Account</div>
-      <div class="sidebar-item" data-section="profile" onclick="switchTab('profile')">
+      <div class="sidebar-item" data-section="profile" onclick="ntcCall('switchTab','profile')">
         <span class="icon">ID</span> Profile
       </div>
     </div>
@@ -802,7 +807,7 @@
 
       <div style="margin-top:1.2rem;display:flex;gap:.75rem;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="publishSubjective()">Publish Answer Sheet</button>
-        <button class="btn btn-outline" onclick="loadMySubjectiveTests()">Refresh List</button>
+        <button class="btn btn-outline" onclick="ntcCall('loadMySubjectiveTests')">Refresh List</button>
       </div>
       <div id="subjMsg" class="alert"></div>
 
@@ -814,7 +819,7 @@
     <div class="card">
       <div class="card-title">📥 Answer Sheets to Review</div>
       <p class="card-sub">AI has graded these — adjust any marks or notes, then release the report to the student.</p>
-      <button class="btn btn-outline" onclick="loadReviewSheets()" style="font-size:.85rem;margin-bottom:.8rem;">↻ Refresh</button>
+      <button class="btn btn-outline" onclick="ntcCall('loadReviewSheets')" style="font-size:.85rem;margin-bottom:.8rem;">↻ Refresh</button>
       <div id="reviewWrap"><div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div></div>
     </div>
   </div>
@@ -3087,7 +3092,7 @@
   async function teacherSignOut() {
     if (confirm('Sign out?')) {
       await signOut(auth);
-      window.location.href = '/login/teacher';
+      window.location.replace('/login/teacher');
     }
   }
   $('logoutBtn')?.addEventListener('click', teacherSignOut);
@@ -4433,6 +4438,9 @@
 <script src="/assets/js/portal-workspaces.js"></script>
 <link rel="stylesheet" href="/assets/css/portal-experience.css">
 <link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<script>document.documentElement.classList.add('ntc-styled');</script>
+<link rel="stylesheet" href="/assets/css/portal-controls.css">
+<script src="/assets/js/portal-controls.js" defer></script>
 <script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>

@@ -127,3 +127,11 @@ body[data-login] .login-btn{background:linear-gradient(110deg,#8770e2,#6756c5)!i
 }
 @media(max-width:360px){body[data-portal] .logo{font-size:12px!important}.portal-brand-mark{width:22px;height:22px;margin-right:1px}body[data-portal] .dash-nav>div:first-child{gap:5px!important}.portal-steps li{font-size:8px}.portal-steps li:not(:last-child)::after{margin:0 5px}.login-story h2{max-width:185px;font-size:23px}.login-story .study-scene{right:-47px;opacity:.75}body[data-login] .login-nav .logo{font-size:12px!important}body[data-login] .login-nav .back-link{font-size:9px!important}}
 @media(prefers-reduced-motion:reduce){.portal-ambient *,.ai-orb *,.orbit-label{animation:none!important;transition:none!important}.atmosphere-toggle{display:none!important}.portal-choice{transition:none!important}}
+
+/* Performance. These blurs sat on large or near-opaque surfaces (the whole
+   transparent main area, white cards, 93-96% opaque bars), so they changed
+   almost nothing visually but forced a full-screen blur on every frame while
+   the ambient background animated, which made phones stutter. The header sheen
+   animated background-position, repainting the header forever. */
+body[data-portal] .main-content,body[data-portal] .cat-section,body[data-portal] .profile-strip,body[data-portal] .stat-box,body[data-portal] .dash-nav,body[data-portal] .portal-bottom-nav{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+body[data-portal] .dash-nav::before,body[data-portal] .ada-header-bg::before{animation:none!important}

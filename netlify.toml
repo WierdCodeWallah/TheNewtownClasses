@@ -25,6 +25,24 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/login/student"
+  to = "/student-login.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/login/teacher"
+  to = "/teacher-login.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/login/admin"
+  to = "/admin-login.html"
+  status = 200
+  force = true
+
 # Clean public routes. Old .html URLs redirect to these names, and the clean
 # names rewrite back to the existing static files behind the scenes.
 [[redirects]]

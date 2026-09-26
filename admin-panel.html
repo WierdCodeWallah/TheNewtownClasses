@@ -517,6 +517,11 @@
 <script src="/assets/js/content-access.js"></script>
 <script src="/assets/js/ncert-chapters.js"></script>
 <script src="/assets/js/portal-shell.js"></script>
+  <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
+       they load so it never flashes unstyled. The timer is a safety net. -->
+  <style>html:not(.ntc-styled) body{visibility:hidden}</style>
+  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
+  <noscript><style>html body{visibility:visible}</style></noscript>
 </head>
 <body data-portal="admin">
 
@@ -550,52 +555,52 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-heading">Dashboard</div>
-      <div class="sidebar-item active" data-section="overview" onclick="switchAdminTab('overview')">
+      <div class="sidebar-item active" data-section="overview" onclick="ntcCall('switchAdminTab','overview')">
         <span class="icon">📊</span> Overview
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Students</div>
-      <div class="sidebar-item" data-section="add-student" onclick="switchAdminTab('add-student')">
+      <div class="sidebar-item" data-section="add-student" onclick="ntcCall('switchAdminTab','add-student')">
         <span class="icon">➕</span> Add Student
       </div>
-      <div class="sidebar-item" data-section="bulk-import" onclick="switchAdminTab('bulk-import')">
+      <div class="sidebar-item" data-section="bulk-import" onclick="ntcCall('switchAdminTab','bulk-import')">
         <span class="icon">📥</span> Bulk Import
       </div>
-      <div class="sidebar-item" data-section="reset-password" onclick="switchAdminTab('reset-password')">
+      <div class="sidebar-item" data-section="reset-password" onclick="ntcCall('switchAdminTab','reset-password')">
         <span class="icon">🔑</span> Reset Password
       </div>
-      <div class="sidebar-item" data-section="all-students" onclick="switchAdminTab('all-students')">
+      <div class="sidebar-item" data-section="all-students" onclick="ntcCall('switchAdminTab','all-students')">
         <span class="icon">📋</span> All Students
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Content &amp; Teaching</div>
-      <div class="sidebar-item" data-section="upload-material" onclick="switchAdminTab('upload-material')">
+      <div class="sidebar-item" data-section="upload-material" onclick="ntcCall('switchAdminTab','upload-material')">
         <span class="icon">📄</span> Upload Material
       </div>
-      <div class="sidebar-item" data-section="ncert" onclick="switchAdminTab('ncert');ncertInit();">
+      <div class="sidebar-item" data-section="ncert" onclick="ntcCall('switchAdminTab','ncert');ntcCall('ncertInit');">
         <span class="icon">📘</span> NCERT Solutions
       </div>
-      <div class="sidebar-item" data-section="teachers" onclick="switchAdminTab('teachers')">
+      <div class="sidebar-item" data-section="teachers" onclick="ntcCall('switchAdminTab','teachers')">
         <span class="icon">👨‍🏫</span> Teachers
       </div>
-      <div class="sidebar-item" data-section="tests" onclick="switchAdminTab('tests')">
+      <div class="sidebar-item" data-section="tests" onclick="ntcCall('switchAdminTab','tests')">
         <span class="icon">✏️</span> Class Tests
       </div>
-      <div class="sidebar-item" data-section="live-classes" onclick="switchAdminTab('live-classes')">
+      <div class="sidebar-item" data-section="live-classes" onclick="ntcCall('switchAdminTab','live-classes')">
         <span class="icon">🔴</span> Live Classes
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Operations</div>
-      <div class="sidebar-item" data-section="attendance" onclick="switchAdminTab('attendance')">
+      <div class="sidebar-item" data-section="attendance" onclick="ntcCall('switchAdminTab','attendance')">
         <span class="icon">📋</span> Attendance
       </div>
-      <div class="sidebar-item" data-section="notifications" onclick="switchAdminTab('notifications')">
+      <div class="sidebar-item" data-section="notifications" onclick="ntcCall('switchAdminTab','notifications')">
         <span class="icon">🔔</span> Notifications
       </div>
     </div>
@@ -764,7 +769,7 @@
   </div>
 
   <!-- SheetJS — used only by the bulk importer above. Loaded lazily so the rest of the panel isn't slowed down. -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   </div><!-- /tab-bulk-import -->
 
   <!-- ════════════════ RESET PASSWORD ════════════════ -->
@@ -1429,7 +1434,7 @@
       const adminSnap = await getDoc(doc(db, 'admins', user.uid));
       if (!adminSnap.exists() || !adminSnap.data().isAdmin) {
         await signOut(auth);
-        window.location.href = '/login/admin';
+        window.location.replace('/login/admin');
         return;
       }
       $('mainContent').style.display   = 'block';
@@ -1437,12 +1442,12 @@
       $('logoutBtn').style.display     = 'block';
       loadStudents();
     } else {
-      window.location.href = '/login/admin';
+      window.location.replace('/login/admin');
     }
   });
 
   // ── Admin logout ──
-  window.adminLogout = async () => { await signOut(auth); window.location.href = '/login/admin'; };
+  window.adminLogout = async () => { await signOut(auth); window.location.replace('/login/admin'); };
 
   // ── Keep enrollmentType dropdown in sync with selected class ──
   function refreshEnrollmentTypeOptions() {
@@ -3988,7 +3993,10 @@
 <link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
 <link rel="stylesheet" href="/assets/css/portal-experience.css">
 <link rel="stylesheet" href="/assets/css/admin-workspace.css">
+<script>document.documentElement.classList.add('ntc-styled');</script>
 <script src="/assets/js/admin-workspace.js"></script>
+<link rel="stylesheet" href="/assets/css/portal-controls.css">
+<script src="/assets/js/portal-controls.js" defer></script>
 <script src="/assets/js/portal-atmosphere.js"></script>
 </body>
 </html>
