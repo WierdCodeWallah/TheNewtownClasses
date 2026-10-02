@@ -1,0 +1,69 @@
+/* Shared, lightweight transitions for every portal. Only transforms and opacity animate. */
+.ntc-launch,.ntc-bye{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:auto;overscroll-behavior:contain;background:radial-gradient(ellipse at 15% 5%,#61529070,transparent 48%),radial-gradient(ellipse at 90% 85%,#29726a35,transparent 55%),#22233c;color:#f5f2ff;font-family:"DM Sans",system-ui,-apple-system,sans-serif;text-align:center;opacity:0;visibility:hidden;transition:opacity .24s ease,visibility 0s linear .24s;padding:72px 24px 64px;padding-top:max(72px,env(safe-area-inset-top));padding-bottom:max(64px,env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+.ntc-launch *,.ntc-bye *,.ntc-out-backdrop *{box-sizing:border-box}
+.ntc-launch.on,.ntc-bye.on{opacity:1;visibility:visible;transition:opacity .24s ease}
+.ntc-launch::before,.ntc-bye::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(#ffffff15 .7px,transparent .9px);background-size:24px 24px;mask-image:linear-gradient(transparent,#0008,transparent)}
+.ntc-launch-in,.ntc-bye-in{position:relative;width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;transform:translateY(12px);transition:transform .42s cubic-bezier(.2,.8,.2,1)}
+.ntc-launch.on .ntc-launch-in,.ntc-bye.on .ntc-bye-in{transform:none}
+.ntc-auth-kicker{font-size:10px;line-height:1.5;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#c2b8e0;margin-bottom:22px}
+.ntc-launch-mark,.ntc-bye-mark{position:relative;display:grid;place-items:center;width:144px;height:144px;margin-bottom:28px;flex:none}
+.ntc-launch-mark::before,.ntc-bye-mark::before{content:"";position:absolute;inset:0;border:1px solid #c5baff28;border-radius:50%;background:radial-gradient(circle,#aa91f516,transparent 70%)}
+.ntc-launch-mark::after,.ntc-bye-mark::after{content:"";position:absolute;inset:0;border:1px solid transparent;border-top-color:#c8b9ff;border-right-color:#b5eae650;border-radius:50%;animation:ntc-auth-orbit 3s linear infinite}
+.ntc-auth-satellite{position:absolute;inset:0;animation:ntc-auth-orbit 3s linear infinite}
+.ntc-auth-satellite::after{content:"";position:absolute;left:calc(50% - 3px);top:-3px;width:6px;height:6px;background:#c7f2e7;border-radius:50%;box-shadow:0 0 14px #b5eae67a}
+.ntc-launch-icon,.ntc-bye-icon{display:grid;place-items:center;width:88px;height:88px;border-radius:29px;background:radial-gradient(circle at 20% 0%,#b8a3f5,#8970d6 48%,#5b4a9d);border:1px solid #d6c5ff70;box-shadow:inset 0 1px 10px #f6eeff30,0 16px 48px #06071c40,0 0 50px #b8a3f514;animation:ntc-auth-breathe 3s ease-in-out infinite;color:#fff}
+.ntc-launch-icon svg,.ntc-bye-icon svg{width:42px;height:42px;overflow:visible}
+.ntc-launch-title,.ntc-bye-title{font:600 clamp(25px,6.5vw,30px)/1.18 "DM Sans",system-ui,sans-serif;letter-spacing:-.9px;margin:0 0 12px;color:#f5f2ff}
+.ntc-launch-step,.ntc-bye-step{min-height:44px;max-width:290px;font-size:14px;line-height:1.6;color:#c3bfd7;margin:0;transition:opacity .14s ease}
+.ntc-launch-step.swap{opacity:0}
+.ntc-launch-dots{display:flex;gap:8px;width:100%;margin-top:24px;padding:16px 12px 14px;border:1px solid #ffffff12;border-radius:18px;background:#ffffff05}
+.ntc-launch-dots i{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;font-style:normal;color:#aaa6c0;font-size:10px;line-height:1.4;letter-spacing:.15px}
+.ntc-launch-dots i::before{content:"";height:3px;width:100%;max-width:68px;border-radius:4px;background:#ffffff19}
+.ntc-launch-dots i::after{content:"";position:absolute;top:0;width:100%;max-width:68px;height:3px;border-radius:4px;background:#b5eae6;transform:scaleX(0);transform-origin:left;transition:transform .35s ease}
+.ntc-launch-dots i.done{color:#c2e6de}.ntc-launch-dots i.done::after{transform:scaleX(1)}
+.ntc-launch-dots i.now{color:#f0eaff}.ntc-launch-dots i.now::after{background:#c8b9ff;transform:scaleX(.65);animation:ntc-auth-progress 1.8s ease-in-out infinite}
+.ntc-launch-brand,.ntc-bye-brand{position:absolute;top:max(28px,env(safe-area-inset-top));left:24px;right:24px;display:flex;align-items:center;justify-content:center;gap:10px;color:#d9d4e9;font-size:10px;line-height:1.5;letter-spacing:1.7px;font-weight:600}
+.ntc-auth-brand-icon{display:grid;place-items:center;width:26px;height:26px;border:1px solid #c8b9ff33;border-radius:9px;color:#d6c6ff;background:#bba2f510;letter-spacing:0;font-size:17px}
+.ntc-auth-foot{position:absolute;bottom:max(28px,env(safe-area-inset-bottom));left:24px;right:24px;color:#b4aecb;font-size:11px;line-height:1.5;letter-spacing:.25px}
+.ntc-bye .ntc-auth-kicker{color:#b5eae6}.ntc-bye-icon{background:radial-gradient(circle at 20% 0%,#aed9ce,#5c9b96 48%,#3c676f);border-color:#b5eae660}
+.ntc-bye-icon svg{animation:ntc-auth-farewell 2s ease-in-out infinite}
+.ntc-bye-track{width:104px;height:3px;background:#ffffff19;border-radius:4px;overflow:hidden;margin-top:24px}
+.ntc-bye-track::after{content:"";display:block;width:48px;height:100%;border-radius:inherit;background:#b5eae6;animation:ntc-auth-travel 1.6s ease-in-out infinite}
+.ntc-out-backdrop{position:fixed;inset:0;z-index:2147482000;background:#17182d99;display:flex;align-items:flex-end;justify-content:center;padding:12px 12px max(12px,env(safe-area-inset-bottom));opacity:0;transition:opacity .2s ease;overscroll-behavior:contain;-webkit-tap-highlight-color:transparent;font-family:"DM Sans",system-ui,-apple-system,sans-serif}
+.ntc-out-backdrop.on{opacity:1}
+.ntc-out-sheet{position:relative;width:100%;max-width:420px;max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;background:radial-gradient(ellipse at 0 0,#ede7ff,transparent 60%),#fcfbff;color:#292b45;border:1px solid #fff;border-radius:28px;padding:12px 24px 24px;box-shadow:0 24px 80px #12132640;transform:translateY(calc(100% + 32px));transition:transform .34s cubic-bezier(.2,.8,.2,1);text-align:center}
+.ntc-out-backdrop.on .ntc-out-sheet{transform:none}
+.ntc-out-grip{width:32px;height:4px;border-radius:4px;background:#d8d2e7;margin:0 auto 24px}
+.ntc-out-icon{width:64px;height:64px;margin:0 auto 18px;display:grid;place-items:center;border-radius:21px;color:#7963b9;background:linear-gradient(145deg,#f3efff,#e6def7);border:1px solid #fff;box-shadow:0 6px 20px #7762b419}
+.ntc-out-icon svg{width:28px;height:28px}
+.ntc-out-kicker{font-size:10px;line-height:1.5;letter-spacing:1.7px;text-transform:uppercase;color:#786c90;font-weight:600;margin:0 0 8px}
+.ntc-out-title{font:600 26px/1.2 "DM Sans",system-ui,sans-serif;letter-spacing:-.7px;margin:0 0 12px;color:#292b45}
+.ntc-out-text{font-size:14px;line-height:1.65;color:#726b84;margin:0 auto 24px;max-width:310px}
+.ntc-out-error{font-size:13px;line-height:1.5;color:#a12e47;margin:0 0 16px}
+.ntc-out-actions{display:flex;flex-direction:column;gap:10px}
+.ntc-out-actions button{min-height:54px;padding:14px 18px;border-radius:16px;font:600 15px/1.4 "DM Sans",system-ui,sans-serif;cursor:pointer;touch-action:manipulation;border:1px solid transparent;transition:transform .16s ease,background .16s ease}
+.ntc-out-yes{background:linear-gradient(110deg,#8770e2,#6756c5);color:#fff;box-shadow:0 7px 18px #7b66cf26}
+.ntc-out-no{background:#f0edf7;color:#625475;border-color:#e8e2f0!important}
+.ntc-out-actions button:active{transform:scale(.98)}
+.ntc-out-actions button:focus-visible{outline:3px solid #a78bfa;outline-offset:3px}
+.ntc-out-actions button:disabled{cursor:wait;opacity:.65}
+.ntc-toast{position:fixed;left:50%;top:max(16px,env(safe-area-inset-top));z-index:2147482500;transform:translate(-50%,-160%);width:max-content;max-width:calc(100% - 32px);box-sizing:border-box;background:#fcfbff;color:#393449;border:1px solid #e4ddf0;padding:13px 18px;border-radius:18px;font:500 13px/1.5 "DM Sans",system-ui,sans-serif;box-shadow:0 10px 35px #29234224;transition:transform .35s cubic-bezier(.2,.8,.2,1);text-align:center}
+.ntc-toast::before{content:"✓";display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;margin-right:8px;background:#e5f4ed;color:#377762}
+.ntc-toast.on{transform:translate(-50%,0)}
+.ntc-shake{animation:ntc-shake .3s ease}
+body[data-login] button,body[data-login] a{touch-action:manipulation}
+@keyframes ntc-auth-orbit{to{transform:rotate(360deg)}}
+@keyframes ntc-auth-breathe{50%{transform:translateY(-4px)}}
+@keyframes ntc-auth-progress{50%{opacity:.45}}
+@keyframes ntc-auth-farewell{50%{transform:translateX(3px)}}
+@keyframes ntc-auth-travel{0%,100%{transform:translateX(0)}50%{transform:translateX(56px)}}
+@keyframes ntc-shake{25%,75%{transform:translateX(-3px)}50%{transform:translateX(3px)}}
+@media(min-width:640px){.ntc-out-backdrop{align-items:center;padding:24px}.ntc-out-sheet{padding:32px;border-radius:28px;transform:translateY(16px) scale(.98)}.ntc-out-grip{display:none}.ntc-out-actions{flex-direction:row-reverse}.ntc-out-actions button{flex:1}.ntc-launch-brand,.ntc-bye-brand{top:36px}}
+@media(max-width:768px){body[data-login] .form-field input,body[data-login] .form-field select{font-size:16px!important}}
+@media(max-height:560px){.ntc-launch,.ntc-bye{justify-content:flex-start;padding-top:70px}.ntc-launch-mark,.ntc-bye-mark{width:96px;height:96px;margin-bottom:16px}.ntc-launch-icon,.ntc-bye-icon{width:64px;height:64px;border-radius:22px}.ntc-auth-kicker{margin-bottom:14px}.ntc-launch-dots{margin-top:12px}.ntc-auth-foot{position:static;margin-top:28px}.ntc-out-grip{margin-bottom:12px}.ntc-out-icon{width:48px;height:48px;margin-bottom:12px}}
+/* Respect both the OS preference and the portal's own motion toggle. */
+.motion-paused :is(.ntc-launch,.ntc-bye,.ntc-out-backdrop,.ntc-toast),.motion-paused :is(.ntc-launch,.ntc-bye,.ntc-out-backdrop) *{animation:none!important;transition:none!important}
+.motion-paused :is(.ntc-launch,.ntc-bye) ::before,.motion-paused :is(.ntc-launch,.ntc-bye) ::after{animation:none!important}
+.motion-sleeping :is(.ntc-launch,.ntc-bye) *,.motion-sleeping :is(.ntc-launch,.ntc-bye) ::before,.motion-sleeping :is(.ntc-launch,.ntc-bye) ::after{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.ntc-launch,.ntc-bye,.ntc-out-backdrop,.ntc-toast,.ntc-shake,.ntc-launch *,.ntc-bye *,.ntc-out-backdrop *{animation:none!important;transition:none!important}.ntc-launch ::before,.ntc-launch ::after,.ntc-bye ::before,.ntc-bye ::after{animation:none!important}::view-transition-old(root),::view-transition-new(root){animation:none!important}}
+@view-transition{navigation:auto}

@@ -102,6 +102,8 @@
   <!-- ── FONTS & STYLES ── -->
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/assets/css/styles.css?v=7945ed98"/>
+  <link rel="stylesheet" href="/assets/css/home-footer.css?v=dcef02c5"/>
+  <link rel="stylesheet" href="/assets/css/home-mobile.css?v=2815219e"/>
 
   <!-- ── SPLASH SCREEN (inline so it paints before anything else) ── -->
   <style>
@@ -471,6 +473,7 @@
 
 <!-- NAV -->
 <nav>
+  <a class="mobile-nav-brand" href="/" aria-label="The NewTown Classes home">NewTown Classes</a>
   <button class="hamburger" id="hamburger" aria-label="Toggle menu">
     <span></span><span></span><span></span>
   </button>
@@ -499,13 +502,13 @@
   <div class="ticker-track">
     <span class="ticker-item highlight">FREE TRIAL SESSION — Experience Before You Enroll!</span>
     <span class="ticker-sep">&#10038;</span>
-     <span class="ticker-item">Offering Exam Prep: <strong>NEET</strong> | <strong>JEE</strong> | <strong>Foundation</strong> | <strong>Olympiad</strong> | <strong>7-12[CBSE/ICSE]</strong> | <b>Also : </b> <strong>IGCSE</strong> | <strong>GCSE</strong> | <strong>IB</stron> | <strong>AP</strong> | <strong>O/A Level</strong></span>
+     <span class="ticker-item">Offering Exam Prep: <strong>NEET</strong> | <strong>JEE</strong> | <strong>Foundation</strong> | <strong>Olympiad</strong> | <strong>7-12[CBSE/ICSE]</strong> | <b>Also : </b> <strong>IGCSE</strong> | <strong>GCSE</strong> | <strong>IB</strong> | <strong>AP</strong> | <strong>O/A Level</strong></span>
     <span class="ticker-sep">&#10038;</span>
     <span class="ticker-item">Satisfied? <strong>Take Admission</strong> — Else No Questions Asked</span>
     <span class="ticker-sep">&#10038;</span>
     <span class="ticker-item urgent">Limited-Period Offer Ends This Month!</span>
     <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item">Offering Exam Prep: <strong>NEET</strong> | <strong>JEE</strong> | <strong>Foundation</strong> | <strong>Olympiad</strong> | <strong>7-12[CBSE/ICSE]</strong> <b>Also : </b> <strong>IGCSE</strong> | <strong>GCSE</strong> | <strong>IB</stron> | <strong>AP</strong> | <strong>O/A Level</strong></span>
+    <span class="ticker-item">Offering Exam Prep: <strong>NEET</strong> | <strong>JEE</strong> | <strong>Foundation</strong> | <strong>Olympiad</strong> | <strong>7-12[CBSE/ICSE]</strong> <b>Also : </b> <strong>IGCSE</strong> | <strong>GCSE</strong> | <strong>IB</strong> | <strong>AP</strong> | <strong>O/A Level</strong></span>
     <span class="ticker-sep">&#10038;</span>
     <span class="ticker-item highlight">FREE TRIAL SESSION — Experience Before You Enroll!</span>
     <span class="ticker-sep">&#10038;</span>
@@ -1531,11 +1534,11 @@
 </script>
 
 <!-- FOOTER -->
-<footer>
+<footer class="site-footer">
   <div class="footer-top">
     <div class="footer-brand">
       <div class="logo">THE NEWTOWN CLASSES</div>
-      <p>Empowering students to crack NEET, JEE ,Olympiad and Board exams with expert guidance and structured learning.</p>
+      <p>Empowering students to crack NEET, JEE, Olympiad and Board exams with expert guidance and structured learning.</p>
     </div>
     <div class="footer-links">
       <h5>Courses</h5>
@@ -1559,7 +1562,7 @@
       </ul>
     </div>
     <div class="footer-links">
-      <h5>Connect</h5>
+      <h5 id="footerConnect">Connect</h5>
       <ul>
         <li><a href="https://wa.me/919903461361">WhatsApp Us</a></li>
         <li><a href="https://www.facebook.com/TheNewtownClasses/">Facebook</a></li>
@@ -1570,7 +1573,21 @@
   </div>
   <div class="footer-bottom">
     <p>© 2023 The NewTown Classes. All rights reserved.</p>
-    <p style="color:var(--muted);font-size:.75rem;">Developed by Sayan Nath</p>
+    <div class="developer-credit">
+      <span class="developer-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m7 8-4 4 4 4m10-8 4 4-4 4m-4-11-2 14"/></svg>
+      </span>
+      <div class="developer-byline">
+        <span class="developer-label">Developed by</span>
+        <a class="developer-name" href="https://www.linkedin.com/in/itssayan" target="_blank" rel="noopener noreferrer" aria-label="Sayan Nath on LinkedIn (opens in a new tab)">
+          Sayan Nath
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+        </a>
+      </div>
+      <a class="developer-phone" href="tel:+918974880865" aria-label="Call Sayan Nath" title="Call Sayan Nath">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 3 3 5-2.5 2a15 15 0 0 0 6.5 6.5l2-2.5 5 3v3a1 1 0 0 1-1 1C10.6 21 3 13.4 3 4a1 1 0 0 1 1-1Z"/></svg>
+      </a>
+    </div>
   </div>
 </footer>
 

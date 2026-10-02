@@ -123,7 +123,7 @@ function restDoc(fields) {
     catch (e) { failures++; console.log('  ✗ ' + name + '\n      ' + (e && e.message || e)); }
   }
 
-  for (const role of Object.keys(ROLES)) {
+  for (const role of process.env.LOGIN_SPLASH_ONLY ? [] : Object.keys(ROLES)) {
     console.log(role + ' login (phone 390×844)');
 
     await check('loads without the Firestore SDK and without errors', async () => {

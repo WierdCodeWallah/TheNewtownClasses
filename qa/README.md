@@ -5,11 +5,18 @@ Run from the repository root:
 ```text
 node --experimental-vm-modules qa/portal-syntax.cjs
 node qa/portal-smoke.cjs
+node qa/login-flow.cjs
+node qa/auth-transitions.cjs
 ```
 
 The browser check requires Playwright on Node's module path and an installed
 Chrome browser. Set `PORTAL_BROWSER=edge` to use Edge instead. No npm dependencies
 or build step are added to the website.
+
+The auth transition checks cover 320px and 390px phones, landscape and desktop,
+rapid stage changes, keyboard dismissal/focus restoration, logout failure recovery,
+and both OS and portal motion preferences. `LOGIN_SPLASH_ONLY=1` runs just the
+slow-stylesheet dashboard splash checks in `login-flow.cjs`.
 
 The smoke test serves the real portal HTML locally and replaces Firebase SDKs,
 authentication, cloud data, and writes with fixtures. All external network
