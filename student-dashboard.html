@@ -14,18 +14,34 @@
   <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png?v=2">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
   <link rel="manifest" href="site.webmanifest?v=2">
-  <meta name="theme-color" content="#0b2d7b">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <meta name="theme-color" content="#25214c">
+  <style>
+    /* Launch splash until the portal's stylesheets are in (same look as the
+       login screen's loading step, so signing in feels like one transition). */
+    html:not(.ntc-styled) body{visibility:hidden}
+    html:not(.ntc-styled){background:radial-gradient(120% 80% at 50% 0%,#3d3576 0%,#25214c 45%,#15132b 100%) fixed #25214c}
+    html:not(.ntc-styled)::before{content:'';position:fixed;left:50%;top:50%;width:96px;height:96px;margin:-105px 0 0 -48px;border-radius:50%;
+      background:conic-gradient(from 0deg,transparent 0 25%,#a78bfa 60%,#b5eae6 85%,transparent);
+      -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+      mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));animation:ntc-splash-spin 1s linear infinite}
+    html:not(.ntc-styled)::after{content:'Opening your dashboard…';position:fixed;left:0;right:0;top:50%;margin-top:58px;text-align:center;
+      color:#c4bee6;font:14px/1.4 'DM Sans',system-ui,-apple-system,sans-serif}
+    @keyframes ntc-splash-spin{to{transform:rotate(360deg)}}
+    @view-transition{navigation:auto}
+  </style>
+  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
   <!-- EmailJS SDK for sending email notifications -->
   <!-- KaTeX for math rendering in tests -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" media="print" onload="this.media='all'"/>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <!-- Shared role-based content access helper -->
-  <script src="/assets/js/content-access.js"></script>
+  <script src="/assets/js/content-access.js?v=f846bf50"></script>
   <!-- Shared AI answer-sheet report renderer -->
-  <script src="/assets/js/answersheet-report.js"></script>
-  <script src="/assets/js/portal-shell.js"></script>
+  <script src="/assets/js/answersheet-report.js?v=35a6cdeb"></script>
+  <script src="/assets/js/portal-shell.js?v=44f73bf2"></script>
+  <script src="/assets/js/portal-logout.js?v=2a243f60"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; -webkit-text-size-adjust: 100%; }
@@ -486,8 +502,6 @@
   </style>
   <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
        they load so it never flashes unstyled. The timer is a safety net. -->
-  <style>html:not(.ntc-styled) body{visibility:hidden}</style>
-  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
   <noscript><style>html body{visibility:visible}</style></noscript>
 </head>
 <body data-portal="student">
@@ -1527,7 +1541,7 @@ renderCards();
            addDoc, serverTimestamp }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { getMessaging, getToken, onMessage, isSupported as fcmSupported }
                                                         from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
-  import { FIREBASE_CONFIG, initAppCheck, FCM_VAPID_KEY } from "/assets/js/firebase-config.js";
+  import { FIREBASE_CONFIG, initAppCheck, FCM_VAPID_KEY } from "/assets/js/firebase-config.js?v=4b98d617";
 
   const app  = initializeApp(FIREBASE_CONFIG);
   await initAppCheck(app);
@@ -3654,10 +3668,9 @@ renderCards();
   // ── Logout button ──
   const logoutEl = document.querySelector('.logout-btn');
   if (logoutEl) {
-    logoutEl.addEventListener('click', async (e) => {
+    logoutEl.addEventListener('click', (e) => {
       e.preventDefault();
-      await signOut(auth);
-      window.location.replace('/login/student');
+      window.ntcLogout({ role: 'student', to: '/login/student', signOut: () => signOut(auth) });
     });
   }
 
@@ -3668,7 +3681,7 @@ renderCards();
     fetchClasses, fmtClassTime, classTimeStatus, canJoinZoom,
     relativeJoinLabel, buildZoomJoinUrl, formatMeetingId,
     STATUS_BADGE, recordingSourceBadge
-  } from '/assets/js/live-classes.js';
+  } from '/assets/js/live-classes.js?v=e498fe6b';
 
   function lcEscape(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -6203,11 +6216,11 @@ renderCards();
       });
 
       // Logout
-      bd.querySelector('.ntc-pf-logout').addEventListener('click', async function () {
-        try {
-          if (typeof window._ntcSignOut === 'function') await window._ntcSignOut();
-        } catch (e) { console.warn('signOut error:', e); }
-        location.replace('/login/student');
+      bd.querySelector('.ntc-pf-logout').addEventListener('click', function () {
+        window.ntcLogout({ role: 'student', to: '/login/student', signOut: function () {
+          if (typeof window._ntcSignOut !== 'function') throw new Error('Still loading');
+          return window._ntcSignOut();
+        } });
       });
 
       return true;
@@ -6325,13 +6338,13 @@ renderCards();
   })();
   </script>
 
-<link rel="stylesheet" href="/assets/css/portal-shell.css"/>
-<script src="/assets/js/portal-workspaces.js"></script>
-<link rel="stylesheet" href="/assets/css/portal-experience.css">
-<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
+<link rel="stylesheet" href="/assets/css/portal-shell.css?v=7df25f89"/>
+<script src="/assets/js/portal-workspaces.js?v=6e7c9485"></script>
+<link rel="stylesheet" href="/assets/css/portal-experience.css?v=abb0243f">
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css?v=dc494fed">
 <script>document.documentElement.classList.add('ntc-styled');</script>
-<link rel="stylesheet" href="/assets/css/portal-controls.css">
-<script src="/assets/js/portal-controls.js" defer></script>
-<script src="/assets/js/portal-atmosphere.js"></script>
+<link rel="stylesheet" href="/assets/css/portal-controls.css?v=980bea40">
+<script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
+<script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>
 </html>

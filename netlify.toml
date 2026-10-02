@@ -4,6 +4,8 @@
 
 [build]
   publish = "."
+  # Stamps /assets/js and /assets/css references with content hashes (see Caching).
+  command = "node scripts/version-assets.cjs"
 
 # Serve portal HTML directly: avoid fetching a second HTML page and document.write
 # through the directory shims. force overrides the existing directory index files.
@@ -88,6 +90,32 @@
 # ── Tell Netlify the Firebase API key is intentionally public ──
 [build.environment]
   SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyB-aTXaWLduMaB9lw6lxGcOWzhzKcH2B0E"
+
+# ── Caching ──
+# Scripts and styles are referenced as /assets/…?v=<content hash> (stamped by
+# scripts/version-assets.cjs during the build), so they can be cached for a
+# year: an edited file gets a new URL. Pages themselves are always revalidated.
+[[headers]]
+  for = "/assets/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Images and fonts don't carry a version, so let browsers reuse them for a day
+# and refresh in the background after that.
+[[headers]]
+  for = "/assets/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
+
+[[headers]]
+  for = "/assets/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
 
 # ── Security headers ──
 [[headers]]

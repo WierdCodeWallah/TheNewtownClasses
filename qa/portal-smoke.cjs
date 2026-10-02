@@ -42,7 +42,7 @@ const server=http.createServer((req,res)=>{let file=path.resolve(root,'.'+decode
    await page.route('**/*',async route=>{
     const url=new URL(route.request().url());
     const fulfill=body=>route.fulfill({contentType:'text/javascript',body});
-    if(url.pathname.endsWith('/firebase-config.js'))return fulfill("export const FIREBASE_CONFIG={projectId:'fixture',apiKey:'fixture'};export const FCM_VAPID_KEY='';export const initAppCheck=async()=>{};");
+    if(url.pathname.endsWith('/firebase-config.js'))return fulfill("export const FIREBASE_CONFIG={projectId:'fixture',apiKey:'fixture'};export const FCM_VAPID_KEY='';export const initAppCheck=async()=>{};export const STAFF_APP='ntc-staff';export const adoptLegacyStaffSession=async()=>{};export const fetchOwnDoc=async(user,coll)=>{const r=await fetch('https://firestore.googleapis.com/v1/projects/fixture/databases/(default)/documents/'+coll+'/'+user.uid);if(!r.ok)return null;const f=(await r.json()).fields;return f?Object.fromEntries(Object.entries(f).map(([k,v])=>[k,v.stringValue??v.booleanValue??v])):null;};");
     if(url.pathname.endsWith('/firebase-app.js'))return fulfill('export const initializeApp=()=>({});');
     if(url.pathname.endsWith('/firebase-auth.js'))return fulfill(auth);
     if(url.pathname.endsWith('/firebase-firestore.js'))return fulfill(firestore);
@@ -78,7 +78,7 @@ const server=http.createServer((req,res)=>{let file=path.resolve(root,'.'+decode
     await password.fill('fixture-password');await page.getByRole('button',{name:'Show password',exact:true}).click();assert.equal(await password.getAttribute('type'),'text');
     await page.getByRole('button',{name:'Hide password',exact:true}).click();assert.equal(await password.getAttribute('type'),'password');
     await page.locator(role==='student'?'#studentId':'#loginEmail').fill(role==='student'?'NTC001':'teacher@example.test');
-    if(role==='student')await page.locator('#classSelect').selectOption('11');
+
     await page.locator('#loginBtn').click();await page.waitForFunction(()=>document.querySelector('#loginError').textContent.includes('Invalid'));
     assert(await page.locator('#loginBtn').isEnabled(),'login recovers after a failed attempt');
     await page.getByRole('button',{name:'Pause animation'}).click();
@@ -330,20 +330,47 @@ const server=http.createServer((req,res)=>{let file=path.resolve(root,'.'+decode
    await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:path.join(out,role+'-desktop.png'),fullPage:true});
    assert.deepEqual(errors,[],role+' runtime errors');
    console.log(role+': 320/390/1440px, navigation, filters, pagination and workflows passed');
-   if(role==='student'||role==='teacher') {
+   {
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('fixtureSignOutCalls')),null,'ordinary portal workflows never sign out');
+    await page.setViewportSize({width:390,height:844});
     await page.route('**/login/'+role,route=>route.fulfill({contentType:'text/html',body:'Signed out fixture'}));
-    if(role==='student') {
-     await page.getByRole('button',{name:'Open profile',exact:true}).click();
-     await page.locator('.ntc-pf-logout').click();
-    } else {
-     await page.locator('#sidebar [data-section="profile"]').click();
-     page.once('dialog',dialog=>dialog.accept());
-     await page.locator('#profileLogoutBtn').click();
-    }
+    const tapSignOut=async()=>{
+     if(role==='student') {
+      if(!await page.locator('.ntc-pf-logout').isVisible())await page.getByRole('button',{name:'Open profile',exact:true}).click();
+      await page.locator('.ntc-pf-logout').click();
+     } else if(role==='teacher') {
+      if(!await page.locator('#profileLogoutBtn').isVisible()) {
+       await page.locator('.portal-bottom-nav').getByRole('button',{name:'More'}).click();
+       await page.locator('#sidebar [data-section="profile"]').click();
+      }
+      await page.locator('#profileLogoutBtn').click();
+     } else if(await page.locator('#logoutBtn').isVisible()) await page.locator('#logoutBtn').click();
+     else await page.evaluate(()=>window.adminLogout());
+    };
+    // Sign out asks first; "Stay signed in" keeps the session.
+    page.on('dialog',dialog=>{throw new Error('native confirm() used for sign out');});
+    await tapSignOut();
+    await page.locator('.ntc-out-backdrop.on').waitFor();
+    await page.waitForTimeout(350);
+    await page.screenshot({path:path.join(out,role+'-signout-sheet.png')});
+    assert(await page.getByRole('button',{name:'Stay signed in'}).evaluate(el=>el===document.activeElement),'safe choice is focused');
+    await page.getByRole('button',{name:'Stay signed in'}).click();
+    await page.locator('.ntc-out-backdrop').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('fixtureSignOutCalls')),null,'cancel keeps you signed in');
+    await tapSignOut();
+    await page.keyboard.press('Escape');
+    await page.locator('.ntc-out-backdrop').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('fixtureSignOutCalls')),null,'Escape keeps you signed in');
+    // Confirming shows the goodbye screen, then signs out once.
+    await tapSignOut();
+    await page.locator('.ntc-out-sheet').getByRole('button',{name:'Sign out',exact:true}).click();
+    await page.locator('.ntc-bye.on').waitFor();
+    await page.waitForTimeout(300);
+    await page.screenshot({path:path.join(out,role+'-signout-goodbye.png')});
     await page.waitForURL('**/login/'+role);
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('fixtureSignOutCalls')),'1','explicit sign out still ends the session');
-    console.log(role+': accidental header/Home clicks stay put; only explicit Sign out ends the session');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('ntc:signed-out')),'1','login page is told to confirm the sign out');
+    console.log(role+': accidental taps stay put; Sign out asks first (cancel/Escape keep the session), then shows the goodbye screen');
    }
    await page.close();
   }

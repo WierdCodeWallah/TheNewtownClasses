@@ -22,7 +22,7 @@
  * ════════════════════════════════════════════════════
  */
 
-import { FIREBASE_CONFIG } from './firebase-config.js';
+import { FIREBASE_CONFIG } from './firebase-config.js?v=4b98d617';
 
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
 const IST_OFFSET = 5.5 * 60; // minutes

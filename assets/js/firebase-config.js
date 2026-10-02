@@ -84,6 +84,91 @@ export async function initAppCheck(app) {
   }
 }
 
+// ════════════════════════════════════════════════════
+//  SEPARATE STUDENT AND STAFF SIGN-INS
+// ════════════════════════════════════════════════════
+//
+//  Firebase keeps one signed-in user per app name per browser. Students use
+//  the default app; teacher and admin pages use STAFF_APP. Without this,
+//  signing in on one portal replaced the session on every other open portal
+//  (and the admin panel then signed that user out), which looked like being
+//  logged out at random.
+//
+//    const app  = initializeApp(FIREBASE_CONFIG, STAFF_APP);
+//    await initAppCheck(app);
+//    const auth = getAuth(app);
+//    await adoptLegacyStaffSession(auth);
+//
+export const STAFF_APP = 'ntc-staff';
+
+// Staff signed in before the split are stored under the default app. Copy that
+// session across once per browser so nobody has to sign in again after deploy.
+// Student accounts (…@ntcportal.local) are left where they are.
+export async function adoptLegacyStaffSession(staffAuth) {
+  const DONE = 'ntc:staff-session-split';
+  try { if (localStorage.getItem(DONE)) return; } catch (_) { return; }
+  try {
+    await staffAuth.authStateReady();
+    if (!staffAuth.currentUser) {
+      const [{ initializeApp, getApps }, { getAuth, updateCurrentUser }] = await Promise.all([
+        import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js')
+      ]);
+      const legacyApp = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(FIREBASE_CONFIG);
+      const legacy = getAuth(legacyApp);
+      await legacy.authStateReady();
+      const user = legacy.currentUser;
+      if (user && !/@ntcportal\.local$/i.test(user.email || '')) await updateCurrentUser(staffAuth, user);
+    }
+    localStorage.setItem(DONE, '1');
+  } catch (e) {
+    console.warn('[Auth] Could not carry over the earlier staff sign-in:', e?.message || e);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  LOGIN PAGES — read the signed-in user's own profile
+// ════════════════════════════════════════════════════
+//
+//  One plain HTTPS request instead of the Firestore SDK. The SDK is ~440 KB
+//  and has to open a streaming connection before its first read; on a weak
+//  mobile connection that read could fail after sign-in had already
+//  succeeded, so people saw an error and had to press Login again.
+//  Retries network failures by itself. Resolves to the document's fields
+//  (strings, numbers, booleans) or null when the document doesn't exist.
+export async function fetchOwnDoc(user, collection) {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}` +
+    `/databases/(default)/documents/${collection}/${user.uid}?key=${FIREBASE_CONFIG.apiKey}`;
+  let error;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, 1000 * attempt));
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 12000);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token }, signal: abort.signal });
+      if (res.status === 404) return null;
+      if (res.ok) {
+        const fields = (await res.json()).fields || {};
+        return Object.fromEntries(Object.entries(fields).map(([k, v]) => [k,
+          'stringValue' in v ? v.stringValue :
+          'booleanValue' in v ? v.booleanValue :
+          'integerValue' in v ? Number(v.integerValue) :
+          'doubleValue' in v ? v.doubleValue : v]));
+      }
+      error = Object.assign(new Error('Could not load your profile (HTTP ' + res.status + ').'),
+        { code: res.status === 403 ? 'permission-denied' : 'unavailable' });
+      if (res.status < 500 && res.status !== 429) break;   // retrying won't change the answer
+    } catch (e) {
+      error = Object.assign(new Error('Network error. Check your internet connection.'),
+        { code: 'auth/network-request-failed' });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw error;
+}
+
 /**
  *  ADMIN SETUP (one-time):
  *  ────────────────────────

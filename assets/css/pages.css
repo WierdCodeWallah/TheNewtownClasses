@@ -4,7 +4,7 @@
    Shared "exercise-book" look used by /courses/, /ncert/, /why-us/,
    /toppers/, /results/ and /faq/. Load AFTER styles.css:
 
-     <link rel="stylesheet" href="/assets/css/styles.css">
+     <link rel="stylesheet" href="/assets/css/styles.css?v=7945ed98">
      <link rel="stylesheet" href="/assets/css/pages.css">
 
    ⚠️  NEVER wrap these blocks in <section>. styles.css carries

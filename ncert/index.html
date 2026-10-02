@@ -12,9 +12,9 @@
   <meta property="og:url" content="https://thenewtownclasses.com/ncert/">
   <link rel="icon" href="/favicon.ico">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css">
-  <link rel="stylesheet" href="/assets/css/pages.css">
-  <script src="/assets/js/ncert-chapters.js"></script>
+  <link rel="stylesheet" href="/assets/css/styles.css?v=7945ed98">
+  <link rel="stylesheet" href="/assets/css/pages.css?v=e8137205">
+  <script src="/assets/js/ncert-chapters.js?v=336bdcee"></script>
   <style>
     /* ══════════════════════════════════════════════════════════
        NCERT browser — page-specific pieces only (prefix .nc-).
@@ -206,7 +206,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { FIREBASE_CONFIG, initAppCheck } from "/assets/js/firebase-config.js";
+    import { FIREBASE_CONFIG, initAppCheck } from "/assets/js/firebase-config.js?v=4b98d617";
 
     // Public page — no auth. Firestore rules allow anonymous reads of
     // ncertIndex/* and of ncertSolutions docs with isPublished == true.

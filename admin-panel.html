@@ -14,8 +14,23 @@
   <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png?v=2">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
   <link rel="manifest" href="site.webmanifest?v=2">
-  <meta name="theme-color" content="#0b2d7b">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <meta name="theme-color" content="#25214c">
+  <style>
+    /* Launch splash until the portal's stylesheets are in (same look as the
+       login screen's loading step, so signing in feels like one transition). */
+    html:not(.ntc-styled) body{visibility:hidden}
+    html:not(.ntc-styled){background:radial-gradient(120% 80% at 50% 0%,#3d3576 0%,#25214c 45%,#15132b 100%) fixed #25214c}
+    html:not(.ntc-styled)::before{content:'';position:fixed;left:50%;top:50%;width:96px;height:96px;margin:-105px 0 0 -48px;border-radius:50%;
+      background:conic-gradient(from 0deg,transparent 0 25%,#a78bfa 60%,#b5eae6 85%,transparent);
+      -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+      mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));animation:ntc-splash-spin 1s linear infinite}
+    html:not(.ntc-styled)::after{content:'Opening your dashboard…';position:fixed;left:0;right:0;top:50%;margin-top:58px;text-align:center;
+      color:#c4bee6;font:14px/1.4 'DM Sans',system-ui,-apple-system,sans-serif}
+    @keyframes ntc-splash-spin{to{transform:rotate(360deg)}}
+    @view-transition{navigation:auto}
+  </style>
+  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
@@ -514,13 +529,12 @@
     }
 </style>
 <!-- Shared role / content-type access rules -->
-<script src="/assets/js/content-access.js"></script>
-<script src="/assets/js/ncert-chapters.js"></script>
-<script src="/assets/js/portal-shell.js"></script>
+<script src="/assets/js/content-access.js?v=f846bf50"></script>
+<script src="/assets/js/ncert-chapters.js?v=336bdcee"></script>
+<script src="/assets/js/portal-shell.js?v=44f73bf2"></script>
+<script src="/assets/js/portal-logout.js?v=2a243f60"></script>
   <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
        they load so it never flashes unstyled. The timer is a safety net. -->
-  <style>html:not(.ntc-styled) body{visibility:hidden}</style>
-  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
   <noscript><style>html body{visibility:visible}</style></noscript>
 </head>
 <body data-portal="admin">
@@ -1400,11 +1414,12 @@
            setDoc, getDoc, getDocs,
            updateDoc, deleteDoc, query,
            orderBy }                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { FIREBASE_CONFIG, initAppCheck }          from "/assets/js/firebase-config.js";
+  import { FIREBASE_CONFIG, initAppCheck, STAFF_APP, adoptLegacyStaffSession }          from "/assets/js/firebase-config.js?v=4b98d617";
 
-  const app  = initializeApp(FIREBASE_CONFIG);
+  const app  = initializeApp(FIREBASE_CONFIG, STAFF_APP);
   await initAppCheck(app);
   const auth = getAuth(app);
+  await adoptLegacyStaffSession(auth);
   const db   = getFirestore(app);
 
 
@@ -1430,10 +1445,24 @@
   // ── Auth state ──
   onAuthStateChanged(auth, async user => {
     if (user) {
-      // Verify this user is an admin
-      const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+      // Verify this user is an admin. Retry a flaky connection instead of
+      // leaving a blank page.
+      let adminSnap = null;
+      for (let attempt = 1; !adminSnap; attempt++) {
+        try {
+          adminSnap = await getDoc(doc(db, 'admins', user.uid));
+        } catch (e) {
+          console.warn('[Admin] Admin check failed (attempt ' + attempt + '):', e.code || e.message);
+          if (attempt === 3) {
+            if (confirm('Could not reach the server. Check your connection and try again?')) location.reload();
+            return;
+          }
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+      }
+      // A teacher shares this browser's staff sign-in, so send them to the
+      // admin login rather than signing them out of their own dashboard.
       if (!adminSnap.exists() || !adminSnap.data().isAdmin) {
-        await signOut(auth);
         window.location.replace('/login/admin');
         return;
       }
@@ -1447,7 +1476,7 @@
   });
 
   // ── Admin logout ──
-  window.adminLogout = async () => { await signOut(auth); window.location.replace('/login/admin'); };
+  window.adminLogout = () => window.ntcLogout({ role: 'admin', to: '/login/admin', signOut: () => signOut(auth) });
 
   // ── Keep enrollmentType dropdown in sync with selected class ──
   function refreshEnrollmentTypeOptions() {
@@ -3352,7 +3381,7 @@
     fmtClassTime, classTimeStatus, STATUS_BADGE, toScheduledTs,
     detectRecordingSource, isLikelyRecordingUrl, attachRecording,
     recordingSourceBadge
-  } from '/assets/js/live-classes.js';
+  } from '/assets/js/live-classes.js?v=e498fe6b';
 
   window.loadAdminClasses = async function() {
     const wrap   = document.getElementById('lcAdminList');
@@ -3988,15 +4017,15 @@
   }
 </style>
 
-<link rel="stylesheet" href="/assets/css/portal-shell.css"/>
-<script src="/assets/js/portal-workspaces.js"></script>
-<link rel="stylesheet" href="/assets/css/portal-atmosphere.css">
-<link rel="stylesheet" href="/assets/css/portal-experience.css">
-<link rel="stylesheet" href="/assets/css/admin-workspace.css">
+<link rel="stylesheet" href="/assets/css/portal-shell.css?v=7df25f89"/>
+<script src="/assets/js/portal-workspaces.js?v=6e7c9485"></script>
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css?v=dc494fed">
+<link rel="stylesheet" href="/assets/css/portal-experience.css?v=abb0243f">
+<link rel="stylesheet" href="/assets/css/admin-workspace.css?v=aec97735">
 <script>document.documentElement.classList.add('ntc-styled');</script>
-<script src="/assets/js/admin-workspace.js"></script>
-<link rel="stylesheet" href="/assets/css/portal-controls.css">
-<script src="/assets/js/portal-controls.js" defer></script>
-<script src="/assets/js/portal-atmosphere.js"></script>
+<script src="/assets/js/admin-workspace.js?v=aecbe9ad"></script>
+<link rel="stylesheet" href="/assets/css/portal-controls.css?v=980bea40">
+<script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
+<script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>
 </html>
