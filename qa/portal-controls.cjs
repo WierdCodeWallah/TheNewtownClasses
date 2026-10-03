@@ -37,7 +37,7 @@ const checks = String.raw`
     await page.locator('#addStudentForm').getByLabel('Class *',{exact:true}).selectOption('11');
     await page.locator('#addStudentForm').getByLabel('Physics',{exact:true}).check();
     assert.equal(await page.locator('#newClass').inputValue(),'11');
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('#newSubjectsGroup label')).backgroundColor==='rgb(240, 235, 255)');
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector('#newSubjectsGroup label')).backgroundColor==='rgb(235, 242, 255)');
     assert(await page.locator('#newSubjectsGroup').getAttribute('aria-labelledby'),'choice group is named');
     await page.getByRole('button',{name:'Clear',exact:true}).click();
     assert.equal(await page.locator('#newName').inputValue(),'');

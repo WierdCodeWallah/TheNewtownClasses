@@ -2,17 +2,17 @@
 body[data-portal=admin] .main-content .page{max-width:1200px;margin:auto}
 body[data-portal=admin] .admin-overview-hero{margin-bottom:18px!important}
 body[data-portal=admin] .stats-row{gap:12px;margin-bottom:18px}
-body[data-portal=admin] .stat-box{border:1px solid #e5e4f0;border-radius:16px;background:#ffffffeb;padding:20px}
-body[data-portal=admin] .stat-box .num{color:#514475!important;font-weight:700!important}
+body[data-portal=admin] .stat-box{border:1px solid #e4e8f0;border-radius:16px;background:#ffffffeb;padding:20px}
+body[data-portal=admin] .stat-box .num{color:#445675!important;font-weight:700!important}
 .admin-shortcut-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.admin-shortcut-grid button{font:inherit;text-align:left;padding:20px;border:1px solid #e4dff2;background:linear-gradient(125deg,#faf9ff,#f1eefb);border-radius:14px;cursor:pointer;color:#3c3558;min-height:96px}
-.admin-shortcut-grid span,.admin-shortcut-grid small{display:block}.admin-shortcut-grid span{font-size:15px;font-weight:600}.admin-shortcut-grid small{margin-top:6px;font-size:12px;color:#706581}.admin-shortcut-grid button:hover{border-color:#b4a5d3;background:#efebfa}
+.admin-shortcut-grid button{font:inherit;text-align:left;padding:20px;border:1px solid #dfe6f2;background:linear-gradient(125deg,#f9fbff,#eef3fb);border-radius:14px;cursor:pointer;color:#354258;min-height:96px}
+.admin-shortcut-grid span,.admin-shortcut-grid small{display:block}.admin-shortcut-grid span{font-size:15px;font-weight:600}.admin-shortcut-grid small{margin-top:6px;font-size:12px;color:#656f81}.admin-shortcut-grid button:hover{border-color:#a5b6d3;background:#ebf0fa}
 body[data-portal=admin] :is(.field,.form-group){min-width:0}
 body[data-portal=admin] .form-group label{display:block;font-size:12px;font-weight:600;color:#53627a;margin-bottom:7px}
-body[data-portal=admin] .form-group select{width:100%;min-height:44px;border:1px solid #e1dfee;border-radius:10px;padding:10px;color:#26334b;font:inherit}
+body[data-portal=admin] .form-group select{width:100%;min-height:44px;border:1px solid #dfe4ee;border-radius:10px;padding:10px;color:#26334b;font:inherit}
 body[data-portal=admin] :is(button.btn,.portal-reset,.portal-pagination button){min-height:44px}
 body[data-portal=admin] .chip-check{min-height:44px;align-items:center}
-body[data-portal=admin] .teacher-card-item{gap:16px;align-items:flex-start;border-color:#e4e0ef;margin-top:12px;overflow-wrap:anywhere}
+body[data-portal=admin] .teacher-card-item{gap:16px;align-items:flex-start;border-color:#e0e6ef;margin-top:12px;overflow-wrap:anywhere}
 body[data-portal=admin] .portal-advanced>.card{margin:12px 0 0!important}
 body[data-portal=admin] #viewAttBody{overflow-wrap:anywhere}
 body[data-portal=admin] #viewAttBody .admin-calendar-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:20px;align-items:start}

@@ -611,6 +611,9 @@
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Operations</div>
+      <button type="button" class="sidebar-item" data-section="enquiries" onclick="ntcCall('switchAdminTab','enquiries')">
+        <span class="icon" aria-hidden="true">📥</span> Inquiries <span class="inquiry-badge" id="inquiryBadge" hidden>0</span>
+      </button>
       <div class="sidebar-item" data-section="attendance" onclick="ntcCall('switchAdminTab','attendance')">
         <span class="icon">📋</span> Attendance
       </div>
@@ -623,6 +626,25 @@
   <!-- MAIN CONTENT -->
   <main class="main-content">
   <div class="page">
+  <div class="inquiry-notice" id="inquiryNotice" hidden>
+    <strong id="inquiryNoticeText"></strong><button type="button" id="inquiryNoticeOpen">View inquiries →</button>
+  </div>
+  <div id="inquiryAnnouncement" class="inquiry-sr-only" role="status" aria-live="polite"></div>
+
+  <div class="tab-content" id="tab-enquiries">
+    <div class="card">
+      <div class="inquiry-heading"><div><h2>Website inquiries</h2><p>A first hello from your next students. Review, reach out, and follow up.</p></div><span id="inquiryConnection">Connecting…</span></div>
+      <div class="inquiry-filters">
+        <label for="inquirySearch">Search inquiries<input id="inquirySearch" type="search" placeholder="Name, phone, email, course…" /></label>
+        <label for="inquiryFilter">Status<select id="inquiryFilter"><option value="">All inquiries</option><option>New</option><option>Contacted</option><option>Closed</option></select></label>
+        <button type="button" id="inquiryRetry">Refresh</button>
+      </div>
+      <p id="inquiryError" class="inquiry-error" role="alert"></p>
+      <p id="inquiryCount" role="status"></p>
+      <div id="inquiryList"><p class="inquiry-empty">Loading inquiries…</p></div>
+      <div id="inquiryPagination" hidden><button type="button" id="inquiryPrev">Previous</button><span id="inquiryPage"></span><button type="button" id="inquiryNext">Next</button></div>
+    </div>
+  </div>
 
   <!-- ════════════════ OVERVIEW (Stats) ════════════════ -->
   <div class="tab-content active" id="tab-overview">
@@ -1441,9 +1463,11 @@
   const $ = id => document.getElementById(id);
 
   let allStudents = [];
+  let stopEnquiries = null;
 
   // ── Auth state ──
   onAuthStateChanged(auth, async user => {
+    if (stopEnquiries) { stopEnquiries(); stopEnquiries = null; }
     if (user) {
       // Verify this user is an admin. Retry a flaky connection instead of
       // leaving a blank page.
@@ -1470,6 +1494,12 @@
       setTimeout(() => { $('mainContent').style.opacity = '1'; }, 50);
       $('logoutBtn').style.display     = 'block';
       loadStudents();
+      import('/assets/js/admin-enquiries.js?v=008f658f').then(({ startAdminEnquiries }) => {
+        if (auth.currentUser?.uid === user.uid) stopEnquiries = startAdminEnquiries(db, user.uid);
+      }).catch(() => {
+        $('inquiryConnection').textContent = 'Inbox unavailable';
+        $('inquiryError').textContent = 'Could not load the inbox. Please refresh the page.';
+      });
     } else {
       window.location.replace('/login/admin');
     }
@@ -4017,15 +4047,17 @@
   }
 </style>
 
-<link rel="stylesheet" href="/assets/css/auth-transitions.css?v=15e83ecf" />
+<link rel="stylesheet" href="/assets/css/auth-transitions.css?v=e6d6c817" />
 <link rel="stylesheet" href="/assets/css/portal-shell.css?v=7df25f89"/>
 <script src="/assets/js/portal-workspaces.js?v=6e7c9485"></script>
-<link rel="stylesheet" href="/assets/css/portal-atmosphere.css?v=dc494fed">
-<link rel="stylesheet" href="/assets/css/portal-experience.css?v=abb0243f">
-<link rel="stylesheet" href="/assets/css/admin-workspace.css?v=aec97735">
+<link rel="stylesheet" href="/assets/css/portal-atmosphere.css?v=742cf78f">
+<link rel="stylesheet" href="/assets/css/portal-experience.css?v=3bb993cb">
+<link rel="stylesheet" href="/assets/css/admin-workspace.css?v=2d4de7c6">
+<link rel="stylesheet" href="/assets/css/admin-enquiries.css?v=b498c69b">
 <script>document.documentElement.classList.add('ntc-styled');</script>
 <script src="/assets/js/admin-workspace.js?v=aecbe9ad"></script>
-<link rel="stylesheet" href="/assets/css/portal-controls.css?v=980bea40">
+<link rel="stylesheet" href="/assets/css/portal-controls.css?v=d62c9c09">
+<link rel="stylesheet" href="/assets/css/brand-theme.css?v=a1c81d78">
 <script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
 <script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>

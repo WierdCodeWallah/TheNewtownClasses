@@ -80,12 +80,20 @@
     "sameAs": [],
     "foundingDate": "2024",
     "priceRange": "$$",
-    "openingHoursSpecification": {
-      "@type": "OpeningHoursSpecification",
-      "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
-      "opens": "08:00",
-      "closes": "20:00"
-    },
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Tuesday","Wednesday","Thursday","Friday"],
+        "opens": "17:00",
+        "closes": "20:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Saturday",
+        "opens": "11:00",
+        "closes": "17:00"
+      }
+    ],
     "hasOfferCatalog": {
       "@type": "OfferCatalog",
       "name": "Courses",
@@ -382,6 +390,7 @@
       #tnc-splash .tnc-divider { transform: scaleX(1) !important; }
     }
   </style>
+  <link rel="stylesheet" href="/assets/css/enquiry.css?v=6dcac2fe">
 </head>
 <body class="home-page">
 
@@ -1359,7 +1368,7 @@
         <div class="contact-detail-icon">🕐</div>
         <div class="contact-detail-text">
           <strong>Timings</strong>
-          <span>Mon – Fri: 5:00 PM – 8:00 PM<br/>Sat: 12:00 PM – 5:00 PM<br/>Sunday Closed</span>
+          <span>Tue – Fri: 5:00 PM – 8:00 PM<br/>Sat: 11:00 AM – 5:00 PM<br/>Sunday & Monday Closed</span>
         </div>
       </div>
 
@@ -1371,166 +1380,88 @@
       </div>
     </div>
 
-    <div class="fade-up">
-      <form class="contact-form" name="enquiry" method="POST" data-netlify="true" netlify-honeypot="bot-field">
-        <input type="hidden" name="form-name" value="enquiry" />
-        <p style="display:none;"><input name="bot-field" /></p>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Student Name *</label>
-            <input type="text" name="student-name" placeholder="Full Name" required />
+    <div class="fade-up enquiry-entry">
+      <div class="enquiry-card">
+        <div class="enquiry-intro">
+          <span class="enquiry-eyebrow">YOUR NEXT CHAPTER STARTS HERE</span>
+          <h3>Big dreams.<br/>Let’s make a plan.</h3>
+          <p>Find the right course, ask a question, or book a free demo. Our team is here to help.</p>
+          <div class="enquiry-launch-meta"><span>✓ Free counselling</span><span>✓ No commitment</span></div>
+          <button type="button" id="enquiryOpen" class="enquiry-submit enquiry-launch" aria-haspopup="dialog">Let’s get started <span aria-hidden="true">↗</span></button>
+          <small>Sign in with Google. Tell us your goals. We’ll take it from there.</small>
+        </div>
+      </div>
+      <dialog id="enquiryDialog" class="enquiry-card enquiry-dialog" aria-labelledby="enquiryDialogTitle">
+        <header class="enquiry-appbar"><span class="enquiry-brandmark" aria-hidden="true">N</span><div><strong id="enquiryDialogTitle">Your next chapter</strong><small>The NewTown Classes</small></div><button type="button" id="enquiryClose" aria-label="Close inquiry">×</button></header>
+        <div class="enquiry-progress" id="enquiryProgress" hidden><div><span id="enquiryProgressText"></span><span>Almost there</span></div><div class="enquiry-progress-track" role="progressbar" aria-label="Inquiry progress" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1"><span id="enquiryProgressFill"></span></div></div>
+        <div class="enquiry-body" id="enquiryScroll">
+          <div class="enquiry-auth" id="enquiryAuth">
+            <div class="enquiry-auth-art" aria-hidden="true"><span>✦</span><div>Great things<br/>start with <em>hello.</em></div><i>↗</i></div>
+            <span class="enquiry-eyebrow">A PLAN THAT STARTS WITH YOU</span><h4>Let’s find your fit.</h4>
+            <p>Sign in with Google to unlock your inquiry form.</p>
+            <button type="button" class="enquiry-google" id="enquiryGoogle" disabled>
+              <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M43.6 24.5c0-1.5-.1-2.9-.4-4.3H24v8.1h11a9.4 9.4 0 0 1-4.1 6.2v5h6.6c3.9-3.6 6.1-8.8 6.1-15z"/><path fill="#34A853" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5c-1.8 1.2-4.1 1.9-6.9 1.9-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20.4 20.4 0 0 0 24 44z"/><path fill="#FBBC05" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6z"/><path fill="#EA4335" d="M24 12c3 0 5.7 1 7.8 3l5.8-5.8A19.5 19.5 0 0 0 24 4 20.4 20.4 0 0 0 5.8 15.2l6.8 5.2C14.2 15.6 18.7 12 24 12z"/></svg>
+              Continue with Google
+            </button>
+            <small>We’ll use your verified email to follow up on your inquiry.</small>
           </div>
-          <div class="form-group">
-            <label>Mobile Number *</label>
-            <input type="tel" name="mobile" placeholder="+91 XXXXX XXXXX" required inputmode="numeric" maxlength="15" autocomplete="tel" />
+          <div class="enquiry-account" id="enquiryAccount" hidden>
+            <div><strong>✓ GOOGLE EMAIL VERIFIED</strong><span id="enquiryEmail"></span></div>
+            <button type="button" class="enquiry-link" id="enquirySwitch">Switch account</button>
+          </div>
+          <form id="enquiryForm" novalidate>
+            <fieldset class="enquiry-fields" id="enquiryFields" disabled hidden>
+              <legend class="enquiry-visually-hidden">Inquiry details</legend>
+              <section class="enquiry-screen" data-enquiry-step="0" aria-labelledby="enquiryStudentTitle">
+              <span class="enquiry-eyebrow">FIRST, A LITTLE ABOUT YOU</span><h2 id="enquiryStudentTitle" tabindex="-1">Who’s ready to learn?</h2><p>Tell us the student’s name and where we can reach you.</p>
+              <div class="enquiry-grid">
+                <div class="enquiry-field"><label for="enquiryName">Student name *</label><input id="enquiryName" name="student-name" autocomplete="name" enterkeyhint="next" placeholder="Full name" minlength="2" maxlength="120" required /></div>
+                <div class="enquiry-field"><label for="enquiryPhone">Mobile number *</label><input id="enquiryPhone" name="mobile" type="tel" autocomplete="tel" inputmode="tel" enterkeyhint="next" placeholder="+91 98765 43210" maxlength="18" required /></div>
+              </div>
+              </section>
+              <section class="enquiry-screen" data-enquiry-step="1" aria-labelledby="enquiryCourseTitle" hidden>
+              <span class="enquiry-eyebrow">YOUR GOALS, YOUR PATH</span><h2 id="enquiryCourseTitle" tabindex="-1">What’s your next goal?</h2><p>Choose a course and your current class. We’ll help with the rest.</p>
+              <div class="enquiry-grid">
+                <div class="enquiry-field"><label for="enquiryCourse">Interested in *</label><select id="enquiryCourse" name="course" required><option value="">Choose a course</option><option>NEET Preparation</option><option>JEE Main &amp; Advanced</option><option>Class 11 – 12 Science</option><option>Class 7 – 10 Science</option><option>Crash Course / Revision</option></select></div>
+                <div class="enquiry-field"><label for="enquiryClass">Current class *</label><select id="enquiryClass" name="current-class" required><option value="">Choose a class</option><option>Class 7</option><option>Class 8</option><option>Class 9</option><option>Class 10</option><option>Class 11</option><option>Class 12</option><option>Dropper / Repeater</option></select></div>
+              </div>
+              </section>
+              <section class="enquiry-screen" data-enquiry-step="2" aria-labelledby="enquiryReviewTitle" hidden>
+              <span class="enquiry-eyebrow">ONE LAST LOOK</span><h2 id="enquiryReviewTitle" tabindex="-1">Looking good?</h2><p>Check your details and add anything you’d like us to know.</p>
+              <dl id="enquiryReview" class="enquiry-review"></dl>
+              <div class="enquiry-field"><label for="enquiryMessage">What’s on your mind? <span>(optional)</span></label><textarea id="enquiryMessage" name="message" rows="3" maxlength="2000" placeholder="Tell us about your goals, preferred batch, or questions…"></textarea></div>
+              <small>By submitting, you agree that The NewTown Classes may contact you about this inquiry by phone or email.</small>
+              </section>
+            </fieldset>
+          </form>
+          <div class="enquiry-success" id="enquirySuccess" tabindex="-1" hidden>
+            <span aria-hidden="true">✓</span><h3>You’re on our list!</h3>
+            <p>Your inquiry has reached our team. We’ll contact you to help plan your next step.</p>
+            <small>Reference: <strong id="enquiryReference"></strong></small>
+            <button type="button" class="enquiry-submit enquiry-done" id="enquiryDone">Back to home</button>
+            <button type="button" class="enquiry-link" id="enquiryAgain">Send another inquiry</button>
           </div>
         </div>
-        <div class="form-group">
-          <label>Email Address</label>
-          <input type="email" name="email" placeholder="email@example.com" />
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Course Interested In *</label>
-            <select name="course" required>
-              <option value="">Select Course</option>
-              <option>NEET Preparation</option>
-              <option>JEE Main & Advanced</option>
-              <option>Class 11 – 12 Science</option>
-              <option>Class 7 – 10 Science</option>
-              <option>Crash Course / Revision</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Current Class</label>
-            <select name="current-class">
-              <option value="">Select Class</option>
-              <option>Class 8</option>
-              <option>Class 9</option>
-              <option>Class 10</option>
-              <option>Class 11</option>
-              <option>Class 12</option>
-              <option>Dropper / Repeater</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Message / Query</label>
-          <textarea name="message" placeholder="Any specific queries or requirements..."></textarea>
-        </div>
-        <button type="submit" class="submit-btn">Submit Enquiry →</button>
-        <div id="cmsEnquiryMsg" style="margin-top:.8rem;font-size:.9rem;font-weight:700;"></div>
-      </form>
+        <div class="enquiry-feedback"><div class="enquiry-message" id="cmsEnquiryMsg" role="status" aria-live="polite"></div></div>
+        <footer class="enquiry-actions" id="enquiryActions" hidden>
+          <button type="button" id="enquiryBack" class="enquiry-back" aria-label="Previous step">←</button>
+          <button type="button" id="enquiryNext" class="enquiry-submit">Continue →</button>
+          <button type="submit" form="enquiryForm" class="enquiry-submit" id="enquirySubmit" hidden>Send my inquiry →</button>
+        </footer>
+      </dialog>
+      <noscript>Please enable JavaScript to sign in and submit, or call +91 9903461361.</noscript>
     </div>
 
   </div>
 </section>
 
+<script src="/assets/js/enquiry-ui.js?v=bf3cf0e5"></script>
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { FIREBASE_CONFIG, initAppCheck } from "/assets/js/firebase-config.js?v=4b98d617";
-  const cmsApp = initializeApp(FIREBASE_CONFIG, 'public-enquiry');
-  await initAppCheck(cmsApp);
-  const cmsDb = getFirestore(cmsApp);
-  const enquiryForm = document.querySelector('form[name="enquiry"]');
-  const enquiryMsg = document.getElementById('cmsEnquiryMsg');
-
-  // Record when the form became available — used to catch bots that submit instantly.
-  const enquiryLoadTime = Date.now();
-
-  // Normalise an Indian mobile number to bare 10 digits (strips +91, 0, spaces, dashes).
-  function normalizePhone(raw) {
-    let d = String(raw || '').replace(/\D/g, '');
-    if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
-    else if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
-    return d;
-  }
-  // A real Indian mobile: 10 digits, starts 6-9, not all-same-digit, not obvious junk.
-  function isValidIndianMobile(d) {
-    if (!/^[6-9]\d{9}$/.test(d)) return false;        // 10 digits starting 6-9
-    if (/^(\d)\1{9}$/.test(d)) return false;          // 9999999999 etc.
-    if (new Set(d).size <= 2) return false;           // 9898989898, 6767676767 etc.
-    if (d === '1234567890' || d === '0123456789') return false;
-    return true;
-  }
-  // Strict e-mail format + block throwaway/disposable mailbox providers.
-  function isValidEmail(email) {
-    if (!email) return true; // email is optional
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return false;
-    const domain = email.split('@')[1].toLowerCase();
-    const blocked = ['mailinator.com','tempmail.com','temp-mail.org','guerrillamail.com',
-      '10minutemail.com','yopmail.com','trashmail.com','sharklasers.com','getnada.com',
-      'dispostable.com','fakeinbox.com','maildrop.cc','throwawaymail.com','mvrht.com',
-      'emailondeck.com','mintemail.com','tempmailo.com','moakt.com','mohmal.com'];
-    return !blocked.some(b => domain === b || domain.endsWith('.' + b));
-  }
-  function showEnquiryError(text) {
-    if (enquiryMsg) { enquiryMsg.style.color = '#dc2626'; enquiryMsg.textContent = text; }
-  }
-
-  if (enquiryForm) {
-    enquiryForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = enquiryForm.querySelector('button[type="submit"]');
-      const fd = new FormData(enquiryForm);
-      const name = String(fd.get('student-name') || '').trim();
-      const phoneRaw = String(fd.get('mobile') || '').trim();
-      const email = String(fd.get('email') || '').trim();
-      const course = String(fd.get('course') || '').trim();
-
-      // 1) Bot trap: honeypot field must stay empty, and humans take a few seconds to fill the form.
-      if (String(fd.get('bot-field') || '').trim() !== '' || (Date.now() - enquiryLoadTime) < 3000) {
-        enquiryForm.reset();
-        if (enquiryMsg) { enquiryMsg.style.color = '#059669'; enquiryMsg.textContent = 'Enquiry submitted. Our team will contact you soon.'; }
-        return; // silently drop without saving
-      }
-
-      // 2) Required fields
-      if (!name || !phoneRaw || !course) {
-        showEnquiryError('Please fill name, mobile number and course.');
-        return;
-      }
-      if (name.length < 2 || !/[A-Za-zऀ-ॿ]/.test(name)) {
-        showEnquiryError('Please enter a valid name.');
-        return;
-      }
-      // 3) Mobile number
-      const phone = normalizePhone(phoneRaw);
-      if (!isValidIndianMobile(phone)) {
-        showEnquiryError('Please enter a valid 10-digit Indian mobile number.');
-        return;
-      }
-      // 4) Email (optional, but must be real if given)
-      if (!isValidEmail(email)) {
-        showEnquiryError('Please enter a valid email address (temporary/disposable emails are not allowed).');
-        return;
-      }
-
-      if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
-      try {
-        await addDoc(collection(cmsDb, 'enquiries'), {
-          name,
-          phone,
-          email,
-          course,
-          currentClass: String(fd.get('current-class') || '').trim(),
-          message: String(fd.get('message') || '').trim(),
-          status: 'New',
-          source: 'Website',
-          createdAt: new Date().toISOString()
-        });
-        enquiryForm.reset();
-        if (enquiryMsg) { enquiryMsg.style.color = '#059669'; enquiryMsg.textContent = 'Enquiry submitted. Our team will contact you soon.'; }
-      } catch (err) {
-        console.warn('Enquiry save failed:', err);
-        if (enquiryMsg) { enquiryMsg.style.color = '#dc2626'; enquiryMsg.textContent = 'Could not submit right now. Please call or WhatsApp us.'; }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Submit Enquiry →'; }
-      }
-    });
-  }
+  import('/assets/js/enquiry-form.js?v=4c6e10cb').catch(() => {
+    const message = document.getElementById('cmsEnquiryMsg');
+    message.textContent = 'Could not load sign-in. Please refresh the page or call +91 9903461361.';
+    message.classList.add('is-error');
+  });
 </script>
 
 <!-- FOOTER -->
@@ -1578,15 +1509,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m7 8-4 4 4 4m10-8 4 4-4 4m-4-11-2 14"/></svg>
       </span>
       <div class="developer-byline">
-        <span class="developer-label">Developed by</span>
+        <span class="developer-label">Developed By</span>
         <a class="developer-name" href="https://www.linkedin.com/in/itssayan" target="_blank" rel="noopener noreferrer" aria-label="Sayan Nath on LinkedIn (opens in a new tab)">
           Sayan Nath
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
         </a>
       </div>
-      <a class="developer-phone" href="tel:+918974880865" aria-label="Call Sayan Nath" title="Call Sayan Nath">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 3 3 5-2.5 2a15 15 0 0 0 6.5 6.5l2-2.5 5 3v3a1 1 0 0 1-1 1C10.6 21 3 13.4 3 4a1 1 0 0 1 1-1Z"/></svg>
-      </a>
+
     </div>
   </div>
 </footer>
@@ -1791,6 +1720,7 @@
   }
   #pwaIosSheet .ios-close:hover { background: #e5e7eb; }
 </style>
+<link rel="stylesheet" href="/assets/css/brand-theme.css?v=a1c81d78">
 
 <!-- In-app browser hint (Instagram, FB, LinkedIn, etc.). Only shown when
      the page is loaded inside an embedded browser that can't trigger PWA

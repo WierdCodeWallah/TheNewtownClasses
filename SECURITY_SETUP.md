@@ -1,5 +1,31 @@
 # NewTown Classes — Security Setup
 
+## Website inquiry flow — deployment
+
+The homepage now requires a verified Google sign-in before submitting an inquiry.
+Enable **Google** under Firebase Authentication → Sign-in method, and ensure the
+production hostnames (`thenewtownclasses.com` and `www.thenewtownclasses.com`) are
+listed under Authentication → Settings → Authorized domains. Add preview domains
+only when needed. See [Firebase Google sign-in setup](https://firebase.google.com/docs/auth/web/google-signin).
+
+Deploy the updated website assets and publish this repository's `firestore.rules`
+to project `the-newtown-classes-d98e8` together. Netlify's website deployment does
+**not** publish Firestore rules. The new rules reject anonymous submissions and
+require the authenticated Google email, UID, valid form fields, and a server timestamp.
+They also grant inquiry reads and status updates to verified admins; the previous
+rules allowed only owners to read inquiries and do not support the new form payload.
+
+Admin panel → **Inquiries** shows saved submissions, date/time in IST, search and
+New / Contacted / Closed statuses. A live in-panel banner and sidebar badge count
+New inquiries, including submissions received while the panel was closed. Status
+is shared by the admin team; marking Contacted or Closed removes it from the count.
+These are in-app alerts, not background push or email notifications. Existing
+inquiries remain visible without a migration.
+
+After deployment, use a Google account to submit one inquiry, confirm it appears
+in an admin session, and change its status to Contacted. Local fixture and emulator
+checks are documented in `qa/README.md`; they do not verify console configuration.
+
 Companion to the code-side hardening (`firestore.rules`, `firebase-config.js` App Check helper, dashboard auth guards). Everything below is done in the Google Cloud / Firebase / reCAPTCHA consoles — there is no code change needed for these steps.
 
 Project ID: `the-newtown-classes-d98e8`
