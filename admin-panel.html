@@ -2938,6 +2938,7 @@
           </div>
           <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
             <button onclick="editTeacherSubjects('${t.uid}')" class="btn btn-outline btn-sm">✏️ Edit Subjects</button>
+            <button onclick="resetTeacherPassword('${t.uid}')" class="btn btn-outline btn-sm">🔑 Reset Password</button>
             <button onclick="deleteTeacher('${t.uid}')" class="btn btn-danger btn-sm">🗑 Delete</button>
           </div>
         </div>`).join('');}});
@@ -2967,6 +2968,32 @@
         { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } }
       );
       loadTeacherList();
+    } catch (err) { alert('Error: ' + err.message); }
+  };
+
+  // ── Set a new password for a teacher who can't sign in ──
+  //    Same service-account function as the student reset, targeted by uid.
+  window.resetTeacherPassword = async function(uid) {
+    const t = _teacherList.find(x => x.uid === uid);
+    const name = t ? t.name : 'this teacher';
+    const newPass = prompt(`New password for ${name} (min 6 characters):`);
+    if (newPass === null) return;
+    if (newPass.length < 6) { alert('Password must be at least 6 characters.'); return; }
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/.netlify/functions/admin-student-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: adminToken, action: 'setPassword', uid, newPassword: newPass })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Reset failed (HTTP ${res.status})`);
+      alert(`✅ Password reset for ${name}.
+
+Email: ${t ? t.email : ''}
+New password: ${newPass}
+
+Share it with the teacher — it is not stored anywhere.`);
     } catch (err) { alert('Error: ' + err.message); }
   };
 

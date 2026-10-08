@@ -43,6 +43,7 @@ const auth={currentUser:null,authStateReady:async()=>{if(S().signedIn&&!auth.cur
 export const getAuth=()=>auth;
 export const signOut=a=>a.signOut();
 export const onAuthStateChanged=(a,fn)=>{setTimeout(()=>fn(a.currentUser),0);return()=>{};};
+export const sendPasswordResetEmail=async()=>{};
 export const signInWithEmailAndPassword=async(a,email,pw)=>{
   sessionStorage.signIns=Number(sessionStorage.signIns||0)+1;
   await new Promise(r=>setTimeout(r,S().signInDelay||300));

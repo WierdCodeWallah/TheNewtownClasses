@@ -2576,9 +2576,12 @@ renderCards();
     //   • Nothing is ever uploaded or saved — no photo, no video, not one
     //     frame. Only text events land on the result document.
     //   • Face tracking uses face-api.js (open-source, loaded from a CDN) as a
-    //     BEST-EFFORT layer: if it loads it flags "no face / looking away /
-    //     more than one person"; if the CDN is slow or the phone can't run it,
-    //     the exam still proceeds on camera on/off/covered/frozen detection.
+    //     BEST-EFFORT layer: if it loads it flags "more than one person" as a
+    //     strike. "Face not visible" / "looking away" are only NOTED for the
+    //     teacher, never a strike — students look down at paper for rough work
+    //     in maths & science and the detector loses a tilted-down face.
+    //     If the CDN is slow or the phone can't run it, the exam still proceeds
+    //     on camera on/off/covered/frozen detection.
     //   • Serious violations raise a visible strike. THREE strikes auto-submit,
     //     matching how tab-switching already ends the test.
     // ══════════════════════════════════════════════════════════════
@@ -2588,7 +2591,7 @@ renderCards();
     let _pStrikes = 0;
     const P_MAX_STRIKES = 3;
     // Per-episode latches so one continuous problem = one strike, not a storm.
-    let _pNoFaceHits = 0, _pAwayHits = 0;
+    let _pNoFaceHits = 0, _pAwayHits = 0, _pMultiHits = 0;
     let _pNoFaceLatched = false, _pMultiLatched = false, _pAwayLatched = false, _pDarkLatched = false;
 
     const _pCanvas = document.createElement('canvas');
@@ -2643,7 +2646,7 @@ renderCards();
       const t = document.getElementById('proctorStrikeTitle');
       const m = document.getElementById('proctorStrikeMsg');
       if (t) t.textContent = 'Warning ' + _pStrikes + ' of ' + P_MAX_STRIKES;
-      if (m) m.textContent = reason + '. Please face the screen and keep only yourself in view. After ' + P_MAX_STRIKES + ' warnings the test submits automatically.';
+      if (m) m.textContent = reason + '. Stay on the test screen and keep only yourself in view (looking down at your paper for rough work is fine). After ' + P_MAX_STRIKES + ' warnings the test submits automatically.';
       document.getElementById('proctorStrikeModal').style.display = 'flex';
     }
     window.proctorDismissStrike = function () {
@@ -2728,7 +2731,7 @@ renderCards();
     function proctorStart() {
       _pLog = _pLog.length ? _pLog : [];   // keep any pre-start entries (e.g. consent)
       _pPrev = null; _pActive = true;
-      _pStrikes = 0; _pNoFaceHits = 0; _pAwayHits = 0;
+      _pStrikes = 0; _pNoFaceHits = 0; _pAwayHits = 0; _pMultiHits = 0;
       _pNoFaceLatched = _pMultiLatched = _pAwayLatched = _pDarkLatched = false;
       proctorShowStrikes();
       proctorSetState(true, '● LIVE · NOT RECORDED');
@@ -2793,31 +2796,28 @@ renderCards();
             const opts = new _pFace.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 });
             const faces = await _pFace.detectAllFaces(vid, opts);
             if (faces.length === 0) {
-              _pNoFaceHits++; _pAwayHits = 0; _pMultiLatched = false; _pAwayLatched = false;
-              if (_pNoFaceHits >= 2) {          // ~8s with nobody visible
-                ok = false; label = '● FACE NOT VISIBLE';
-                proctorLog('no_face');
-                if (!_pNoFaceLatched) { _pNoFaceLatched = true; proctorStrike('Your face is not visible'); }
-              }
+              // Usually the student is looking down at paper doing rough work —
+              // a bent head is invisible to the detector. Note it, never strike.
+              _pNoFaceHits++; _pAwayHits = 0; _pMultiHits = 0; _pMultiLatched = false;
+              if (_pNoFaceHits >= 2) proctorLog('no_face');
             } else if (faces.length > 1) {
-              _pNoFaceHits = 0; _pAwayHits = 0; _pNoFaceLatched = false; _pAwayLatched = false;
-              ok = false; label = '● MORE THAN ONE PERSON';
-              proctorLog('multi_face', faces.length + ' people');
-              if (!_pMultiLatched) { _pMultiLatched = true; proctorStrike('More than one person is visible'); }
+              _pNoFaceHits = 0; _pAwayHits = 0;
+              _pMultiHits++;
+              if (_pMultiHits >= 2) {            // ~8s, so a passing glitch isn't a strike
+                ok = false; label = '● MORE THAN ONE PERSON';
+                proctorLog('multi_face', faces.length + ' people');
+                if (!_pMultiLatched) { _pMultiLatched = true; proctorStrike('More than one person is visible'); }
+              }
             } else {
-              _pNoFaceHits = 0; _pNoFaceLatched = false; _pMultiLatched = false;
-              // One face — check it is roughly centred & near enough (looking away proxy).
+              _pNoFaceHits = 0; _pMultiHits = 0; _pMultiLatched = false;
+              // Head turned / tilted (e.g. writing on paper) — noted for the teacher only.
               const b = faces[0].box, W = vid.videoWidth, H = vid.videoHeight;
               const cx = (b.x + b.width / 2) / W, area = (b.width * b.height) / (W * H);
               const off = Math.abs(cx - 0.5);
               if (off > 0.34 || area < 0.025) {
                 _pAwayHits++;
-                if (_pAwayHits >= 2) {           // ~8s turned away / too far
-                  ok = false; label = '● PLEASE FACE THE SCREEN';
-                  proctorLog('looking_away', 'off ' + off.toFixed(2) + ' area ' + area.toFixed(3));
-                  if (!_pAwayLatched) { _pAwayLatched = true; proctorStrike('You appear to be looking away'); }
-                }
-              } else { _pAwayHits = 0; _pAwayLatched = false; }
+                if (_pAwayHits >= 2) proctorLog('looking_away', 'off ' + off.toFixed(2) + ' area ' + area.toFixed(3));
+              } else { _pAwayHits = 0; }
             }
           } catch (_) { /* detector hiccup — ignore this pass */ }
         }
@@ -2839,7 +2839,7 @@ renderCards();
       const counts = {};
       _pLog.forEach(e => { counts[e.type] = (counts[e.type] || 0) + (e.n || 1); });
       const flagged = ['camera_off','camera_denied','camera_covered','frame_frozen',
-                       'no_face','multi_face','looking_away','tab_switch','fullscreen_exit','strike']
+                       'multi_face','tab_switch','fullscreen_exit','strike']
                        .reduce((a, k) => a + (counts[k] || 0), 0);
       return {
         log: _pLog.slice(),
@@ -4439,6 +4439,7 @@ renderCards();
       <ul style="margin:0 0 .8rem 1.1rem;padding:0;">
         <li><strong>Nothing is recorded.</strong> No photo or video is ever saved or uploaded.</li>
         <li>You will see your own camera in the corner the whole time.</li>
+        <li><strong>Rough work is fine.</strong> Looking down to solve on pen &amp; paper is never counted as a warning.</li>
         <li>Only notes such as “camera was switched off” are saved with your result.</li>
       </ul>
       <p style="margin:0 0 .9rem;padding:.6rem .8rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:.83rem;color:#9a3412;">
