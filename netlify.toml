@@ -45,23 +45,6 @@
   status = 200
   force = true
 
-# Serve Firebase's sign-in helper pages from our own domain, so Google's
-# account chooser says "thenewtownclasses.com" instead of
-# "the-newtown-classes-d98e8.firebaseapp.com". Pairs with authDomain in
-# assets/js/firebase-config.js and the redirect URI
-# https://thenewtownclasses.com/__/auth/handler on the Google OAuth client.
-[[redirects]]
-  from = "/__/auth/*"
-  to = "https://the-newtown-classes-d98e8.firebaseapp.com/__/auth/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/__/firebase/*"
-  to = "https://the-newtown-classes-d98e8.firebaseapp.com/__/firebase/:splat"
-  status = 200
-  force = true
-
 # Clean public routes. Old .html URLs redirect to these names, and the clean
 # names rewrite back to the existing static files behind the scenes.
 [[redirects]]
