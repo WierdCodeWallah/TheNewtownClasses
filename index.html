@@ -113,323 +113,170 @@
   <link rel="stylesheet" href="/assets/css/home-footer.css?v=dcef02c5"/>
   <link rel="stylesheet" href="/assets/css/home-mobile.css?v=2815219e"/>
 
-  <!-- ── SPLASH SCREEN (inline so it paints before anything else) ── -->
+  <!-- ── SPLASH SCREEN (inline so it paints before anything else) ──
+       Same look as the portal sign-in screens (auth-transitions.css). Only
+       transform and opacity animate, so it stays smooth on budget phones. -->
+  <link rel="preload" as="image" href="/assets/img/logo-mark-192.webp" type="image/webp">
   <style>
     html.tnc-splash-on, html.tnc-splash-on body { overflow: hidden !important; }
+    /* The page body starts transparent (styles.css); keep the splash visible. */
+    html.tnc-splash-on body { opacity: 1 !important; }
 
     #tnc-splash {
       position: fixed; inset: 0; z-index: 99999;
-      color: #fff;
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 72px 24px 64px;
+      padding-top: max(72px, env(safe-area-inset-top));
+      padding-bottom: max(64px, env(safe-area-inset-bottom));
       background:
-        radial-gradient(70% 55% at 78% 18%, rgba(102,232,255,.34) 0%, rgba(102,232,255,0) 62%),
-        radial-gradient(65% 55% at 18% 88%, rgba(44,123,255,.36) 0%, rgba(44,123,255,0) 66%),
-        linear-gradient(145deg, #06173f 0%, #0b2d7b 42%, #0787d9 100%);
-      overflow: hidden; isolation: isolate;
+        radial-gradient(ellipse at 15% 5%, #52699070, transparent 48%),
+        radial-gradient(ellipse at 90% 85%, #29726a35, transparent 55%),
+        #222c3c;
+      color: #f2f7ff; text-align: center;
+      font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
-      transition: opacity .55s ease, visibility .55s ease;
-      --ease-out-expo: cubic-bezier(.16, 1, .3, 1);
-      --ease-out-back: cubic-bezier(.34, 1.56, .64, 1);
-      --ease-in-out:   cubic-bezier(.65, 0, .35, 1);
-      --logo-size: clamp(118px, 34vmin, 200px);
+      transition: opacity .38s ease, visibility 0s linear .38s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #tnc-splash::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background-image: radial-gradient(#ffffff15 .7px, transparent .9px);
+      background-size: 24px 24px;
+      -webkit-mask-image: linear-gradient(transparent, #0008, transparent);
+              mask-image: linear-gradient(transparent, #0008, transparent);
     }
     #tnc-splash.tnc-hide { opacity: 0; visibility: hidden; pointer-events: none; }
 
-    #tnc-splash::before {
-      content: ""; position: absolute; top: -20%; left: -20%;
-      width: 80vmax; height: 80vmax;
-      background: radial-gradient(circle, rgba(255,255,255,.18) 0%, rgba(41,182,246,.18) 34%, rgba(41,182,246,0) 65%);
-      animation: tncDrift 18s ease-in-out infinite alternate;
-      pointer-events: none; z-index: 0;
-    }
-    #tnc-splash::after {
-      content: ""; position: absolute; inset: 0;
-      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-      opacity: .06; mix-blend-mode: overlay;
-      pointer-events: none; z-index: 0;
-    }
-
-    #tnc-splash .tnc-stage {
-      position: relative; z-index: 1;
-      min-height: 100vh;
-      min-height: 100dvh;
-      width: min(100%, 720px);
-      margin: 0 auto;
-      padding: clamp(20px,5vh,52px) clamp(18px,5vw,40px);
-      padding-top: max(env(safe-area-inset-top, 0px), clamp(20px,5vh,52px));
-      padding-bottom: max(env(safe-area-inset-bottom, 0px), clamp(20px,5vh,52px));
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: clamp(18px, 4vh, 34px);
-      text-align: center;
-    }
-    #tnc-splash .tnc-stage > div:first-child { display: none; }
-
-    #tnc-splash .tnc-hero {
+    #tnc-splash .tnc-in {
+      position: relative; width: 100%; max-width: 360px;
       display: flex; flex-direction: column; align-items: center;
-      gap: clamp(14px, 2.4vh, 22px);
-      max-width: 100%;
+      animation: tncRise .5s cubic-bezier(.2,.8,.2,1) both;
+      transition: transform .38s cubic-bezier(.4,0,.2,1);
+    }
+    #tnc-splash.tnc-hide .tnc-in { transform: scale(.97) translateY(-6px); }
+
+    #tnc-splash .tnc-brandbar {
+      position: absolute; top: max(28px, env(safe-area-inset-top)); left: 24px; right: 24px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      color: #d4dce9; font-size: 10px; line-height: 1.5; letter-spacing: 1.7px; font-weight: 600;
+      animation: tncFade .5s ease .1s both;
+    }
+    #tnc-splash .tnc-brandbar i {
+      display: grid; place-items: center; width: 26px; height: 26px;
+      border: 1px solid #b9d3ff33; border-radius: 9px; background: #a2c0f510;
+      color: #c6dbff; font-style: normal; font-size: 15px; letter-spacing: 0;
     }
 
-    #tnc-splash .tnc-logo-stack {
-      position: relative;
-      width: var(--logo-size); height: var(--logo-size);
-      display: grid; place-items: center;
-      margin-bottom: clamp(6px, 1.4vh, 12px);
-      flex: 0 0 auto;
+    #tnc-splash .tnc-kicker {
+      font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: 2px;
+      text-transform: uppercase; color: #b8c7e0; margin: 0 0 22px;
     }
 
-    #tnc-splash .tnc-logo-tile {
-      position: relative; width: 100%; height: 100%;
-      border-radius: 50%; background: #fff;
-      display: grid; place-items: center;
-      overflow: hidden; isolation: isolate;
-      box-shadow:
-        0 26px 70px rgba(4,18,58,.58),
-        0 0 0 1px rgba(255,255,255,.18),
-        0 0 42px rgba(90,211,255,.26);
-      transform-origin: center;
-      animation:
-        tncLogoEnter 900ms var(--ease-out-expo) 60ms both,
-        tncLogoBreath 4.5s ease-in-out 1.6s infinite;
-      will-change: transform, opacity, filter;
+    #tnc-splash .tnc-mark {
+      position: relative; display: grid; place-items: center;
+      width: 144px; height: 144px; margin-bottom: 28px; flex: none;
     }
-    #tnc-splash .tnc-logo-tile img {
-      width: 92%; height: 92%; object-fit: contain; display: block;
-      animation: tncImgReveal 900ms var(--ease-out-expo) 120ms both;
+    #tnc-splash .tnc-mark::before {
+      content: ""; position: absolute; inset: 0; border-radius: 50%;
+      border: 1px solid #bad3ff28;
+      background: radial-gradient(circle, #91b6f516, transparent 70%);
     }
-    #tnc-splash .tnc-logo-tile::after {
-      content: ""; position: absolute; top: 0; left: -70%;
-      width: 55%; height: 100%;
-      background: linear-gradient(110deg, rgba(255,255,255,0) 0%, rgba(30,136,229,.35) 50%, rgba(255,255,255,0) 100%);
-      transform: skewX(-18deg);
-      animation: tncShimmer 2.4s ease-in-out 1.4s infinite;
-      mix-blend-mode: screen; pointer-events: none;
+    #tnc-splash .tnc-mark::after {
+      content: ""; position: absolute; inset: 0; border-radius: 50%;
+      border: 1px solid transparent; border-top-color: #b9d3ff; border-right-color: #b5eae650;
+      animation: tncOrbit 3s linear infinite;
+    }
+    #tnc-splash .tnc-sat { position: absolute; inset: 0; animation: tncOrbit 3s linear infinite; }
+    #tnc-splash .tnc-sat::after {
+      content: ""; position: absolute; left: calc(50% - 3px); top: -3px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #c7f2e7; box-shadow: 0 0 14px #b5eae67a;
+    }
+    #tnc-splash .tnc-icon {
+      display: grid; place-items: center; width: 88px; height: 88px; border-radius: 29px;
+      background: #fff; border: 1px solid #c5daff70; overflow: hidden;
+      box-shadow: 0 16px 48px #060e1c55, 0 0 50px #a3c1f51f;
+      animation: tncBreathe 3s ease-in-out infinite;
+    }
+    #tnc-splash .tnc-icon img { width: 84px; height: 84px; display: block; }
+
+    #tnc-splash .tnc-title {
+      font: 600 clamp(25px, 6.5vw, 30px)/1.18 "DM Sans", system-ui, sans-serif;
+      letter-spacing: -.9px; margin: 0 0 12px; color: #f2f7ff;
+    }
+    #tnc-splash .tnc-step {
+      min-height: 44px; max-width: 290px; margin: 0;
+      font-size: 14px; line-height: 1.6; color: #bfc8d7;
+      transition: opacity .14s ease;
+    }
+    #tnc-splash .tnc-step.swap { opacity: 0; }
+
+    #tnc-splash .tnc-dots {
+      display: flex; gap: 8px; width: 100%; margin-top: 24px;
+      padding: 16px 12px 14px; border: 1px solid #ffffff12; border-radius: 18px; background: #ffffff05;
+    }
+    #tnc-splash .tnc-dots i {
+      position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;
+      font-style: normal; color: #a6b0c0; font-size: 10px; line-height: 1.4; letter-spacing: .15px;
+    }
+    #tnc-splash .tnc-dots i::before {
+      content: ""; height: 3px; width: 100%; max-width: 68px; border-radius: 4px; background: #ffffff19;
+    }
+    #tnc-splash .tnc-dots i::after {
+      content: ""; position: absolute; top: 0; width: 100%; max-width: 68px; height: 3px; border-radius: 4px;
+      background: #b5eae6; transform: scaleX(0); transform-origin: left; transition: transform .35s ease;
+    }
+    #tnc-splash .tnc-dots i.done { color: #c2e6de; }
+    #tnc-splash .tnc-dots i.done::after { transform: scaleX(1); }
+    #tnc-splash .tnc-dots i.now { color: #eaf2ff; }
+    #tnc-splash .tnc-dots i.now::after { background: #b9d3ff; transform: scaleX(.65); animation: tncPulse 1.8s ease-in-out infinite; }
+
+    #tnc-splash .tnc-foot {
+      position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 24px; right: 24px;
+      color: #aeb9cb; font-size: 11px; line-height: 1.5; letter-spacing: .25px;
+      animation: tncFade .5s ease .2s both;
     }
 
-    #tnc-splash .tnc-ring-svg {
-      position: absolute;
-      inset: calc(var(--logo-size) * -0.08);
-      width: calc(var(--logo-size) * 1.16);
-      height: calc(var(--logo-size) * 1.16);
-      transform: rotate(-90deg);
-      opacity: 0;
-      animation: tncFadeIn .6s var(--ease-out-expo) .5s forwards;
-      pointer-events: none;
-    }
-    #tnc-splash .tnc-ring-svg .tnc-track { stroke: rgba(255,255,255,.12); }
-    #tnc-splash .tnc-ring-svg .tnc-arc {
-      stroke: rgba(255,255,255,.92); stroke-linecap: round;
-      stroke-dasharray: 295; stroke-dashoffset: 295;
-      filter: drop-shadow(0 0 6px rgba(200,230,255,.35));
-      animation: tncProgressSweep 2.4s var(--ease-in-out) .7s infinite;
-    }
+    @keyframes tncRise    { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes tncFade    { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes tncOrbit   { to { transform: rotate(360deg); } }
+    @keyframes tncBreathe { 50% { transform: translateY(-4px); } }
+    @keyframes tncPulse   { 50% { opacity: .45; } }
 
-    #tnc-splash .tnc-orbit {
-      position: absolute; inset: 0;
-      animation: tncOrbitSpin 28s linear 1.2s infinite;
-      pointer-events: none;
-    }
-    #tnc-splash .tnc-orbit span {
-      position: absolute; top: 50%; left: 50%;
-      width: 5px; height: 5px; border-radius: 50%;
-      background: rgba(255,255,255,.85);
-      margin: -2.5px 0 0 -2.5px;
-      box-shadow: 0 0 10px rgba(200,230,255,.6);
-      opacity: 0;
-      animation: tncParticleIn .5s var(--ease-out-expo) forwards;
-    }
-    #tnc-splash .tnc-orbit span:nth-child(1) { transform: rotate(  0deg) translate(calc(var(--logo-size) * .72)); animation-delay: .50s; }
-    #tnc-splash .tnc-orbit span:nth-child(2) { transform: rotate( 60deg) translate(calc(var(--logo-size) * .72)); animation-delay: .58s; }
-    #tnc-splash .tnc-orbit span:nth-child(3) { transform: rotate(120deg) translate(calc(var(--logo-size) * .72)); animation-delay: .66s; }
-    #tnc-splash .tnc-orbit span:nth-child(4) { transform: rotate(180deg) translate(calc(var(--logo-size) * .72)); animation-delay: .74s; }
-    #tnc-splash .tnc-orbit span:nth-child(5) { transform: rotate(240deg) translate(calc(var(--logo-size) * .72)); animation-delay: .82s; }
-    #tnc-splash .tnc-orbit span:nth-child(6) { transform: rotate(300deg) translate(calc(var(--logo-size) * .72)); animation-delay: .90s; }
-
-    #tnc-splash .tnc-brand {
-      font-family: 'Syne', sans-serif; font-weight: 700;
-      font-size: clamp(24px, 7vw, 42px);
-      letter-spacing: -.01em; line-height: 1.1; color: #fff;
-      display: flex; gap: .35em; flex-wrap: wrap; justify-content: center;
-      margin: 0;
-    }
-    #tnc-splash .tnc-brand .tnc-w {
-      display: inline-block;
-      clip-path: inset(0 100% 0 0);
-      transform: translateY(10px); opacity: 0;
-      animation: tncWordReveal 700ms var(--ease-out-expo) forwards;
-    }
-    #tnc-splash .tnc-brand .tnc-w1 { animation-delay: .62s; }
-    #tnc-splash .tnc-brand .tnc-w2 { animation-delay: .76s; }
-    #tnc-splash .tnc-brand .tnc-w3 { animation-delay: .90s; }
-
-    #tnc-splash .tnc-tagline {
-      font-family: 'DM Sans', sans-serif;
-      font-size: clamp(11px, 3vw, 13px);
-      text-transform: uppercase; letter-spacing: clamp(.14em, 1.2vw, .32em); font-weight: 500;
-      color: rgba(255,255,255,.78);
-      opacity: 0; transform: translateY(8px);
-      animation: tncSlideFade .55s var(--ease-out-expo) 1s forwards;
-      margin: 0;
-      max-width: 100%;
-    }
-    #tnc-splash .tnc-divider {
-      width: clamp(36px, 10vw, 48px); height: 2px;
-      background: rgba(255,255,255,.6); border-radius: 2px;
-      transform-origin: center; transform: scaleX(0);
-      animation: tncDrawLine .55s var(--ease-out-expo) 1.15s forwards;
-    }
-    #tnc-splash .tnc-pills {
-      display: flex; flex-wrap: wrap; gap: clamp(6px,1.6vw,10px);
-      justify-content: center; margin-top: clamp(2px,.6vh,6px);
-      max-width: min(100%, 380px);
-    }
-    #tnc-splash .tnc-pill {
-      padding: 7px clamp(12px,3vw,16px);
-      border-radius: 999px;
-      font-size: clamp(11.5px, 2.8vw, 13px); font-weight: 600; letter-spacing: .03em;
-      color: rgba(255,255,255,.95);
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.28);
-      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      white-space: nowrap;
-      opacity: 0; transform: translateY(12px) scale(.92);
-      animation: tncPillIn .55s var(--ease-out-back) forwards;
-    }
-    #tnc-splash .tnc-pill:nth-child(1) { animation-delay: 1.25s; }
-    #tnc-splash .tnc-pill:nth-child(2) { animation-delay: 1.32s; }
-    #tnc-splash .tnc-pill:nth-child(3) { animation-delay: 1.39s; }
-    #tnc-splash .tnc-pill:nth-child(4) { animation-delay: 1.46s; }
-
-    #tnc-splash .tnc-footer {
-      align-self: center;
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
-      opacity: 0;
-      margin-top: clamp(4px, 1.8vh, 18px);
-      animation: tncSlideFade .5s var(--ease-out-expo) 1.5s forwards;
-    }
-    #tnc-splash .tnc-loader {
-      position: relative;
-      width: clamp(120px, 40vw, 160px);
-      height: 3px; border-radius: 3px;
-      background: rgba(255,255,255,.12); overflow: hidden;
-    }
-    #tnc-splash .tnc-loader::after {
-      content: ""; position: absolute; top: 0; left: 0;
-      width: 40%; height: 100%; border-radius: 3px;
-      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.9), rgba(255,255,255,0));
-      animation: tncLoaderSlide 1.4s ease-in-out infinite;
-    }
-    #tnc-splash .tnc-loading-text {
-      font-size: clamp(11.5px, 2.8vw, 13px);
-      color: rgba(255,255,255,.68); letter-spacing: .04em;
-    }
-
-    @keyframes tncDrift          { from { transform: translate(0,0)    scale(1); }   to { transform: translate(6%,-4%) scale(1.08); } }
-    @keyframes tncLogoEnter      { 0% { transform: scale(.7); opacity: 0; filter: blur(18px); } 60% { transform: scale(1.04); opacity: 1; filter: blur(0); } 100% { transform: scale(1); opacity: 1; filter: blur(0); } }
-    @keyframes tncLogoBreath     { 0%,100% { transform: scale(1); } 50% { transform: scale(1.025); } }
-    @keyframes tncImgReveal      { 0% { opacity: 0; transform: scale(.92); filter: blur(6px); } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
-    @keyframes tncShimmer        { 0% { left: -70%; } 60% { left: 120%; } 100% { left: 120%; } }
-    @keyframes tncFadeIn         { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes tncProgressSweep  { 0% { stroke-dashoffset: 295; transform: rotate(0deg); transform-origin: center; } 50% { stroke-dashoffset: 60; } 100% { stroke-dashoffset: 295; transform: rotate(360deg); transform-origin: center; } }
-    @keyframes tncOrbitSpin      { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    @keyframes tncParticleIn     { 0% { opacity: 0; } 60% { opacity: .9; } 100% { opacity: .55; } }
-    @keyframes tncWordReveal     { 0% { clip-path: inset(0 100% 0 0); transform: translateY(10px); opacity: 0; } 60% { opacity: 1; } 100% { clip-path: inset(0 0 0 0); transform: translateY(0); opacity: 1; } }
-    @keyframes tncSlideFade      { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes tncDrawLine       { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @keyframes tncPillIn         { from { opacity: 0; transform: translateY(12px) scale(.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    @keyframes tncLoaderSlide    { 0% { transform: translateX(-120%); } 100% { transform: translateX(360%); } }
-
-    /* Tablet / desktop — more generous sizing, wider stage */
-    @media (min-width: 720px) {
-      #tnc-splash { --logo-size: clamp(170px, 18vw, 230px); }
-      #tnc-splash .tnc-stage { width: min(100%, 760px); padding-inline: 48px; }
-      #tnc-splash .tnc-brand { font-size: clamp(32px, 3.4vw, 44px); }
-      #tnc-splash .tnc-tagline { font-size: 14px; }
-      #tnc-splash .tnc-hero { gap: clamp(20px, 2.8vh, 30px); }
-    }
-    /* Large desktop — even more breathing room */
-    @media (min-width: 1200px) {
-      #tnc-splash { --logo-size: clamp(190px, 15vw, 245px); }
-      #tnc-splash .tnc-stage { width: min(100%, 820px); }
-      #tnc-splash .tnc-brand { white-space: nowrap; }
-    }
-    /* Short landscape PHONES only (not laptops) — side-by-side compact */
-    @media (max-height: 520px) and (max-width: 900px) and (orientation: landscape) {
-      #tnc-splash { --logo-size: clamp(86px, 26vh, 130px); }
-      #tnc-splash .tnc-stage {
-        justify-content: center;
-        gap: 12px;
-        padding: 12px 24px;
-        text-align: left;
-      }
-      #tnc-splash .tnc-hero { flex-direction: row; align-items: center; gap: 20px; }
-      #tnc-splash .tnc-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
-      #tnc-splash .tnc-brand { justify-content: flex-start; font-size: clamp(22px, 5vh, 32px); }
-      #tnc-splash .tnc-tagline { font-size: 11px; letter-spacing: .18em; }
-      #tnc-splash .tnc-pills { justify-content: flex-start; }
-      #tnc-splash .tnc-footer { margin-top: 0; }
-    }
-    @media (max-width: 360px) {
-      #tnc-splash { --logo-size: 110px; }
-      #tnc-splash .tnc-stage { gap: 14px; }
-      #tnc-splash .tnc-brand { font-size: 22px; }
-      #tnc-splash .tnc-tagline { letter-spacing: .24em; }
-      #tnc-splash .tnc-pill { padding: 6px 10px; font-size: 10.5px; }
+    @media (min-width: 640px) { #tnc-splash .tnc-brandbar { top: 36px; } }
+    @media (max-height: 560px) {
+      #tnc-splash { justify-content: flex-start; padding-top: 70px; overflow: auto; }
+      #tnc-splash .tnc-mark { width: 96px; height: 96px; margin-bottom: 16px; }
+      #tnc-splash .tnc-icon { width: 64px; height: 64px; border-radius: 22px; }
+      #tnc-splash .tnc-icon img { width: 60px; height: 60px; }
+      #tnc-splash .tnc-kicker { margin-bottom: 14px; }
+      #tnc-splash .tnc-dots { margin-top: 12px; }
+      #tnc-splash .tnc-foot { position: static; margin-top: 28px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      #tnc-splash *, #tnc-splash *::before, #tnc-splash *::after {
-        animation-duration: .001ms !important; animation-iteration-count: 1 !important;
-      }
-      #tnc-splash .tnc-brand .tnc-w,
-      #tnc-splash .tnc-tagline,
-      #tnc-splash .tnc-pill,
-      #tnc-splash .tnc-footer { opacity: 1 !important; transform: none !important; clip-path: none !important; }
-      #tnc-splash .tnc-divider { transform: scaleX(1) !important; }
+      #tnc-splash, #tnc-splash *, #tnc-splash *::before, #tnc-splash *::after { animation: none !important; transition: none !important; }
     }
   </style>
   <link rel="stylesheet" href="/assets/css/enquiry.css?v=6dcac2fe">
 </head>
 <body class="home-page">
 
-<!-- ── SPLASH OVERLAY (auto-dismisses after entrance) ── -->
-<div id="tnc-splash" role="status" aria-live="polite" aria-label="Loading Newtown Classes">
-  <div class="tnc-stage">
-    <div></div>
-    <div class="tnc-hero">
-      <div class="tnc-logo-stack">
-        <svg class="tnc-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
-          <circle class="tnc-track" cx="50" cy="50" r="47" fill="none" stroke-width="1.4"/>
-          <circle class="tnc-arc"   cx="50" cy="50" r="47" fill="none" stroke-width="1.6"/>
-        </svg>
-        <div class="tnc-orbit" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
-        <div class="tnc-logo-tile">
-          <img src="/assets/img/logo-mark.png" alt="The Newtown Classes">
-        </div>
-      </div>
-      <div class="tnc-copy">
-        <h1 class="tnc-brand" aria-label="The Newtown Classes">
-          <span class="tnc-w tnc-w1">The</span><span class="tnc-w tnc-w2">Newtown</span><span class="tnc-w tnc-w3">Classes</span>
-        </h1>
-        <p class="tnc-tagline">Dream &middot; Prepare &middot; Achieve</p>
-        <span class="tnc-divider" aria-hidden="true"></span>
-        <div class="tnc-pills" role="list">
-          <span class="tnc-pill" role="listitem">Class 7&ndash;12</span>
-          <span class="tnc-pill" role="listitem">Foundation</span>
-          <span class="tnc-pill" role="listitem">JEE</span>
-          <span class="tnc-pill" role="listitem">NEET</span>
-        </div>
-      </div>
+<!-- ── SPLASH OVERLAY (first visit per session; dismisses as soon as the page is ready) ── -->
+<div id="tnc-splash" role="status" aria-live="polite" aria-label="Loading The NewTown Classes">
+  <div class="tnc-brandbar" aria-hidden="true"><i>✦</i>THE NEWTOWN CLASSES</div>
+  <div class="tnc-in">
+    <p class="tnc-kicker">Class 7–12 · Olympiad · JEE · NEET</p>
+    <div class="tnc-mark" aria-hidden="true">
+      <div class="tnc-sat"></div>
+      <div class="tnc-icon"><img src="/assets/img/logo-mark-192.webp" width="84" height="84" alt="" decoding="async" fetchpriority="high"></div>
     </div>
-    <div class="tnc-footer">
-      <div class="tnc-loader" aria-hidden="true"></div>
-      <div class="tnc-loading-text">Loading your portal&hellip;</div>
+    <h1 class="tnc-title">Dream. Prepare. Achieve.</h1>
+    <p class="tnc-step" id="tnc-step">Opening your classroom…</p>
+    <div class="tnc-dots" aria-hidden="true">
+      <i class="now">Opening</i><i>Courses</i><i>Ready</i>
     </div>
   </div>
+  <div class="tnc-foot">Newtown, Kolkata</div>
 </div>
 
 <script>
@@ -438,35 +285,50 @@
     if (!splash) return;
     try {
       if (sessionStorage.getItem('tnc-splash-seen') === '1') {
-        document.body && document.body.classList.add('loaded');
-        splash.parentNode && splash.parentNode.removeChild(splash);
+        document.body.classList.add('loaded');
+        splash.parentNode.removeChild(splash);
         return;
       }
     } catch (e) {}
     document.documentElement.classList.add('tnc-splash-on');
+    // The splash covers the page, so the page's own fade-in can run underneath.
+    document.body.classList.add('loaded');
+
+    var t0 = Date.now();
     var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // Hold long enough for entrance (~2s) + ~1.8s settled read time of the brand, tagline, pills, loading text
-    var holdMs = reduced ? 900 : 1900;
-    var fadeMs = 550;
-    function dismiss() {
-      splash.classList.add('tnc-hide');
-      setTimeout(function () {
-        document.documentElement.classList.remove('tnc-splash-on');
-        document.body && document.body.classList.add('loaded');
-        splash.parentNode && splash.parentNode.removeChild(splash);
-        try { sessionStorage.setItem('tnc-splash-seen', '1'); } catch (e) {}
-      }, fadeMs);
+    var MIN_MS = reduced ? 500 : 1300;   // long enough to read, short enough not to annoy
+    var MAX_MS = 3200;                   // never hold the site back on a slow network
+    var dots = splash.querySelectorAll('.tnc-dots i');
+    var step = document.getElementById('tnc-step');
+    var stage = 0, gone = false;
+
+    function setStage(n, text) {
+      if (n <= stage) return;
+      stage = n;
+      for (var i = 0; i < dots.length; i++) dots[i].className = i < n ? 'done' : (i === n ? 'now' : '');
+      step.classList.add('swap');
+      setTimeout(function () { step.textContent = text; step.classList.remove('swap'); }, 140);
     }
-    var loaded = false;
-    window.addEventListener('load', function () {
-      loaded = true;
-      var elapsed = (performance && performance.now) ? performance.now() : 0;
-      setTimeout(dismiss, Math.max(200, holdMs - elapsed));
-    });
-    setTimeout(function () { if (!loaded) dismiss(); }, holdMs + 2000);
-    setTimeout(function () {
-      splash.addEventListener('click', dismiss, { once: true });
-    }, 700);
+    function dismiss() {
+      if (gone) return;
+      gone = true;
+      setStage(3, 'Welcome!');
+      setTimeout(function () {
+        splash.classList.add('tnc-hide');
+        document.documentElement.classList.remove('tnc-splash-on');
+        try { sessionStorage.setItem('tnc-splash-seen', '1'); } catch (e) {}
+        setTimeout(function () { splash.parentNode && splash.parentNode.removeChild(splash); }, 420);
+      }, reduced ? 0 : 320);
+    }
+    function whenReady() {
+      setStage(1, 'Loading courses, results & toppers…');
+      setTimeout(dismiss, Math.max(0, MIN_MS - (Date.now() - t0)));
+    }
+    // The page is usable at DOMContentLoaded — don't wait for every image below the fold.
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', whenReady, { once: true });
+    else whenReady();
+    setTimeout(dismiss, MAX_MS);
+    setTimeout(function () { splash.addEventListener('click', dismiss, { once: true }); }, 500);
   })();
 </script>
 
