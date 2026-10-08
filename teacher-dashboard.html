@@ -3957,7 +3957,8 @@
       scriptPdfUrl: s('scriptPdfUrl'), pageUrls: (f.pageUrls?.arrayValue?.values || []).map(v => v.stringValue),
       aiReport: s('aiReport'), finalReport: s('finalReport'), integrity: s('integrity'), integrityLevel: s('integrityLevel') || 'none',
       aiScore: num('aiScore'), aiMax: num('aiMax'), checkedAt: s('checkedAt'), error: s('error'),
-      approvedByName: s('approvedByName'), approvedAt: s('approvedAt')
+      approvedByName: s('approvedByName'), approvedAt: s('approvedAt'),
+      aiModel: s('aiModel'), aiUsage: s('aiUsage')
     };
   }
   const OTA_LEVEL = { none: ['ok', 'No issues found'], low: ['', 'Minor notes'], medium: ['warn', 'Needs a look'], high: ['bad', 'Suspicious'] };
@@ -4037,6 +4038,12 @@
     const flags = (integrity.flags || []).map(f => `<li><b>${otEsc(f.type)}</b> <span class="ots-chip ${f.severity === 'high' ? 'bad' : f.severity === 'medium' ? 'warn' : ''}">${otEsc(f.severity)}</span> — ${otEsc(f.detail)}${f.url ? ` <a href="${otEsc(f.url)}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}</li>`).join('');
     const sources = ((integrity.web && integrity.web.sources) || []).map(s => `<li><a href="${otEsc(s.url)}" target="_blank" rel="noopener noreferrer">${otEsc(s.title || s.url)}</a></li>`).join('');
     const t = integrity.timing || {};
+    let usage = {}; try { usage = JSON.parse(r.aiUsage || '{}'); } catch (_) {}
+    const k = n => n >= 1000 ? Math.round(n / 1000) + 'k' : String(n || 0);
+    const mu = usage.marking || {};
+    const aiLine = r.aiModel ? `Checked by <b>${otEsc(r.aiModel)}</b>${mu.input ? ` · ${k(mu.input)} tokens in / ${k(mu.output)} out` : ''}` +
+      (usage.web && usage.web.model ? ` · web check ${otEsc(usage.web.model)}${usage.web.searches ? ` (${usage.web.searches} searches)` : ''}` : '') +
+      (mu.fallbackReason ? ` · <span style="color:#b45309">OpenAI failed, Gemini used: ${otEsc(mu.fallbackReason)}</span>` : '') : '';
     let keyLinks = '';
     try {
       const k = await fsGet(`offlineTestKeys/${r.testId}`); const f = k.fields || {};
@@ -4047,7 +4054,8 @@
       <button class="btn btn-outline" style="font-size:.85rem;margin-bottom:.8rem;" onclick="otLoadApprovals()">← All scripts</button>
       <div class="card-title">${otEsc(r.studentName)} · ${otEsc(r.testName)}</div>
       <p class="card-sub">Class ${otEsc(r.studentClass)} ${otEsc(r.subject)} · ${otEsc(r.chapter)} · ${t.usedMin != null ? `wrote for ${t.usedMin} of ${t.durationMin} min` : ''}${r.lateByMin > 15 ? ` · <b style="color:#b91c1c">${r.lateByMin} min late</b>` : ''}<br>
-        <a href="${otEsc(r.scriptPdfUrl)}" target="_blank" rel="noopener">📄 Student's answer script (PDF) ↗</a>${keyLinks}</p>
+        <a href="${otEsc(r.scriptPdfUrl)}" target="_blank" rel="noopener">📄 Student's answer script (PDF) ↗</a>${keyLinks}
+        ${aiLine ? `<br><span style="font-size:12px;color:#64748b;">${aiLine}</span>` : ''}</p>
       <div class="ota-integrity ${lv}">
         <h4>🛡️ Integrity check: ${otEsc((OTA_LEVEL[lv] || OTA_LEVEL.none)[1])}</h4>
         ${flags ? `<ul>${flags}</ul>` : '<p style="margin:0;font-size:13px;">No signs of copying, web matches, pre-written scripts or duplicate files.</p>'}

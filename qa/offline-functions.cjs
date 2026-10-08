@@ -12,7 +12,8 @@ process.env.URL = 'https://example.test';
 
 // ── In-memory stand-in for ./_google ──
 const db = new Map();
-const calls = { gemini: [], triggers: [] };
+const calls = { gemini: [], triggers: [], openai: [] };
+let openaiMode = [];
 let geminiMode = 'ok';
 const pdfWith = created => Buffer.from(`%PDF-1.4\n1 0 obj << /Producer (Fixture Scanner) /CreationDate (D:${created}) >> endobj\n%%EOF`, 'latin1');
 const files = {
@@ -48,6 +49,21 @@ const stub = {
     if (p.endsWith(':runQuery')) {
       const hash = body.structuredQuery.where.fieldFilter.value.stringValue;
       return { status: 200, body: [...db.entries()].filter(([k, v]) => k.startsWith('offlineReports/') && v.scriptHash === hash).map(([, v]) => ({ document: { fields: v } })) };
+    }
+    if (host === 'api.openai.com') {
+      calls.openai.push({ p, body, headers });
+      const mode = openaiMode.shift() || 'ok';
+      if (mode === 'missing-model') return { status: 404, body: { error: { code: 'model_not_found', message: `The model \`${body.model}\` does not exist` } } };
+      if (mode === 'no-credit') return { status: 429, body: { error: { code: 'insufficient_quota', message: 'You exceeded your current quota, please check your plan and billing details.' } } };
+      if (mode === 'error') return { status: 400, body: { error: { message: 'Something unexpected' } } };
+      if (body.tools) return { status: 200, body: { model: body.model, status: 'completed', usage: { input_tokens: 9000, output_tokens: 700 }, output: [
+        { type: 'web_search_call', action: { type: 'search', sources: [{ url: 'https://toppr.example/q1', title: 'Toppr' }] } },
+        { type: 'message', content: [{ type: 'output_text', text: '{"webMatches":[],"aiStyle":{"likely":false,"detail":""},"summary":"No copying found."}', annotations: [] }] }
+      ] } };
+      return { status: 200, body: { model: body.model, status: 'completed', usage: { input_tokens: 48000, output_tokens: 21000, output_tokens_details: { reasoning_tokens: 12000 } }, output: [
+        { type: 'reasoning', summary: [] },
+        { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(aiReport), annotations: [] }] }
+      ] } };
     }
     if (host === 'generativelanguage.googleapis.com') {
       calls.gemini.push({ p, body });
@@ -160,4 +176,74 @@ const call = async (body) => {
   assert.equal(db.get('offlineReports/otsphy1__stu1').status, 'failed');
   assert(/AI check failed/.test(db.get('offlineReports/otsphy1__stu1').error));
   console.log('✓ approved scripts never re-graded; teacher-only re-check; AI failures saved as "failed" for a retry');
+
+  // ── OpenAI (ChatGPT models) as the checker ──
+  process.env.OPENAI_API_KEY = 'sk-fixture';
+  geminiMode = 'ok';
+  const ok3 = 'https://ucarecdn.com/33333333-3333-3333-3333-333333333333/';
+  files[ok3] = pdfWith('20991231000000Z');
+  db.set('students/stu3', { name: 'Isha', studentId: 'NTC003', class: '11', board: 'CBSE' });
+  await call({ idToken: 'uid:stu3', action: 'start', testId: 'otsphy1' });
+  await call({ idToken: 'uid:stu3', action: 'submit', testId: 'otsphy1', scriptPdfUrl: ok3, pageUrls: [pg] });
+  const trig3 = calls.triggers[calls.triggers.length - 1];
+  const regrade3 = async () => {
+    db.set('offlineReports/otsphy1__stu3', { ...db.get('offlineReports/otsphy1__stu3'), status: 'checking' });
+    await grader.handler({ body: JSON.stringify(trig3) });
+    return db.get('offlineReports/otsphy1__stu3');
+  };
+
+  calls.openai = []; calls.gemini = []; openaiMode = ['missing-model'];
+  let r3 = await regrade3();
+  assert.equal(r3.status, 'ai_checked', r3.error);
+  assert.equal(calls.gemini.length, 0, 'Gemini not used when OpenAI works');
+  const mark = calls.openai.filter(c => !c.body.tools);
+  assert.deepEqual(mark.map(c => c.body.model), ['gpt-6.1-sol', 'gpt-6-astra'], 'missing model → next model');
+  const b = mark[1].body;
+  assert.equal(mark[1].headers.Authorization, 'Bearer sk-fixture');
+  assert.equal(b.store, false, 'scripts not stored at OpenAI');
+  assert.equal(b.reasoning.effort, 'medium');
+  assert.equal(b.text.format.type, 'json_schema'); assert.equal(b.text.format.strict, true);
+  const walk = (sch, path) => {
+    if (sch.type === 'object') {
+      assert.equal(sch.additionalProperties, false, path);
+      assert.deepEqual([...sch.required].sort(), Object.keys(sch.properties).sort(), path + ' requires every key');
+      Object.entries(sch.properties).forEach(([k, v]) => walk(v, path + '.' + k));
+    } else if (sch.type === 'array') walk(sch.items, path + '[]');
+  };
+  walk(b.text.format.schema, 'report');
+  const content = b.input[0].content;
+  assert.equal(content.filter(c => c.type === 'input_file' && /^data:application\/pdf;base64,/.test(c.file_data)).length, 2, 'question paper + answer key as PDFs');
+  assert.equal(content.filter(c => c.type === 'input_image' && c.detail === 'high').length, 1, 'script pages as high-detail images');
+  assert(/senior examiner/.test(b.instructions), 'marking instructions sent');
+  const web3 = calls.openai.find(c => c.body.tools);
+  assert.equal(web3.body.tools[0].type, 'web_search');
+  assert.deepEqual(web3.body.include, ['web_search_call.action.sources']);
+  assert.equal(web3.body.model, 'gpt-6-luna');
+  assert.equal(r3.aiModel, 'gpt-6-astra');
+  const usage = JSON.parse(r3.aiUsage);
+  assert.equal(usage.marking.input, 48000); assert.equal(usage.marking.output, 21000); assert.equal(usage.marking.reasoning, 12000);
+  assert.equal(usage.web.model, 'gpt-6-luna'); assert.equal(usage.web.searches, 1);
+  assert.equal(JSON.parse(r3.integrity).web.sources[0].url, 'https://toppr.example/q1');
+  assert.equal(JSON.parse(r3.finalReport).totalAwarded, 3.5, 'same report normalisation for OpenAI');
+  console.log('✓ OpenAI: strict report schema, PDFs + page images, no storage, model fallback, web search sources, token usage saved');
+
+  calls.openai = []; calls.gemini = []; openaiMode = ['no-credit'];
+  r3 = await regrade3();
+  assert.equal(r3.status, 'failed');
+  assert(/no credit left/.test(r3.error), r3.error);
+  assert.equal(calls.gemini.filter(c => !c.body.tools).length, 0, 'no silent switch to Gemini when OpenAI credit runs out');
+  console.log('✓ OpenAI out of credit → clear "add credit" error for the teacher, no silent switch');
+
+  calls.openai = []; calls.gemini = []; openaiMode = ['error'];
+  r3 = await regrade3();
+  assert.equal(r3.status, 'ai_checked', r3.error);
+  assert(/^gemini/.test(r3.aiModel), 'fell back to Gemini');
+  assert(/Something unexpected/.test(JSON.parse(r3.aiUsage).marking.fallbackReason));
+  console.log('✓ other OpenAI errors → Gemini checks the script instead and the reason is recorded');
+
+  process.env.AI_GRADER = 'gemini'; calls.openai = []; calls.gemini = [];
+  r3 = await regrade3();
+  assert.equal(calls.openai.length, 0, 'AI_GRADER=gemini forces Gemini');
+  delete process.env.AI_GRADER;
+  console.log('✓ AI_GRADER switch');
 })().catch(e => { console.error(e); process.exit(1); });
