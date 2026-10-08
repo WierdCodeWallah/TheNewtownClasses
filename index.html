@@ -129,9 +129,9 @@
       padding-top: max(72px, env(safe-area-inset-top));
       padding-bottom: max(64px, env(safe-area-inset-bottom));
       background:
-        radial-gradient(ellipse at 15% 5%, #52699070, transparent 48%),
-        radial-gradient(ellipse at 90% 85%, #29726a35, transparent 55%),
-        #222c3c;
+        radial-gradient(ellipse at 15% 5%, #2563eb55, transparent 50%),
+        radial-gradient(ellipse at 90% 85%, #0ea5e930, transparent 55%),
+        #071a45;
       color: #f2f7ff; text-align: center;
       font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
@@ -158,18 +158,18 @@
     #tnc-splash .tnc-brandbar {
       position: absolute; top: max(28px, env(safe-area-inset-top)); left: 24px; right: 24px;
       display: flex; align-items: center; justify-content: center; gap: 10px;
-      color: #d4dce9; font-size: 10px; line-height: 1.5; letter-spacing: 1.7px; font-weight: 600;
+      color: #d6e2f5; font-size: 10px; line-height: 1.5; letter-spacing: 1.7px; font-weight: 600;
       animation: tncFade .5s ease .1s both;
     }
     #tnc-splash .tnc-brandbar i {
       display: grid; place-items: center; width: 26px; height: 26px;
-      border: 1px solid #b9d3ff33; border-radius: 9px; background: #a2c0f510;
-      color: #c6dbff; font-style: normal; font-size: 15px; letter-spacing: 0;
+      border: 1px solid #93c5fd33; border-radius: 9px; background: #60a5fa14;
+      color: #bfdbfe; font-style: normal; font-size: 15px; letter-spacing: 0;
     }
 
     #tnc-splash .tnc-kicker {
       font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: 2px;
-      text-transform: uppercase; color: #b8c7e0; margin: 0 0 22px;
+      text-transform: uppercase; color: #a9bfe6; margin: 0 0 22px;
     }
 
     #tnc-splash .tnc-mark {
@@ -178,24 +178,24 @@
     }
     #tnc-splash .tnc-mark::before {
       content: ""; position: absolute; inset: 0; border-radius: 50%;
-      border: 1px solid #bad3ff28;
-      background: radial-gradient(circle, #91b6f516, transparent 70%);
+      border: 1px solid #bfdbfe28;
+      background: radial-gradient(circle, #60a5fa18, transparent 70%);
     }
     #tnc-splash .tnc-mark::after {
       content: ""; position: absolute; inset: 0; border-radius: 50%;
-      border: 1px solid transparent; border-top-color: #b9d3ff; border-right-color: #b5eae650;
+      border: 1px solid transparent; border-top-color: #93c5fd; border-right-color: #7dd3fc50;
       animation: tncOrbit 3s linear infinite;
     }
     #tnc-splash .tnc-sat { position: absolute; inset: 0; animation: tncOrbit 3s linear infinite; }
     #tnc-splash .tnc-sat::after {
       content: ""; position: absolute; left: calc(50% - 3px); top: -3px;
       width: 6px; height: 6px; border-radius: 50%;
-      background: #c7f2e7; box-shadow: 0 0 14px #b5eae67a;
+      background: #7dd3fc; box-shadow: 0 0 14px #38bdf87a;
     }
     #tnc-splash .tnc-icon {
       display: grid; place-items: center; width: 88px; height: 88px; border-radius: 29px;
-      background: #fff; border: 1px solid #c5daff70; overflow: hidden;
-      box-shadow: 0 16px 48px #060e1c55, 0 0 50px #a3c1f51f;
+      background: #fff; border: 1px solid #bfdbfe70; overflow: hidden;
+      box-shadow: 0 16px 48px #020a1f66, 0 0 50px #60a5fa26;
       animation: tncBreathe 3s ease-in-out infinite;
     }
     #tnc-splash .tnc-icon img { width: 84px; height: 84px; display: block; }
@@ -206,7 +206,7 @@
     }
     #tnc-splash .tnc-step {
       min-height: 44px; max-width: 290px; margin: 0;
-      font-size: 14px; line-height: 1.6; color: #bfc8d7;
+      font-size: 14px; line-height: 1.6; color: #c7d6f0;
       transition: opacity .14s ease;
     }
     #tnc-splash .tnc-step.swap { opacity: 0; }
@@ -217,23 +217,23 @@
     }
     #tnc-splash .tnc-dots i {
       position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;
-      font-style: normal; color: #a6b0c0; font-size: 10px; line-height: 1.4; letter-spacing: .15px;
+      font-style: normal; color: #9fb3d6; font-size: 10px; line-height: 1.4; letter-spacing: .15px;
     }
     #tnc-splash .tnc-dots i::before {
       content: ""; height: 3px; width: 100%; max-width: 68px; border-radius: 4px; background: #ffffff19;
     }
     #tnc-splash .tnc-dots i::after {
       content: ""; position: absolute; top: 0; width: 100%; max-width: 68px; height: 3px; border-radius: 4px;
-      background: #b5eae6; transform: scaleX(0); transform-origin: left; transition: transform .35s ease;
+      background: #7dd3fc; transform: scaleX(0); transform-origin: left; transition: transform .35s ease;
     }
-    #tnc-splash .tnc-dots i.done { color: #c2e6de; }
+    #tnc-splash .tnc-dots i.done { color: #bae6fd; }
     #tnc-splash .tnc-dots i.done::after { transform: scaleX(1); }
     #tnc-splash .tnc-dots i.now { color: #eaf2ff; }
-    #tnc-splash .tnc-dots i.now::after { background: #b9d3ff; transform: scaleX(.65); animation: tncPulse 1.8s ease-in-out infinite; }
+    #tnc-splash .tnc-dots i.now::after { background: #93c5fd; transform: scaleX(.65); animation: tncPulse 1.8s ease-in-out infinite; }
 
     #tnc-splash .tnc-foot {
       position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 24px; right: 24px;
-      color: #aeb9cb; font-size: 11px; line-height: 1.5; letter-spacing: .25px;
+      color: #9fb3d6; font-size: 11px; line-height: 1.5; letter-spacing: .25px;
       animation: tncFade .5s ease .2s both;
     }
 
