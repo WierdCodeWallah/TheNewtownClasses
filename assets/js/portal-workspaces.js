@@ -58,7 +58,6 @@
         });
       }
       splitList('tab-tests','testListWrap',['Test library','Create test']);
-      splitList('tab-answersheets','subjListWrap',['Assignments','Create assignment']);
       const live=$('tab-liveclasses');const cards=live?Array.from(live.children).filter(el=>el.classList.contains('card')):[];
       if(cards.length===2)PortalUI.tasks(live.id,[{label:'Scheduled classes',element:cards[1],key:'browse'},{label:'Schedule class',element:cards[0],key:'create'}]);
       detailsAround($('negWrong')?.closest('.field-grid')?.parentElement,'Scoring options · negative marking');

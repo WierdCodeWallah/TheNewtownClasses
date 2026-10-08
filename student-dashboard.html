@@ -39,9 +39,8 @@
   <!-- Shared role-based content access helper -->
   <script src="/assets/js/content-access.js?v=f846bf50"></script>
   <!-- Shared AI answer-sheet report renderer -->
-  <script src="/assets/js/answersheet-report.js?v=35a6cdeb"></script>
   <script src="/assets/js/offline-report.js?v=5be933c4"></script>
-  <script src="/assets/js/portal-shell.js?v=44f73bf2"></script>
+  <script src="/assets/js/portal-shell.js?v=07b4a260"></script>
   <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -573,9 +572,6 @@
         <div class="sidebar-item" data-section="results" onclick="switchSection(this,'results')">
           <span class="icon">📊</span> My Results
         </div>
-        <div class="sidebar-item" data-section="answersheet" onclick="switchSection(this,'answersheet');ntcCall('loadAnswerSheetTests');">
-          <span class="icon">🧠</span> Answer-Sheet AI
-        </div>
       </div>
 
       <div class="sidebar-section">
@@ -589,9 +585,6 @@
         <div class="sidebar-heading">Live Classes</div>
         <div class="sidebar-item" data-section="liveclasses" onclick="switchSection(this,'liveclasses');ntcCall('loadStudentClasses');">
           <span class="icon">🔴</span> Live Classes
-        </div>
-        <div class="sidebar-item" data-section="recordings" onclick="switchSection(this,'recordings');ntcCall('loadStudentRecordings');">
-          <span class="icon">📼</span> Recorded Classes
         </div>
       </div>
 
@@ -663,18 +656,6 @@
         </div>
         <div id="lcStudentList">
           <div style="text-align:center;padding:2rem;color:#90a4ae;">Loading classes…</div>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════
-           RECORDED CLASSES SECTION
-      ══════════════════════════════ -->
-      <div id="recordingsSection" style="display:none;">
-        <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem;">
-          <button onclick="ntcCall('loadStudentRecordings')" style="background:none;border:1px solid rgba(0,48,135,.2);color:#003087;padding:.35rem .9rem;border-radius:8px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;">⟳ Refresh</button>
-        </div>
-        <div id="recStudentList">
-          <div style="text-align:center;padding:2rem;color:#90a4ae;">Loading recordings…</div>
         </div>
       </div>
 
@@ -1233,39 +1214,6 @@
           #attendanceSection *, .attn-hero { animation:none !important; }
         }
       </style>
-      <!-- ═══════ ANSWER-SHEET AI CHECKER ═══════ -->
-      <div id="answersheetSection" style="display:none;">
-        <div id="asTestList"><div style="text-align:center;padding:2rem;color:#90a4ae;">Loading…</div></div>
-
-        <!-- Released report view -->
-        <div id="asReportView" style="display:none;">
-          <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem;">
-            <button onclick="asBackToList()" style="padding:.55rem 1.1rem;border:1px solid rgba(0,48,135,.2);background:#fff;color:#003087;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">← Back</button>
-            <button onclick="asPrintReport()" style="padding:.55rem 1.1rem;border:none;background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;">🖨 Save as PDF</button>
-          </div>
-          <div id="asReportContent"></div>
-        </div>
-
-        <!-- Upload modal -->
-        <div id="asUploadModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:1rem;">
-          <div style="background:#fff;border-radius:18px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:1.5rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
-              <h3 style="color:#003087;font-family:'Syne',sans-serif;margin:0;">Upload Answer Sheet</h3>
-              <button onclick="asCloseUpload()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#546e7a;">✕</button>
-            </div>
-            <p id="asUploadFor" style="font-size:.85rem;color:#546e7a;margin-bottom:1rem;"></p>
-            <label style="display:block;border:2px dashed rgba(0,48,135,.25);border-radius:14px;padding:1.4rem;text-align:center;cursor:pointer;color:#003087;font-weight:600;">
-              📷 Tap to add photos of your handwritten answers
-              <input type="file" id="asFiles" accept="image/*" capture="environment" multiple style="display:none;" onchange="asPreviewFiles(this.files)"/>
-            </label>
-            <div style="font-size:.74rem;color:#90a4ae;margin-top:.5rem;">Add clear, well-lit photos — one per page, in order. Max 15 pages.</div>
-            <div id="asPreview" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:.5rem;margin-top:.9rem;"></div>
-            <div id="asUploadMsg" style="font-size:.85rem;margin-top:.7rem;"></div>
-            <button id="asSubmitBtn" onclick="asSubmitAnswerSheet()" style="width:100%;margin-top:1rem;padding:.8rem;border:none;background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;border-radius:12px;font-weight:700;font-size:.95rem;cursor:pointer;font-family:inherit;">Submit for AI Check →</button>
-          </div>
-        </div>
-      </div>
-
       <!-- ═══════ OFFLINE TEST SERIES (pen & paper, AI-checked) ═══════ -->
       <div id="otsSection" style="display:none;">
         <nav class="ots-crumbs" id="otsCrumbs" aria-label="Offline test series navigation"></nav>
@@ -1406,7 +1354,6 @@ const sectionMeta = {
   onlinetest:  { title: 'Online Tests',      desc: 'Auto-graded MCQ tests',             badge: 'badge-mcq', badgeText: 'LIVE', icon: '✏️' },
   offlineseries: { title: 'Offline Test Series', desc: 'Write on paper, upload your answer script, get it checked', badge: 'badge-pdf', badgeText: 'PEN & PAPER', icon: '📄' },
   results:     { title: 'My Test Results',   desc: 'Your scores, progress and next steps.', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
-  recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
   chatbot:     { title: '💬 Ask a Doubt',     desc: 'Ask a question or connect with a teacher', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
   attendance:  { title: '📋 My Attendance',   desc: 'Green marks the days you were present', badge: 'badge-mcq', badgeText: 'ATTENDANCE', icon: '📋' },
 };
@@ -1458,14 +1405,11 @@ function switchSection(el, section) {
   // Toggle views
   closePdfViewer();
   const lcSection  = document.getElementById('liveClassesSection');
-  const recSection = document.getElementById('recordingsSection');
   const cbSection  = document.getElementById('chatbotSection');
   const attSection = document.getElementById('attendanceSection');
-  const asSection  = document.getElementById('answersheetSection');
-  // Attendance + Answer-Sheet AI are their own panels; hide by default and
-  // re-show only in their branches.
+  // Attendance and Offline Test Series are their own panels; hide by default
+  // and re-show only in their branches.
   if (attSection) attSection.style.display = 'none';
-  if (asSection)  asSection.style.display  = 'none';
   const otsSection = document.getElementById('otsSection');
   if (otsSection) otsSection.style.display = 'none';
   // Chatbot uses a special full-viewport "no scroll" mode. Toggle the
@@ -1488,27 +1432,15 @@ function switchSection(el, section) {
     const catSection = document.querySelector('.cat-section');
     if (catSection) catSection.style.display = 'none';
     if (lcSection)  lcSection.style.display  = 'block';
-    if (recSection) recSection.style.display = 'none';
     if (cbSection)  cbSection.style.display  = 'none';
     document.getElementById('pageTitle').textContent = '🔴 Live Classes';
     document.getElementById('pageDesc').textContent  = 'Join your scheduled live sessions';
     document.getElementById('breadcrumbSection').textContent = 'Live Classes';
-  } else if (section === 'recordings') {
-    document.getElementById('testGrid').style.display = 'none';
-    const catSection = document.querySelector('.cat-section');
-    if (catSection) catSection.style.display = 'none';
-    if (lcSection)  lcSection.style.display  = 'none';
-    if (recSection) recSection.style.display = 'block';
-    if (cbSection)  cbSection.style.display  = 'none';
-    document.getElementById('pageTitle').textContent = '📼 Recorded Classes';
-    document.getElementById('pageDesc').textContent  = 'Watch past live classes you missed or want to revise';
-    document.getElementById('breadcrumbSection').textContent = 'Recorded Classes';
   } else if (section === 'chatbot') {
     document.getElementById('testGrid').style.display = 'none';
     const catSection = document.querySelector('.cat-section');
     if (catSection) catSection.style.display = 'none';
     if (lcSection)  lcSection.style.display  = 'none';
-    if (recSection) recSection.style.display = 'none';
     if (cbSection)  cbSection.style.display  = 'flex';
     document.getElementById('pageTitle').textContent = '💬 Ask a Doubt';
     document.getElementById('pageDesc').textContent  = 'Get instant answers, or connect with a teacher if you need more help';
@@ -1518,7 +1450,6 @@ function switchSection(el, section) {
     const catSection = document.querySelector('.cat-section');
     if (catSection) catSection.style.display = 'none';
     if (lcSection)  lcSection.style.display  = 'none';
-    if (recSection) recSection.style.display = 'none';
     if (cbSection)  cbSection.style.display  = 'none';
     if (attSection) {
       attSection.style.display = 'block';
@@ -1535,26 +1466,13 @@ function switchSection(el, section) {
     const catSection = document.querySelector('.cat-section');
     if (catSection) catSection.style.display = 'none';
     if (lcSection)  lcSection.style.display  = 'none';
-    if (recSection) recSection.style.display = 'none';
     if (cbSection)  cbSection.style.display  = 'none';
     if (otsSection) otsSection.style.display = 'block';
     document.getElementById('pageTitle').textContent = 'Offline Test Series';
     document.getElementById('pageDesc').textContent  = 'Pick a subject and chapter, write on paper, then upload your answer script as a PDF.';
     document.getElementById('breadcrumbSection').textContent = 'Offline Test Series';
-  } else if (section === 'answersheet') {
-    document.getElementById('testGrid').style.display = 'none';
-    const catSection = document.querySelector('.cat-section');
-    if (catSection) catSection.style.display = 'none';
-    if (lcSection)  lcSection.style.display  = 'none';
-    if (recSection) recSection.style.display = 'none';
-    if (cbSection)  cbSection.style.display  = 'none';
-    if (asSection)  asSection.style.display  = 'block';
-    document.getElementById('pageTitle').textContent = '🧠 Answer-Sheet AI Checker';
-    document.getElementById('pageDesc').textContent  = 'Upload your handwritten answer sheet and get AI-marked feedback';
-    document.getElementById('breadcrumbSection').textContent = 'Answer-Sheet AI';
   } else {
     if (lcSection)  lcSection.style.display  = 'none';
-    if (recSection) recSection.style.display = 'none';
     if (cbSection)  cbSection.style.display  = 'none';
     document.getElementById('testGrid').style.display = '';
     // Hide category pills for Online Test and My Results (loaded from Firestore, not category-based)
@@ -2496,156 +2414,6 @@ renderCards();
     let _submittingOnlineTest = false;
 
     // ── Called when student clicks an Online Test card ──
-    // ══════════════════════════════════════════════════════════
-    //  ANSWER-SHEET AI CHECKER (subjective) — student side
-    // ══════════════════════════════════════════════════════════
-    const _asBase = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
-    let _asTests = {}, _asUploadId = null, _asFiles = [];
-
-    window.loadAnswerSheetTests = async function(){
-      const wrap = document.getElementById('asTestList');
-      const rv = document.getElementById('asReportView');
-      if (rv) rv.style.display = 'none';
-      if (!wrap) return;
-      wrap.style.display = '';
-      wrap.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">⏳ Loading…</div>';
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch(`${_asBase}/subjectiveTests?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`, { headers: { Authorization: 'Bearer ' + token } });
-        const json = await res.json();
-        const myClass = String(profile.class || '');
-        const tests = (json.documents || []).map(d => { const f = d.fields || {}; return {
-          id: d.name.split('/').pop(),
-          testName: f.testName?.stringValue || 'Answer Sheet',
-          class: f.class?.stringValue || '', subject: f.subject?.stringValue || '',
-          totalMarks: parseFloat(f.totalMarks?.doubleValue || f.totalMarks?.integerValue || '0'),
-          isActive: f.isActive?.booleanValue !== false,
-          activeCycle: parseInt(f.activeCycle?.integerValue || '1')
-        };}).filter(t => t.isActive && (!myClass || String(t.class) === myClass));
-        _asTests = {}; tests.forEach(t => { _asTests[t.id] = t; });
-        if (!tests.length) { wrap.innerHTML = '<div style="text-align:center;padding:2.5rem;color:#90a4ae;">📭 No answer-sheet assignments for your class yet.<br>Please check back soon!</div>'; return; }
-        const cards = await Promise.all(tests.map(async t => {
-          const rid = t.id + '__' + t.activeCycle + '__' + user.uid;
-          let status = 'new';
-          try {
-            const rr = await fetch(`${_asBase}/subjectiveResults/${rid}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } });
-            if (rr.ok) status = 'released';
-            else {
-              const mk = await fetch(`${_asBase}/students/${user.uid}/answerSheetSubs/${t.id}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } });
-              if (mk.ok) status = 'awaiting';
-            }
-          } catch(_) {}
-          return { t, rid, status };
-        }));
-        wrap.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;">' + cards.map(({ t, rid, status }) => {
-          let btn;
-          if (status === 'released') btn = `<button onclick="asViewReport('${rid}')" style="width:100%;padding:.6rem;border:none;border-radius:10px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;">📄 View Report</button>`;
-          else if (status === 'awaiting') btn = `<button disabled style="width:100%;padding:.6rem;border:1px solid #fcd34d;border-radius:10px;background:#fffbeb;color:#b45309;font-weight:700;cursor:default;font-family:inherit;">⏳ Awaiting teacher review</button>`;
-          else btn = `<button onclick="asOpenUpload('${t.id}')" style="width:100%;padding:.6rem;border:none;border-radius:10px;background:linear-gradient(135deg,#003087,#0ea5e9);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;">📷 Upload Answer Sheet</button>`;
-          return `<div style="background:#fff;border:1px solid rgba(0,48,135,.09);border-radius:16px;padding:1.2rem;display:flex;flex-direction:column;gap:.5rem;box-shadow:0 3px 14px rgba(0,48,135,.05);">
-            <span style="font-size:.7rem;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:.04em;">${chatEscape(t.subject || 'Subjective')}</span>
-            <div style="font-weight:700;color:#003087;font-size:1.02rem;line-height:1.3;">${chatEscape(t.testName)}</div>
-            <div style="font-size:.78rem;color:#546e7a;">${t.totalMarks || '?'} marks · handwritten answer sheet</div>
-            <div style="margin-top:auto;">${btn}</div>
-          </div>`;
-        }).join('') + '</div>';
-      } catch(e) { wrap.innerHTML = '<div style="color:#ef4444;text-align:center;padding:2rem;">' + chatEscape(e.message) + '</div>'; }
-    };
-
-    window.asOpenUpload = function(id){
-      _asUploadId = id; _asFiles = [];
-      const t = _asTests[id] || {};
-      document.getElementById('asUploadFor').textContent = (t.testName || '') + ' · ' + (t.subject || '') + ' · ' + (t.totalMarks || 0) + ' marks';
-      document.getElementById('asPreview').innerHTML = '';
-      const msg = document.getElementById('asUploadMsg'); msg.textContent = ''; msg.style.color = '#546e7a';
-      document.getElementById('asFiles').value = '';
-      const btn = document.getElementById('asSubmitBtn'); btn.disabled = false; btn.textContent = 'Submit for AI Check →';
-      document.getElementById('asUploadModal').style.display = 'flex';
-    };
-    window.asCloseUpload = function(){ document.getElementById('asUploadModal').style.display = 'none'; };
-
-    window.asPreviewFiles = function(fileList){
-      Array.from(fileList || []).forEach(f => { if (f && f.type.startsWith('image/') && _asFiles.length < 15) _asFiles.push(f); });
-      const prev = document.getElementById('asPreview');
-      prev.innerHTML = _asFiles.map((f, i) => { const u = URL.createObjectURL(f); return `<div style="position:relative;"><img src="${u}" style="width:100%;height:70px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,48,135,.12);"><button onclick="asRemoveFile(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:.7rem;line-height:1;">✕</button></div>`; }).join('');
-      const msg = document.getElementById('asUploadMsg'); msg.style.color = '#546e7a'; msg.textContent = _asFiles.length + ' page(s) selected.';
-    };
-    window.asRemoveFile = function(i){ _asFiles.splice(i, 1); asPreviewFiles([]); };
-
-    // Compress a photo to a reasonable size before upload (canvas → JPEG).
-    function asCompress(file){
-      return new Promise(resolve => {
-        const url = URL.createObjectURL(file); const img = new Image();
-        img.onload = function(){ URL.revokeObjectURL(url);
-          const MAX = 1600; const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
-          const w = Math.round(img.width * ratio), h = Math.round(img.height * ratio);
-          const c = document.createElement('canvas'); c.width = w; c.height = h;
-          c.getContext('2d').drawImage(img, 0, 0, w, h);
-          c.toBlob(b => resolve(b || file), 'image/jpeg', 0.82);
-        };
-        img.onerror = function(){ resolve(file); };
-        img.src = url;
-      });
-    }
-
-    window.asSubmitAnswerSheet = async function(){
-      if (!_asUploadId) return;
-      const msg = document.getElementById('asUploadMsg');
-      if (!_asFiles.length) { msg.style.color = '#ef4444'; msg.textContent = 'Please add at least one photo.'; return; }
-      const btn = document.getElementById('asSubmitBtn'); btn.disabled = true;
-      try {
-        if (typeof window._ntcUploadFile !== 'function') throw new Error('Upload service unavailable. Please refresh.');
-        const urls = [];
-        for (let i = 0; i < _asFiles.length; i++) {
-          btn.textContent = 'Uploading page ' + (i + 1) + '/' + _asFiles.length + '…';
-          const blob = await asCompress(_asFiles[i]);
-          const file = new File([blob], 'page' + (i + 1) + '.jpg', { type: 'image/jpeg' });
-          const info = await window._ntcUploadFile(file, () => {});
-          const url = (info && info.url) || (info && info.uuid ? 'https://ucarecdn.com/' + info.uuid + '/' : '');
-          if (!url) throw new Error('Upload failed on page ' + (i + 1));
-          urls.push(url);
-        }
-        btn.textContent = '🧠 AI is grading…';
-        const token = await user.getIdToken();
-        const res = await fetch('/.netlify/functions/check-answersheet', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken: token, subjectiveTestId: _asUploadId, pageUrls: urls })
-        });
-        let data; try { data = await res.json(); } catch { data = {}; }
-        if (!res.ok) throw new Error((data && data.error) || ('Request failed (' + res.status + ')'));
-        msg.style.color = '#059669'; msg.textContent = '✅ Submitted! Your teacher will review and release your report soon.';
-        btn.textContent = 'Submitted ✓';
-        setTimeout(() => { asCloseUpload(); loadAnswerSheetTests(); }, 1500);
-      } catch(e) {
-        msg.style.color = '#ef4444'; msg.textContent = '⚠️ ' + (e.message || 'Something went wrong');
-        btn.disabled = false; btn.textContent = 'Try Again';
-      }
-    };
-
-    window.asViewReport = async function(rid){
-      const rv = document.getElementById('asReportView'), rc = document.getElementById('asReportContent');
-      document.getElementById('asTestList').style.display = 'none'; rv.style.display = 'block';
-      rc.innerHTML = '<div style="text-align:center;padding:2rem;color:#90a4ae;">Loading report…</div>';
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch(`${_asBase}/subjectiveResults/${rid}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } });
-        if (!res.ok) throw new Error('Report not available yet.');
-        const doc = await res.json(); const f = doc.fields || {};
-        let grading = {}; try { grading = JSON.parse(f.finalGrading?.stringValue || f.grading?.stringValue || '{}'); } catch {}
-        const pageUrls = (f.pageUrls?.arrayValue?.values || []).map(v => v.stringValue);
-        const teacherNotes = f.teacherNotes?.stringValue || '';
-        NTCAnswerSheetReport.injectStyles();
-        rc.innerHTML = (teacherNotes ? `<div style="background:#eff6ff;border:1px solid rgba(0,48,135,.14);border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem;font-size:.88rem;color:#003087;"><strong>👩‍🏫 Teacher's note:</strong> ${chatEscape(teacherNotes)}</div>` : '') +
-          NTCAnswerSheetReport.render({
-            studentName: profile.name || '', studentClass: profile.class || '',
-            subject: f.subject?.stringValue || '', testName: f.testName?.stringValue || '',
-            date: (f.releasedAt?.stringValue || f.submittedAt?.stringValue || '').slice(0, 10),
-            grading, pageUrls
-          });
-      } catch(e) { rc.innerHTML = '<div style="color:#ef4444;padding:2rem;text-align:center;">' + chatEscape(e.message) + '</div>'; }
-    };
-    window.asBackToList = function(){ document.getElementById('asReportView').style.display = 'none'; document.getElementById('asTestList').style.display = ''; };
-    window.asPrintReport = function(){ const el = document.querySelector('#asReportContent .asr'); NTCAnswerSheetReport.print(el); };
 
     // ══════════════════════════════════════════════════════════
     //  OFFLINE TEST SERIES — pen & paper tests, AI-checked
@@ -4439,94 +4207,6 @@ renderCards();
     }
   }, 60000);
 
-  // ════════════════════════════════════════
-  //  RECORDED CLASSES — Student Logic
-  //  Same eligibility rules as live classes (class grade + classType
-  //  + targetBoard + targetSubject). We list only ENDED classes that
-  //  have a `recordingUrl` set, sorted newest first.
-  // ════════════════════════════════════════
-  window.loadStudentRecordings = async function() {
-    const wrap = document.getElementById('recStudentList');
-    if (!wrap) return;
-    PortalUI.clearBrowser(wrap);
-    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;font-size:.88rem;">Loading…</div>';
-    try {
-      const token   = await user.getIdToken();
-      const grade   = window._studentProfile?.class || studentClass;
-      const _prof   = window._studentProfile || {};
-      const _allowedCT = (window.ContentAccess
-        ? window.ContentAccess.allowedContentTypes(_prof.enrollmentType)
-        : ['regular']);
-
-      const recs = (await fetchClasses(token))
-        // Same eligibility funnel as Live Classes section
-        .filter(c => String(c.classGrade) === String(grade))
-        .filter(c => !!c.recordingUrl)
-        .filter(c => {
-          const ct = (window.ContentAccess
-            ? window.ContentAccess.normalizeContentType(c.classType)
-            : (c.classType || 'regular'));
-          if (_allowedCT.indexOf(ct) === -1) return false;
-          if (typeof window._matchesStudentBoard === 'function'
-              && !window._matchesStudentBoard(c.targetBoard)) return false;
-          const subjForFilter = c.targetSubject || c.subject;
-          if (typeof window._matchesStudentSubject === 'function'
-              && !window._matchesStudentSubject(subjForFilter)) return false;
-          return true;
-        })
-        // Newest recording first (fall back to scheduled time)
-        .sort((a, b) => (b.recordingAddedAt || b.scheduledTs || 0)
-                      - (a.recordingAddedAt || a.scheduledTs || 0));
-
-      if (!recs.length) {
-        wrap.innerHTML = `
-          <div style="text-align:center;padding:3rem 1rem;">
-            <div style="font-size:2.5rem;margin-bottom:.8rem;">📼</div>
-            <div style="font-weight:700;color:#1e293b;margin-bottom:.3rem;">No recordings yet</div>
-            <div style="font-size:.85rem;color:#90a4ae;">When your teacher uploads a class recording, it will appear here. Recordings of upcoming classes will show up after the class ends.</div>
-          </div>`;
-        return;
-      }
-
-      PortalUI.collection({host:wrap,items:recs,title:'Recorded lessons',facets:['subject','chapter','module'],render: visible => {
-      wrap.innerHTML = visible.map(c => {
-        const url = c.recordingUrl;
-        const pwd = c.recordingPassword || '';
-        const src = c.recordingSource || 'other';
-        const recordedOn = c.recordingAddedAt
-          ? new Date(c.recordingAddedAt).toLocaleDateString('en-IN',
-              { day:'numeric', month:'short', year:'numeric', timeZone:'Asia/Kolkata' })
-          : '';
-
-        return `<div style="background:#fff;border-radius:14px;padding:1.2rem 1.4rem;margin-bottom:.85rem;box-shadow:0 1px 8px rgba(0,48,135,.07);border-left:4px solid #4338ca;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:700;color:#1e293b;font-size:1rem;margin-bottom:.25rem;">${lcEscape(c.className)}</div>
-              <div style="font-size:.82rem;color:#546e7a;margin-bottom:.4rem;">
-                <strong>The NewTown Classes</strong> &nbsp;·&nbsp; ${lcEscape(c.subject)} &nbsp;·&nbsp; Originally: ${lcEscape(fmtClassTime(c.scheduledTs))}
-              </div>
-              ${recordedOn ? `<div style="font-size:.76rem;color:#90a4ae;">📼 Uploaded: ${lcEscape(recordedOn)}</div>` : ''}
-              <div style="margin-top:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-                ${recordingSourceBadge(src)}
-                ${pwd ? `<span style="background:#fef9c3;color:#854d0e;border:1px solid #fde68a;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-weight:700;">🔑 Passcode: <code style="font-family:ui-monospace,Menlo,monospace;">${lcEscape(pwd)}</code></span>` : ''}
-              </div>
-            </div>
-            <a href="${lcEscape(url)}" target="_blank" rel="noopener noreferrer"
-               style="background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;
-                      padding:.7rem 1.5rem;border-radius:10px;font-family:inherit;font-size:.92rem;
-                      font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(67,56,202,.3);
-                      text-decoration:none;display:inline-flex;align-items:center;gap:.45rem;min-height:44px;">
-              ▶ Watch Recording
-            </a>
-          </div>
-        </div>`;
-      }).join('');
-
-      }});
-    } catch(e) {
-      wrap.innerHTML = `<div style="color:#ef4444;font-size:.85rem;padding:.8rem;">${lcEscape(e.message)}</div>`;
-    }
-  };
 
   // ════════════════════════════════════════════════════════
   //  ASK A DOUBT — Chatbot (Gemini) + Connect-to-Teacher
@@ -6822,7 +6502,7 @@ renderCards();
 
 <link rel="stylesheet" href="/assets/css/auth-transitions.css?v=4df0299c" />
 <link rel="stylesheet" href="/assets/css/portal-shell.css?v=7df25f89"/>
-<script src="/assets/js/portal-workspaces.js?v=6e7c9485"></script>
+<script src="/assets/js/portal-workspaces.js?v=4d5ef844"></script>
 <link rel="stylesheet" href="/assets/css/portal-experience.css?v=3bb993cb">
 <link rel="stylesheet" href="/assets/css/portal-atmosphere.css?v=742cf78f">
 <script>document.documentElement.classList.add('ntc-styled');</script>

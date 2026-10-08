@@ -43,7 +43,7 @@
     anchor.before(box);
     host._portalBrowser = box;
     host._portalCurrentKey = key;
-    const loaders = {testListWrap:document.body.dataset.portal === 'teacher' ? 'loadMyTests' : 'loadTestList',pdfListWrap:'loadPdfList',lcTeacherList:'loadTeacherClasses',studentTableBody:'loadStudents',subjListWrap:'loadMySubjectiveTests'};
+    const loaders = {testListWrap:document.body.dataset.portal === 'teacher' ? 'loadMyTests' : 'loadTestList',pdfListWrap:'loadPdfList',lcTeacherList:'loadTeacherClasses',studentTableBody:'loadStudents'};
     if (loaders[host.id]) {
       const refresh=document.createElement('button');refresh.type='button';refresh.className='portal-reset';refresh.textContent='Refresh';refresh.onclick=()=>window[loaders[host.id]]?.();
       const actions=document.createElement('div');actions.className='portal-browser-actions';actions.append(refresh,box.querySelector('[data-reset]'));box.querySelector('.portal-browser-top').append(actions);

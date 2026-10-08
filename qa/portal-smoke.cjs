@@ -175,7 +175,7 @@ const server=http.createServer((req,res)=>{let file=path.resolve(root,'.'+decode
     }
     for(const width of [390,1440]) {
       await page.setViewportSize({width,height:900});
-      for(const section of ['chapterwise','module','mock','onlinetest','results','liveclasses','recordings','attendance','answersheet','chatbot']) {
+      for(const section of ['chapterwise','module','mock','onlinetest','results','liveclasses','attendance','offlineseries','chatbot']) {
         await openNotesPdf();
         await selectStudentTab(section);
         if(['chapterwise','module','mock','results'].includes(section))await page.waitForSelector('#emptyState');
@@ -217,7 +217,7 @@ const server=http.createServer((req,res)=>{let file=path.resolve(root,'.'+decode
     assert.equal(await page.locator('#testGrid .test-card').count(),1,'Notes survives an older request completing');
     await page.unroute(delayedResults);
     await selectStudentTab('chapterwise');
-    console.log('student: Notes PDF → all 10 other tabs checked on phone and desktop; delayed-response and stale-control regressions passed');
+    console.log('student: Notes PDF → all 9 other tabs checked on phone and desktop; delayed-response and stale-control regressions passed');
     await page.setViewportSize({width:390,height:844});
     await selectStudentTab('attendance');await page.waitForSelector('.attn-day');
     assert.equal(await page.locator('#attendancePresent').textContent(),'2');
