@@ -8,6 +8,8 @@ node qa/portal-smoke.cjs
 node qa/login-flow.cjs
 node qa/auth-transitions.cjs
 node qa/inquiries.cjs
+node qa/offline-series.cjs
+node qa/offline-functions.cjs
 ```
 
 The browser check requires Playwright on Node's module path and an installed
@@ -64,3 +66,10 @@ Optional `module` metadata is added to materials/tests and `chapter`/`module` to
 live classes. Existing records remain accessible under General / full syllabus
 or General; no data migration is required. Netlify now rewrites the three clean
 portal routes directly to their HTML instead of loading a second HTML document.
+
+`offline-series.cjs` walks the Offline Test Series end to end with fixtures: a teacher
+publishes a test (question paper + answer key PDFs), a student starts it, sees the
+paper and timer and uploads a PDF answer script, the teacher edits and approves the
+AI report, and the student opens it from My Results (390px and 1440px).
+`offline-functions.cjs` runs the two Netlify functions (timer, submission rules, AI
+marking clean-up and integrity flags) against in-memory fakes; it needs no browser.

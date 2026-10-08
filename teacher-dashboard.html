@@ -41,6 +41,9 @@
   <script src="/assets/js/content-access.js?v=f846bf50"></script>
   <!-- Shared AI answer-sheet report renderer -->
   <script src="/assets/js/answersheet-report.js?v=35a6cdeb"></script>
+  <!-- Offline Test Series: report renderer, chapter list, styles -->
+  <script src="/assets/js/offline-report.js?v=5be933c4"></script>
+  <script src="/assets/js/ncert-chapters.js?v=336bdcee"></script>
   <script src="/assets/js/portal-shell.js?v=44f73bf2"></script>
   <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
   <style>
@@ -560,6 +563,13 @@
         <span class="icon">🧠</span> AI Answer Sheets
         <span id="reviewBadge" class="badge" style="display:none;">0</span>
       </div>
+      <div class="sidebar-item" data-section="offline-series" onclick="ntcCall('switchTab','offline-series')">
+        <span class="icon">📄</span> Offline Test Series
+      </div>
+      <div class="sidebar-item" data-section="script-approval" onclick="ntcCall('switchTab','script-approval')">
+        <span class="icon">✅</span> AnswerScript Approval
+        <span id="otaBadge" class="badge" style="display:none;">0</span>
+      </div>
       <div class="sidebar-item" data-section="offline-results" onclick="ntcCall('switchTab','offline-results')">
         <span class="icon">%</span> Offline Marks
       </div>
@@ -836,6 +846,97 @@
       <button class="btn btn-outline" onclick="ntcCall('loadReviewSheets')" style="font-size:.85rem;margin-bottom:.8rem;">↻ Refresh</button>
       <div id="reviewWrap"><div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div></div>
     </div>
+  </div>
+
+  <!-- ═══════ OFFLINE TEST SERIES: create pen & paper tests ═══════ -->
+  <div class="tab-content" id="tab-offline-series">
+    <div class="card">
+      <div class="card-title">📄 New Offline Test</div>
+      <p class="card-sub">Upload the question paper and the answer key as two PDFs. Students see the test under <b>Offline Test Series → subject → chapter</b>, write on paper against a timer, and upload their answer script as a PDF. AI checks it against your answer key; you approve it in <b>AnswerScript Approval</b>.</p>
+      <div class="field-grid">
+        <div class="field">
+          <label for="otClass">Class *</label>
+          <select id="otClass" onchange="otSuggestChapters()">
+            <option value="">Select class</option>
+            <option value="7">Class 7</option><option value="8">Class 8</option>
+            <option value="9">Class 9</option><option value="10">Class 10</option>
+            <option value="11">Class 11</option><option value="12">Class 12</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="otSubject">Subject *</label>
+          <select id="otSubject" onchange="otSuggestChapters()">
+            <option value="">Select subject</option>
+            <option>Physics</option><option>Chemistry</option><option>Mathematics</option>
+            <option>Biology</option><option>Science</option>
+            <option value="Computer">Computer Science</option><option>English</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="otBoard">Board</label>
+          <select id="otBoard">
+            <option value="">All boards</option>
+            <option value="CBSE">CBSE only</option>
+            <option value="ICSE">ICSE / ISC only</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="otChapter">Chapter *</label>
+          <input type="text" id="otChapter" list="otChapterList" placeholder="e.g. Electric Charges and Fields" autocomplete="off"/>
+          <datalist id="otChapterList"></datalist>
+        </div>
+        <div class="field full">
+          <label for="otName">Test name *</label>
+          <input type="text" id="otName" placeholder="e.g. Unit Test 1"/>
+        </div>
+        <div class="field">
+          <label for="otMarks">Maximum marks *</label>
+          <input type="number" id="otMarks" min="1" max="500" placeholder="40"/>
+        </div>
+        <div class="field">
+          <label for="otDuration">Time allowed (minutes) *</label>
+          <input type="number" id="otDuration" min="5" max="600" placeholder="90"/>
+        </div>
+        <div class="field full">
+          <label for="otInstructions">Instructions for students (optional)</label>
+          <input type="text" id="otInstructions" placeholder="e.g. Attempt all questions. Q10 and Q11 have internal choice."/>
+        </div>
+        <div class="field">
+          <label for="otQuestionPdf">Question paper (PDF) *</label>
+          <input type="file" id="otQuestionPdf" accept="application/pdf,.pdf"/>
+        </div>
+        <div class="field">
+          <label for="otAnswerPdf">Answer key / marking scheme (PDF) *</label>
+          <input type="file" id="otAnswerPdf" accept="application/pdf,.pdf"/>
+        </div>
+      </div>
+      <p class="card-sub" style="margin-top:.6rem;">The answer key is never shown to students. A detailed key (step marks, units, final answers) gives the most accurate AI checking.</p>
+      <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="otPublishBtn" onclick="otPublish()">Publish test</button>
+      </div>
+      <div id="otMsg" class="alert"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">My offline tests</div>
+      <button class="btn btn-outline" onclick="ntcCall('otLoadMyTests')" style="font-size:.85rem;margin-bottom:.8rem;">↻ Refresh</button>
+      <div id="otListWrap"><div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ═══════ ANSWERSCRIPT APPROVAL ═══════ -->
+  <div class="tab-content" id="tab-script-approval">
+    <div class="card" id="otaListCard">
+      <div class="card-title">✅ AnswerScript Approval</div>
+      <p class="card-sub">AI has checked these scripts against your answer key and the web. Read each report, cross-check the student's PDF, adjust any marks, then approve — only then can the student see and download it.</p>
+      <div class="ota-tabs" role="tablist" id="otaTabs">
+        <button type="button" class="on" data-ota="pending">Waiting for approval</button>
+        <button type="button" data-ota="checking">Being checked</button>
+        <button type="button" data-ota="approved">Approved</button>
+      </div>
+      <div id="otaList" class="ota-list"><div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div></div>
+    </div>
+    <div class="card" id="otaReview" hidden></div>
   </div>
 
   <div class="tab-content" id="tab-offline-results">
@@ -3977,6 +4078,363 @@
     } catch(e){ alert('Release failed: '+e.message); }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  //  OFFLINE TEST SERIES (teacher): publish pen & paper tests and approve
+  //  AI-checked answer scripts. Students take them from Offline Test
+  //  Series; netlify/functions/offline-test.js + grade-offline-background.js
+  //  run the timer and the AI check.
+  // ══════════════════════════════════════════════════════════════
+  const OT_UPLOADCARE_KEY = '1c7d49b03c2e34052dc8';   // same public key as the admin panel and student portal
+  const otEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const OT_BASE = () => `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+
+  function otUpload(file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('UPLOADCARE_PUB_KEY', OT_UPLOADCARE_KEY);
+      fd.append('UPLOADCARE_STORE', '1');
+      fd.append('file', file);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://upload.uploadcare.com/base/');
+      xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+      xhr.onload = () => {
+        if (xhr.status === 200) { const uuid = JSON.parse(xhr.responseText).file; resolve('https://ucarecdn.com/' + uuid + '/'); }
+        else reject(new Error('Upload failed: ' + xhr.responseText));
+      };
+      xhr.onerror = () => reject(new Error('Network error while uploading'));
+      xhr.send(fd);
+    });
+  }
+
+  // PATCH only the given fields (leaves the rest of the document intact).
+  async function otPatchFields(path, fields) {
+    const token = await user.getIdToken();
+    const mask = Object.keys(fields).map(k => 'updateMask.fieldPaths=' + encodeURIComponent(k)).join('&');
+    const res = await fetch(`${OT_BASE()}/${path}?key=${FIREBASE_CONFIG.apiKey}&${mask}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ fields })
+    });
+    const json = await res.json();
+    if (!res.ok || json.error) throw new Error((json.error && json.error.message) || 'Save failed');
+    return json;
+  }
+
+  async function otApi(body) {
+    const token = await user.getIdToken();
+    const res = await fetch('/.netlify/functions/offline-test', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: token, ...body })
+    });
+    let data = {}; try { data = await res.json(); } catch (_) {}
+    if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+    return data;
+  }
+
+  // Chapter suggestions from the shared NCERT syllabus (free text still allowed
+  // for ICSE/ISC chapters and other subjects).
+  window.otSuggestChapters = function () {
+    const list = $('otChapterList'); if (!list) return;
+    const cls = $('otClass').value, subj = $('otSubject').value;
+    let chapters = [];
+    if (window.NCERT && cls && subj) {
+      const key = { Physics: 'physics', Chemistry: 'chemistry', Biology: 'biology', Mathematics: 'maths', Science: 'science' }[subj];
+      const k = (+cls <= 10 && ['physics', 'chemistry', 'biology'].includes(key)) ? 'science' : key;
+      chapters = k ? window.NCERT.getChapters(cls, k).map(c => c.title) : [];
+    }
+    list.innerHTML = chapters.map(t => `<option value="${otEsc(t)}"></option>`).join('');
+  };
+
+  window.otPublish = async function () {
+    const v = id => ($(id)?.value || '').trim();
+    const cls = v('otClass'), subject = v('otSubject'), chapter = v('otChapter'), testName = v('otName');
+    const totalMarks = parseFloat(v('otMarks')), durationMin = parseInt(v('otDuration'), 10);
+    const qFile = $('otQuestionPdf').files[0], aFile = $('otAnswerPdf').files[0];
+    if (!cls || !subject || !chapter || !testName) return showMsg('otMsg', 'error', 'Fill class, subject, chapter and test name.');
+    if (!(totalMarks > 0) || !(durationMin >= 5)) return showMsg('otMsg', 'error', 'Enter the maximum marks and a time of at least 5 minutes.');
+    const isPdf = f => f && (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    if (!isPdf(qFile) || !isPdf(aFile)) return showMsg('otMsg', 'error', 'Choose both the question paper and the answer key as PDF files.');
+    const btn = $('otPublishBtn'); btn.disabled = true;
+    const say = t => { const el = $('otMsg'); el.className = 'alert info'; el.textContent = t; };
+    try {
+      say('Uploading question paper… 0%');
+      const questionPdfUrl = await otUpload(qFile, p => say(`Uploading question paper… ${Math.round(p * 100)}%`));
+      say('Uploading answer key… 0%');
+      const answerPdfUrl = await otUpload(aFile, p => say(`Uploading answer key… ${Math.round(p * 100)}%`));
+      const id = 'ots' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      const now = new Date().toISOString();
+      const teacherName = teacherProfile.name || user.email || 'Teacher';
+      await otPatchFields(`offlineTestKeys/${id}`, {
+        questionPdfUrl: { stringValue: questionPdfUrl }, answerPdfUrl: { stringValue: answerPdfUrl },
+        testName: { stringValue: testName }, teacherUid: { stringValue: user.uid }, createdAt: { stringValue: now }
+      });
+      await otPatchFields(`offlineTests/${id}`, {
+        testName: { stringValue: testName }, class: { stringValue: cls }, board: { stringValue: v('otBoard') },
+        subject: { stringValue: subject }, chapter: { stringValue: chapter },
+        totalMarks: { doubleValue: totalMarks }, durationMin: { integerValue: String(durationMin) },
+        instructions: { stringValue: v('otInstructions') },
+        teacherUid: { stringValue: user.uid }, teacherName: { stringValue: teacherName },
+        isActive: { booleanValue: true }, createdAt: { stringValue: now }
+      });
+      ['otName', 'otInstructions', 'otQuestionPdf', 'otAnswerPdf'].forEach(i => { $(i).value = ''; });
+      showMsg('otMsg', 'success', `✅ "${testName}" is live for Class ${cls} ${subject} → ${chapter}.`);
+      otLoadMyTests();
+    } catch (e) {
+      showMsg('otMsg', 'error', 'Error: ' + e.message);
+    } finally { btn.disabled = false; }
+  };
+
+  window.otLoadMyTests = async function () {
+    const wrap = $('otListWrap'); if (!wrap) return;
+    wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>';
+    try {
+      const [tests, keys] = await Promise.all([fsGet('offlineTests'), fsGet('offlineTestKeys')]);
+      const keyMap = {};
+      (keys.documents || []).forEach(d => { const f = d.fields || {}; keyMap[d.name.split('/').pop()] = { q: f.questionPdfUrl?.stringValue || '', a: f.answerPdfUrl?.stringValue || '' }; });
+      const docs = (tests.documents || []).map(d => { const f = d.fields || {}; return {
+        id: d.name.split('/').pop(), testName: f.testName?.stringValue || '', class: f.class?.stringValue || '',
+        board: f.board?.stringValue || '', subject: f.subject?.stringValue || '', chapter: f.chapter?.stringValue || '',
+        totalMarks: parseFloat(f.totalMarks?.doubleValue || f.totalMarks?.integerValue || '0'),
+        durationMin: parseInt(f.durationMin?.integerValue || '0', 10), isActive: f.isActive?.booleanValue !== false,
+        teacherUid: f.teacherUid?.stringValue || '', createdAt: f.createdAt?.stringValue || ''
+      }; }).filter(d => d.teacherUid === user.uid).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      if (!docs.length) { wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No offline tests yet — publish one above.</div>'; return; }
+      wrap.innerHTML = '<div class="ota-list">' + docs.map(d => `<div class="ota-row">
+        <div><h4>${otEsc(d.testName)}</h4>
+          <p>Class ${otEsc(d.class)}${d.board ? ' · ' + otEsc(d.board) : ''} · ${otEsc(d.subject)} · ${otEsc(d.chapter)} · ${d.totalMarks} marks · ${d.durationMin} min ·
+          <b style="color:${d.isActive ? '#059669' : '#94a3b8'}">${d.isActive ? 'Live' : 'Closed'}</b></p>
+          <p>${keyMap[d.id]?.q ? `<a href="${otEsc(keyMap[d.id].q)}" target="_blank" rel="noopener">Question paper ↗</a>` : 'No question paper'} ·
+             ${keyMap[d.id]?.a ? `<a href="${otEsc(keyMap[d.id].a)}" target="_blank" rel="noopener">Answer key ↗</a>` : 'No answer key'}</p></div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
+          <button class="btn btn-outline" style="font-size:.78rem;padding:.35rem .75rem;" onclick="otToggle('${d.id}',${!d.isActive})">${d.isActive ? 'Close' : 'Reopen'}</button>
+          <button class="btn btn-danger" style="font-size:.78rem;padding:.35rem .75rem;" onclick="otDelete('${d.id}')">Delete</button>
+        </div></div>`).join('') + '</div>';
+    } catch (e) { wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${otEsc(e.message)}</div>`; }
+  };
+  window.otToggle = async function (id, active) {
+    try { await otPatchFields(`offlineTests/${id}`, { isActive: { booleanValue: active } }); otLoadMyTests(); }
+    catch (e) { alert(e.message); }
+  };
+  window.otDelete = async function (id) {
+    if (!confirm('Delete this test? Students will no longer see it. Scripts already submitted stay in AnswerScript Approval.')) return;
+    try { await fsDelete(`offlineTests/${id}`); await fsDelete(`offlineTestKeys/${id}`); otLoadMyTests(); }
+    catch (e) { alert(e.message); }
+  };
+
+  // ── AnswerScript Approval ──
+  let _otaReports = [], _otaFilter = 'pending', _otaOpen = null;
+  const otaMine = r => {
+    const subs = [].concat(teacherProfile.subjects || [], teacherProfile.subject || []).filter(Boolean);
+    return r.teacherUid === user.uid || subs.includes('All Subjects') || subs.includes(r.subject);
+  };
+  function otaParse(d) {
+    const f = d.fields || {}, s = k => f[k]?.stringValue || '';
+    const num = k => parseFloat(f[k]?.doubleValue ?? f[k]?.integerValue ?? '0') || 0;
+    return {
+      id: d.name.split('/').pop(), uid: s('uid'), testId: s('testId'), status: s('status'),
+      studentName: s('studentName'), studentId: s('studentId'), studentClass: s('studentClass'), studentBoard: s('studentBoard'),
+      school: s('school'), testName: s('testName'), subject: s('subject'), chapter: s('chapter'), board: s('board'),
+      totalMarks: num('totalMarks'), durationMin: num('durationMin'), teacherUid: s('teacherUid'),
+      startedAt: s('startedAt'), submittedAt: s('submittedAt'), lateByMin: num('lateByMin'), usedMin: num('usedMin'),
+      scriptPdfUrl: s('scriptPdfUrl'), pageUrls: (f.pageUrls?.arrayValue?.values || []).map(v => v.stringValue),
+      aiReport: s('aiReport'), finalReport: s('finalReport'), integrity: s('integrity'), integrityLevel: s('integrityLevel') || 'none',
+      aiScore: num('aiScore'), aiMax: num('aiMax'), checkedAt: s('checkedAt'), error: s('error'),
+      approvedByName: s('approvedByName'), approvedAt: s('approvedAt')
+    };
+  }
+  const OTA_LEVEL = { none: ['ok', 'No issues found'], low: ['', 'Minor notes'], medium: ['warn', 'Needs a look'], high: ['bad', 'Suspicious'] };
+
+  window.otLoadApprovals = async function () {
+    const list = $('otaList'); if (!list) return;
+    $('otaReview').hidden = true; $('otaListCard').hidden = false;
+    list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>';
+    try {
+      const json = await fsGet('offlineReports');
+      _otaReports = (json.documents || []).map(otaParse).filter(otaMine).sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
+      otaUpdateBadge();
+      otaRenderList();
+    } catch (e) { list.innerHTML = `<div style="color:#ef4444;padding:1rem;">${otEsc(e.message)}</div>`; }
+  };
+  function otaUpdateBadge() {
+    const n = _otaReports.filter(r => r.status === 'ai_checked').length;
+    const b = $('otaBadge'); if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; }
+  }
+  function otaRenderList() {
+    const list = $('otaList');
+    document.querySelectorAll('#otaTabs [data-ota]').forEach(b => b.classList.toggle('on', b.dataset.ota === _otaFilter));
+    const pick = { pending: r => r.status === 'ai_checked', checking: r => ['checking', 'grading', 'failed'].includes(r.status), approved: r => r.status === 'approved' }[_otaFilter];
+    const rows = _otaReports.filter(pick);
+    if (!rows.length) {
+      list.innerHTML = `<div style="text-align:center;padding:1.5rem;color:#90a4ae;">${{ pending: 'Nothing waiting — all caught up. 🎉', checking: 'No scripts are being checked right now.', approved: 'No approved scripts yet.' }[_otaFilter]}</div>`;
+      return;
+    }
+    list.innerHTML = rows.map(r => {
+      const lv = OTA_LEVEL[r.integrityLevel] || OTA_LEVEL.none;
+      const when = r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+      let right;
+      if (r.status === 'failed') right = `<button class="btn btn-outline" style="font-size:.8rem;" onclick="otaRegrade('${r.id}')">↻ Re-run AI check</button>`;
+      else if (r.status === 'checking' || r.status === 'grading') right = '<span class="ots-chip warn">🧠 Checking…</span>';
+      else right = `<button class="btn btn-primary" style="font-size:.8rem;" onclick="otaOpen('${r.id}')">${r.status === 'approved' ? 'View' : 'Review'}</button>`;
+      return `<div class="ota-row"><div>
+        <h4>${otEsc(r.studentName || 'Student')} <span style="font-weight:500;color:#64748b;font-size:.8rem;">${otEsc(r.studentId)}</span></h4>
+        <p>${otEsc(r.testName)} · Class ${otEsc(r.studentClass)} ${otEsc(r.subject)} · ${otEsc(r.chapter)} · ${when}</p>
+        <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+          ${r.aiMax ? `<span class="ots-chip">AI: ${NTCOfflineReport.markText(r.aiScore)}/${NTCOfflineReport.markText(r.aiMax)}</span>` : ''}
+          ${r.status === 'ai_checked' || r.status === 'approved' ? `<span class="ots-chip ${lv[0]}">Integrity: ${lv[1]}</span>` : ''}
+          ${r.lateByMin > 15 ? `<span class="ots-chip bad">Late ${r.lateByMin} min</span>` : ''}
+          ${r.status === 'failed' ? `<span class="ots-chip bad" title="${otEsc(r.error)}">AI check failed</span>` : ''}
+          ${r.status === 'approved' ? `<span class="ots-chip ok">Approved by ${otEsc(r.approvedByName)}</span>` : ''}
+        </div></div><div>${right}</div></div>`;
+    }).join('');
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('#otaTabs [data-ota]');
+    if (b) { _otaFilter = b.dataset.ota; otaRenderList(); }
+  });
+
+  window.otaRegrade = async function (id) {
+    try { await otApi({ action: 'regrade', attemptId: id }); showToastOrAlert('AI check restarted — it takes 1–3 minutes.'); otLoadApprovals(); }
+    catch (e) { alert(e.message); }
+  };
+  function showToastOrAlert(t) { if (window.PortalUI && PortalUI.toast) PortalUI.toast(t); else alert(t); }
+
+  function otaMeta(r) {
+    return {
+      studentName: r.studentName, studentId: r.studentId, studentClass: r.studentClass, board: r.board || r.studentBoard,
+      school: r.school, subject: r.subject, chapter: r.chapter, testName: r.testName, durationMin: r.durationMin,
+      checkedAt: r.checkedAt, pageUrls: r.pageUrls
+    };
+  }
+
+  window.otaOpen = async function (id) {
+    const r = _otaReports.find(x => x.id === id); if (!r) return;
+    let report = {}, integrity = {};
+    try { report = JSON.parse(r.finalReport || r.aiReport || '{}'); } catch (_) {}
+    try { integrity = JSON.parse(r.integrity || '{}'); } catch (_) {}
+    _otaOpen = { r, report: JSON.parse(JSON.stringify(report)) };
+    $('otaListCard').hidden = true;
+    const box = $('otaReview'); box.hidden = false;
+    const approved = r.status === 'approved';
+    const lv = integrity.level || 'none';
+    const flags = (integrity.flags || []).map(f => `<li><b>${otEsc(f.type)}</b> <span class="ots-chip ${f.severity === 'high' ? 'bad' : f.severity === 'medium' ? 'warn' : ''}">${otEsc(f.severity)}</span> — ${otEsc(f.detail)}${f.url ? ` <a href="${otEsc(f.url)}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}</li>`).join('');
+    const sources = ((integrity.web && integrity.web.sources) || []).map(s => `<li><a href="${otEsc(s.url)}" target="_blank" rel="noopener noreferrer">${otEsc(s.title || s.url)}</a></li>`).join('');
+    const t = integrity.timing || {};
+    let keyLinks = '';
+    try {
+      const k = await fsGet(`offlineTestKeys/${r.testId}`); const f = k.fields || {};
+      keyLinks = (f.questionPdfUrl ? ` · <a href="${otEsc(f.questionPdfUrl.stringValue)}" target="_blank" rel="noopener">Question paper ↗</a>` : '') +
+                 (f.answerPdfUrl ? ` · <a href="${otEsc(f.answerPdfUrl.stringValue)}" target="_blank" rel="noopener">Answer key ↗</a>` : '');
+    } catch (_) {}
+    box.innerHTML = `
+      <button class="btn btn-outline" style="font-size:.85rem;margin-bottom:.8rem;" onclick="otLoadApprovals()">← All scripts</button>
+      <div class="card-title">${otEsc(r.studentName)} · ${otEsc(r.testName)}</div>
+      <p class="card-sub">Class ${otEsc(r.studentClass)} ${otEsc(r.subject)} · ${otEsc(r.chapter)} · ${t.usedMin != null ? `wrote for ${t.usedMin} of ${t.durationMin} min` : ''}${r.lateByMin > 15 ? ` · <b style="color:#b91c1c">${r.lateByMin} min late</b>` : ''}<br>
+        <a href="${otEsc(r.scriptPdfUrl)}" target="_blank" rel="noopener">📄 Student's answer script (PDF) ↗</a>${keyLinks}</p>
+      <div class="ota-integrity ${lv}">
+        <h4>🛡️ Integrity check: ${otEsc((OTA_LEVEL[lv] || OTA_LEVEL.none)[1])}</h4>
+        ${flags ? `<ul>${flags}</ul>` : '<p style="margin:0;font-size:13px;">No signs of copying, web matches, pre-written scripts or duplicate files.</p>'}
+        ${integrity.web && integrity.web.summary ? `<p style="margin:.5rem 0 0;font-size:13px;"><b>Web check:</b> ${otEsc(integrity.web.summary)}</p>` : ''}
+        ${sources ? `<details style="margin-top:.4rem;font-size:12.5px;"><summary>Pages the web check looked at</summary><ul>${sources}</ul></details>` : ''}
+        ${integrity.pdf && integrity.pdf.producer ? `<p style="margin:.4rem 0 0;font-size:12px;color:#64748b;">PDF made with ${otEsc(integrity.pdf.producer)}${integrity.pdf.createdAt ? ' · created ' + new Date(integrity.pdf.createdAt).toLocaleString('en-IN') : ''}</p>` : ''}
+      </div>
+      <div style="font-weight:700;color:#003087;margin:.6rem 0 .4rem;">Marks &amp; examiner's remarks ${approved ? '' : '<span style="font-weight:500;color:#64748b;font-size:.8rem;">— edit anything the AI got wrong</span>'}</div>
+      <table class="ota-edit"><thead><tr><th>Q</th><th>Topic</th><th>Marks</th><th>Remark</th></tr></thead><tbody>
+        ${(report.questions || []).map((q, i) => `<tr>
+          <td><b>${otEsc(q.q)}</b></td><td>${otEsc(q.topic)}</td>
+          <td><input type="number" step="0.5" min="0" max="${q.max}" value="${q.awarded}" data-ota-q="${i}" ${approved ? 'disabled' : ''} aria-label="Marks for Q${otEsc(q.q)}"> / ${NTCOfflineReport.markText(q.max)}</td>
+          <td class="rm"><textarea data-ota-r="${i}" ${approved ? 'disabled' : ''} aria-label="Remark for Q${otEsc(q.q)}">${otEsc(q.remark)}</textarea></td></tr>`).join('')}
+      </tbody></table>
+      <div style="font-weight:700;color:#003087;margin:.8rem 0 .4rem;">Teacher's remark (shown on page 1)</div>
+      <textarea class="ota-remark" id="otaRemark" ${approved ? 'disabled' : ''}>${otEsc(report.teacherRemark || '')}</textarea>
+      <div class="ota-actions">
+        <button class="btn btn-outline" onclick="otaPreview()">👁 Preview report</button>
+        ${approved ? '' : `<button class="btn btn-primary" id="otaApproveBtn" onclick="otaApprove()">✓ Approve &amp; send to student</button>
+        <button class="btn btn-outline" onclick="otaRegrade('${r.id}')">↻ Re-run AI check</button>`}
+      </div>
+      <div id="otaMsg" class="alert"></div>
+      <div class="ota-preview" id="otaPreview"></div>`;
+    otaPreview();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  function otaCollect() {
+    const { report } = _otaOpen;
+    const out = JSON.parse(JSON.stringify(report));
+    const half = n => Math.round((Number(n) || 0) * 2) / 2;
+    (out.questions || []).forEach((q, i) => {
+      const inp = document.querySelector(`[data-ota-q="${i}"]`), rm = document.querySelector(`[data-ota-r="${i}"]`);
+      if (inp && inp.value !== '') q.awarded = Math.max(0, Math.min(q.max, half(inp.value)));
+      if (rm) q.remark = rm.value.trim();
+      if (q.status !== 'not_attempted' || q.awarded > 0) q.status = q.awarded >= q.max && q.max > 0 ? 'full' : q.awarded <= 0 ? 'zero' : 'partial';
+    });
+    const sumMax = (out.questions || []).reduce((a, q) => a + q.max, 0);
+    out.totalMax = out.totalMax || sumMax;
+    out.totalAwarded = Math.min(out.totalMax, half((out.questions || []).reduce((a, q) => a + q.awarded, 0)));
+    out.pct = out.totalMax ? Math.round(out.totalAwarded / out.totalMax * 1000) / 10 : 0;
+    (out.sections || []).forEach(s => {
+      const letter = String(s.name || '').replace(/^section\s*/i, '').trim().toUpperCase();
+      const qs = (out.questions || []).filter(q => q.section === letter);
+      if (qs.length) { s.awarded = half(qs.reduce((a, q) => a + q.awarded, 0)); s.max = half(qs.reduce((a, q) => a + q.max, 0)); }
+    });
+    const remark = $('otaRemark'); if (remark) out.teacherRemark = remark.value.trim();
+    return out;
+  }
+
+  window.otaPreview = function () {
+    if (!_otaOpen) return;
+    const { r } = _otaOpen;
+    const approved = r.status === 'approved';
+    NTCOfflineReport.render($('otaPreview'), {
+      meta: otaMeta(r), report: approved ? _otaOpen.report : otaCollect(),
+      approval: { name: approved ? r.approvedByName : (teacherProfile.name || 'Teacher'), at: approved ? r.approvedAt : '' },
+      draft: !approved
+    });
+  };
+
+  window.otaApprove = async function () {
+    if (!_otaOpen) return;
+    const { r } = _otaOpen;
+    const report = otaCollect();
+    const name = teacherProfile.name || user.email || 'Teacher';
+    if (!confirm(`Approve ${r.studentName}'s script with ${NTCOfflineReport.markText(report.totalAwarded)} / ${NTCOfflineReport.markText(report.totalMax)}?\n\nThe report will show "Approved by ${name}" and the student can view and download it.`)) return;
+    const btn = $('otaApproveBtn'); if (btn) btn.disabled = true;
+    try {
+      const now = new Date().toISOString();
+      await otPatchFields(`offlineReports/${r.id}`, {
+        finalReport: { stringValue: JSON.stringify(report) }, status: { stringValue: 'approved' },
+        approvedAt: { stringValue: now }, approvedByUid: { stringValue: user.uid }, approvedByName: { stringValue: name }
+      });
+      await otPatchFields(`offlineAttempts/${r.id}`, { status: { stringValue: 'approved' }, approvedAt: { stringValue: now } });
+      // Also list it in the student's My Results, linked to the full report.
+      const pct = report.totalMax ? Math.round(report.totalAwarded / report.totalMax * 100) : 0;
+      await otPatchFields(`students/${r.uid}/offlineResults/ots_${r.id}`, {
+        resultId: { stringValue: 'ots_' + r.id }, source: { stringValue: 'offline' }, reportId: { stringValue: r.id },
+        testName: { stringValue: r.testName }, subject: { stringValue: r.subject }, topic: { stringValue: r.chapter },
+        testType: { stringValue: 'subjective' }, class: { stringValue: r.studentClass },
+        score: { doubleValue: report.totalAwarded }, totalMarks: { doubleValue: report.totalMax }, pct: { integerValue: String(pct) },
+        testDate: { stringValue: (r.submittedAt || now).slice(0, 10) }, remark: { stringValue: 'Offline Test Series · AI-checked' },
+        teacherUid: { stringValue: user.uid }, teacherName: { stringValue: name },
+        studentUid: { stringValue: r.uid }, studentName: { stringValue: r.studentName }, studentId: { stringValue: r.studentId },
+        savedAt: { stringValue: now }
+      });
+      r.status = 'approved'; r.approvedByName = name; r.approvedAt = now; r.finalReport = JSON.stringify(report);
+      _otaOpen.report = report;
+      showMsg('otaMsg', 'success', `✅ Approved. ${r.studentName} can now see and download the report in My Results.`);
+      otaUpdateBadge();
+      otaOpen(r.id);
+    } catch (e) {
+      showMsg('otaMsg', 'error', 'Could not approve: ' + e.message);
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  const _otPrevSwitchTab = window.switchTab;
+  window.switchTab = function (name) {
+    _otPrevSwitchTab(name);
+    if (name === 'offline-series') { otSuggestChapters(); otLoadMyTests(); }
+    if (name === 'script-approval') otLoadApprovals();
+  };
+  // Pending-approval badge on load.
+  setTimeout(() => { if (user) otLoadApprovals().catch(() => {}); }, 2500);
+
 </script>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -4454,6 +4912,7 @@
 <script>document.documentElement.classList.add('ntc-styled');</script>
 <link rel="stylesheet" href="/assets/css/portal-controls.css?v=d62c9c09">
 <link rel="stylesheet" href="/assets/css/brand-theme.css?v=a1c81d78">
+<link rel="stylesheet" href="/assets/css/offline-series.css?v=4fde36a1">
 <script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
 <script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>

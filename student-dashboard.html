@@ -40,6 +40,7 @@
   <script src="/assets/js/content-access.js?v=f846bf50"></script>
   <!-- Shared AI answer-sheet report renderer -->
   <script src="/assets/js/answersheet-report.js?v=35a6cdeb"></script>
+  <script src="/assets/js/offline-report.js?v=5be933c4"></script>
   <script src="/assets/js/portal-shell.js?v=44f73bf2"></script>
   <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
   <style>
@@ -565,6 +566,9 @@
         </div>
         <div class="sidebar-item" data-section="onlinetest" onclick="switchSection(this,'onlinetest')">
           <span class="icon">✏️</span> Online Test
+        </div>
+        <div class="sidebar-item" data-section="offlineseries" onclick="switchSection(this,'offlineseries');ntcCall('otsLoad');">
+          <span class="icon">📄</span> Offline Test Series
         </div>
         <div class="sidebar-item" data-section="results" onclick="switchSection(this,'results')">
           <span class="icon">📊</span> My Results
@@ -1262,6 +1266,65 @@
         </div>
       </div>
 
+      <!-- ═══════ OFFLINE TEST SERIES (pen & paper, AI-checked) ═══════ -->
+      <div id="otsSection" style="display:none;">
+        <nav class="ots-crumbs" id="otsCrumbs" aria-label="Offline test series navigation"></nav>
+        <div id="otsBody"><div class="ots-empty">Loading…</div></div>
+      </div>
+
+      <!-- Timed test: question paper + timer + answer-script upload -->
+      <div id="otsExam" class="ots-exam" role="dialog" aria-modal="true" aria-labelledby="otsExamTitle" hidden>
+        <header class="ots-bar">
+          <div class="ots-bar-title">
+            <span class="ots-bar-kicker" id="otsExamSub">Offline test</span>
+            <strong id="otsExamTitle">Test</strong>
+          </div>
+          <div class="ots-timer" id="otsTimer" aria-live="off">--:--</div>
+          <button type="button" class="ots-bar-btn" onclick="otsOpenUpload()">Submit answers</button>
+        </header>
+        <div class="ots-zoom">
+          <button type="button" onclick="otsZoom(-1)" aria-label="Zoom out">−</button>
+          <span id="otsZoomLabel">100%</span>
+          <button type="button" onclick="otsZoom(1)" aria-label="Zoom in">+</button>
+          <a id="otsPaperLink" href="#" target="_blank" rel="noopener">Open PDF ↗</a>
+          <button type="button" class="ots-min" onclick="otsCloseExam()">Minimise</button>
+        </div>
+        <div class="ots-paper" id="otsPaper"><div class="ots-empty">Loading question paper…</div></div>
+
+        <div class="ots-sheet-back" id="otsUpload" hidden>
+          <div class="ots-sheet" role="document">
+            <div class="ots-sheet-grip"></div>
+            <h3 id="otsUpTitle">Submit your answer script</h3>
+            <p class="ots-up-time" id="otsUpTime"></p>
+            <ol class="ots-steps">
+              <li>Write all answers on paper, with question numbers.</li>
+              <li>Scan every page, in order, into <b>one PDF</b> — in Google Drive tap <b>+</b> then <b>Scan</b>, or use Adobe Scan or your phone camera's “Scan document”.</li>
+              <li>Choose that PDF below and submit.</li>
+            </ol>
+            <label class="ots-drop">
+              <input type="file" id="otsFile" accept="application/pdf,.pdf" onchange="otsPickFile(this.files[0])">
+              <span id="otsDropText">📄 Choose answer-script PDF</span>
+            </label>
+            <div class="ots-thumbs" id="otsThumbs"></div>
+            <div class="ots-up-msg" id="otsUpMsg" role="status"></div>
+            <div class="ots-up-actions">
+              <button type="button" class="ots-ghost" id="otsUpBack" onclick="otsCloseUpload()">Back to paper</button>
+              <button type="button" class="ots-primary" id="otsUpSubmit" onclick="otsSubmit()" disabled>Submit for checking →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Approved evaluation report -->
+      <div id="otsReport" class="ots-exam" role="dialog" aria-modal="true" aria-label="Answer script evaluation" hidden>
+        <header class="ots-bar">
+          <button type="button" class="ots-bar-btn ghost" onclick="otsCloseReport()">← Back</button>
+          <div class="ots-bar-title"><span class="ots-bar-kicker">Answer script evaluation</span><strong id="otsReportTitle">Report</strong></div>
+          <button type="button" class="ots-bar-btn" onclick="otsDownloadReport()">⬇ Download PDF</button>
+        </header>
+        <div class="ots-report-body" id="otsReportBody"></div>
+      </div>
+
       <div id="attendanceSection" style="display:none;">
         <div class="experience-hero"><span class="experience-kicker">YOUR LEARNING RHYTHM</span><h2>My attendance</h2><p>Your attendance, one subject at a time. Select a month to see how you've been showing up.</p></div>
         <div class="attendance-summary" aria-live="polite">
@@ -1341,6 +1404,7 @@ const sectionMeta = {
   mock:        { title: 'Mock Tests',        desc: 'Full-length mock exams',            badge: 'badge-pdf', badgeText: 'EXAM', icon: '🎯' },
   notes:       { title: 'Chapter Notes',     desc: 'Study notes for revision',          badge: 'badge-notes', badgeText: 'NOTES', icon: '📖' },
   onlinetest:  { title: 'Online Tests',      desc: 'Auto-graded MCQ tests',             badge: 'badge-mcq', badgeText: 'LIVE', icon: '✏️' },
+  offlineseries: { title: 'Offline Test Series', desc: 'Write on paper, upload your answer script, get it checked', badge: 'badge-pdf', badgeText: 'PEN & PAPER', icon: '📄' },
   results:     { title: 'My Test Results',   desc: 'Your scores, progress and next steps.', badge: 'badge-mcq', badgeText: 'RESULTS', icon: '📊' },
   recordings:  { title: '📼 Recorded Classes', desc: 'Watch past live classes', badge: 'badge-mcq', badgeText: 'VIDEO', icon: '📼' },
   chatbot:     { title: '💬 Ask a Doubt',     desc: 'Ask a question or connect with a teacher', badge: 'badge-mcq', badgeText: 'CHAT', icon: '💬' },
@@ -1402,6 +1466,8 @@ function switchSection(el, section) {
   // re-show only in their branches.
   if (attSection) attSection.style.display = 'none';
   if (asSection)  asSection.style.display  = 'none';
+  const otsSection = document.getElementById('otsSection');
+  if (otsSection) otsSection.style.display = 'none';
   // Chatbot uses a special full-viewport "no scroll" mode. Toggle the
   // body/main classes here so leaving the section restores normal scrolling.
   const _mainEl = document.querySelector('.main-content');
@@ -1464,6 +1530,17 @@ function switchSection(el, section) {
     document.getElementById('pageTitle').textContent = 'My Attendance';
     document.getElementById('pageDesc').textContent  = 'Your monthly record, updated by your teacher.';
     document.getElementById('breadcrumbSection').textContent = 'My Attendance';
+  } else if (section === 'offlineseries') {
+    document.getElementById('testGrid').style.display = 'none';
+    const catSection = document.querySelector('.cat-section');
+    if (catSection) catSection.style.display = 'none';
+    if (lcSection)  lcSection.style.display  = 'none';
+    if (recSection) recSection.style.display = 'none';
+    if (cbSection)  cbSection.style.display  = 'none';
+    if (otsSection) otsSection.style.display = 'block';
+    document.getElementById('pageTitle').textContent = 'Offline Test Series';
+    document.getElementById('pageDesc').textContent  = 'Pick a subject and chapter, write on paper, then upload your answer script as a PDF.';
+    document.getElementById('breadcrumbSection').textContent = 'Offline Test Series';
   } else if (section === 'answersheet') {
     document.getElementById('testGrid').style.display = 'none';
     const catSection = document.querySelector('.cat-section');
@@ -1961,6 +2038,7 @@ renderCards();
                   remark: f.remark?.stringValue || '',
                   teacherName: f.teacherName?.stringValue || '',
                   answerSheetUrl: f.answerSheetUrl?.stringValue || '',
+                  reportId: f.reportId?.stringValue || '',
                   cycleAttempted: 1
                 };
               });
@@ -2157,6 +2235,7 @@ renderCards();
                 <div class="test-card-footer" style="flex-direction:column;align-items:flex-start;gap:.25rem;">
                   <span class="test-card-meta"><strong style="color:${col};">${scoreText}</strong>${isOffline ? (r.remark ? ' &nbsp;·&nbsp; ' + resultEscape(r.remark) : '') : ' &nbsp;·&nbsp; ✓ ' + r.correctCount + ' &nbsp; ✗ ' + r.wrongCount + ' &nbsp; ⊘ ' + r.unattemptedCount}</span>
                   <span class="test-card-meta" style="font-size:.72rem;">${dateMs ? fmtDate(dateMs) : 'Date not available'}${isOffline && r.teacherName ? ' · Uploaded by ' + resultEscape(r.teacherName) : ''}</span>
+                  ${isOffline && r.reportId ? `<button type="button" onclick="event.stopPropagation();otsOpenReport('${resultEscape(r.reportId)}')" style="font:700 .74rem inherit;font-family:inherit;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:.35rem .6rem;cursor:pointer;">📄 View / Download checked script</button><span class="test-card-meta" style="font-size:.68rem;color:#047857;">✓ Checked using Trained AI models &amp; Approved by ${resultEscape(r.teacherName || 'your teacher')}</span>` : ''}
                   ${isOffline && r.answerSheetUrl ? `<a href="${resultEscape(r.answerSheetUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="font-size:.72rem;color:#dc2626;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem;">📄 View / Download Result PDF</a>` : ''}
                   ${reviewable ? '<span class="test-card-meta" style="font-size:.72rem;color:#0ea5e9;font-weight:700;">🔍 Tap to review answers</span>' : ''}
                 </div>
@@ -2567,6 +2646,408 @@ renderCards();
     };
     window.asBackToList = function(){ document.getElementById('asReportView').style.display = 'none'; document.getElementById('asTestList').style.display = ''; };
     window.asPrintReport = function(){ const el = document.querySelector('#asReportContent .asr'); NTCAnswerSheetReport.print(el); };
+
+    // ══════════════════════════════════════════════════════════
+    //  OFFLINE TEST SERIES — pen & paper tests, AI-checked
+    //  Subject → chapter → test → Start (server timer) → question paper →
+    //  upload the answer script as ONE PDF → AI check → teacher approves →
+    //  report in My Results. Server side: netlify/functions/offline-test.js.
+    // ══════════════════════════════════════════════════════════
+    const _ots = { tests: [], attempts: {}, subject: '', chapter: '', exam: null, pdfjs: null, zoom: 1, file: null, filePdf: null };
+    const OTS_ICONS = { Physics: '⚛️', Chemistry: '🧪', Mathematics: '📐', Maths: '📐', Biology: '🧬', Science: '🔬', English: '📘', Computer: '💻' };
+    const otsEsc = s => chatEscape(String(s == null ? '' : s));
+
+    function otsLoadPdfJs() {
+      if (_ots.pdfjs) return Promise.resolve(_ots.pdfjs);
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        s.onload = () => {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          _ots.pdfjs = window.pdfjsLib; resolve(_ots.pdfjs);
+        };
+        s.onerror = () => reject(new Error('Could not load the PDF viewer. Check your internet connection.'));
+        document.head.appendChild(s);
+      });
+    }
+
+    async function otsApi(body) {
+      const token = await user.getIdToken();
+      const res = await fetch('/.netlify/functions/offline-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: token, ...body })
+      });
+      let data = {}; try { data = await res.json(); } catch (_) {}
+      if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+      return data;
+    }
+
+    function otsAttemptState(t) {
+      const a = _ots.attempts[t.id];
+      if (!a) return { key: 'new' };
+      if (a.status === 'started') {
+        const left = Date.parse(a.deadline) - Date.now();
+        return { key: 'started', left, overGrace: left < -(a.uploadGraceMin || 15) * 60000 };
+      }
+      if (a.status === 'approved') return { key: 'approved' };
+      return { key: 'checking' };
+    }
+
+    window.otsLoad = async function () {
+      const body = document.getElementById('otsBody');
+      if (!body) return;
+      body.innerHTML = '<div class="ots-empty">⏳ Loading your test series…</div>';
+      try {
+        const token = await user.getIdToken();
+        const base = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+        const res = await fetch(`${base}/offlineTests?key=${FIREBASE_CONFIG.apiKey}&pageSize=300`, { headers: { Authorization: 'Bearer ' + token } });
+        const json = await res.json();
+        if (!res.ok) throw new Error((json.error && json.error.message) || 'Could not load tests');
+        const myClass = String(profile.class || studentClass || ''), myBoard = String(profile.board || '');
+        _ots.tests = (json.documents || []).map(d => {
+          const f = d.fields || {}, n = v => parseFloat(v?.doubleValue ?? v?.integerValue ?? '0') || 0;
+          return {
+            id: d.name.split('/').pop(), testName: f.testName?.stringValue || 'Test',
+            class: f.class?.stringValue || '', board: f.board?.stringValue || '',
+            subject: f.subject?.stringValue || 'General', chapter: f.chapter?.stringValue || 'General',
+            totalMarks: n(f.totalMarks), durationMin: n(f.durationMin) || 60,
+            instructions: f.instructions?.stringValue || '', teacherName: f.teacherName?.stringValue || '',
+            isActive: f.isActive?.booleanValue !== false, createdAt: f.createdAt?.stringValue || ''
+          };
+        }).filter(t => t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
+        const attempts = await Promise.all(_ots.tests.map(async t => {
+          const r = await fetch(`${base}/offlineAttempts/${t.id}__${user.uid}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } }).catch(() => null);
+          if (!r || !r.ok) return null;
+          const f = (await r.json()).fields || {};
+          return [t.id, {
+            status: f.status?.stringValue || '', deadline: f.deadline?.stringValue || '', startedAt: f.startedAt?.stringValue || '',
+            questionPdfUrl: f.questionPdfUrl?.stringValue || '', uploadGraceMin: parseInt(f.uploadGraceMin?.integerValue || '15', 10)
+          }];
+        }));
+        _ots.attempts = Object.fromEntries(attempts.filter(Boolean));
+        // Closed tests stay visible only to students who already took them.
+        _ots.tests = _ots.tests.filter(t => t.isActive || _ots.attempts[t.id]);
+        if (_ots.subject && !_ots.tests.some(t => t.subject === _ots.subject)) { _ots.subject = ''; _ots.chapter = ''; }
+        otsRender();
+      } catch (e) {
+        body.innerHTML = '<div class="ots-empty" style="color:#b91c1c;">' + otsEsc(e.message) + '</div>';
+      }
+    };
+
+    window.otsGo = function (subject, chapter) {
+      _ots.subject = subject || ''; _ots.chapter = chapter || '';
+      otsRender();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    function otsCrumbs() {
+      const c = document.getElementById('otsCrumbs');
+      if (!c) return;
+      const parts = ['<button type="button" onclick="otsGo()">All subjects</button>'];
+      if (_ots.subject) {
+        parts.push('<span class="sep">›</span>');
+        parts.push(_ots.chapter
+          ? `<button type="button" data-ots-subject="${otsEsc(_ots.subject)}">${otsEsc(_ots.subject)}</button>`
+          : `<strong>${otsEsc(_ots.subject)}</strong>`);
+      }
+      if (_ots.chapter) parts.push('<span class="sep">›</span><strong>' + otsEsc(_ots.chapter) + '</strong>');
+      c.innerHTML = parts.join('');
+      c.querySelectorAll('[data-ots-subject]').forEach(b => b.onclick = () => otsGo(b.dataset.otsSubject));
+    }
+
+    function otsRender() {
+      otsCrumbs();
+      const body = document.getElementById('otsBody');
+      const tests = _ots.tests;
+      if (!tests.length) {
+        body.innerHTML = '<div class="ots-empty">📭 No offline tests for your class yet.<br>Your teachers will add them here — check back soon!</div>';
+        return;
+      }
+      const done = t => { const k = otsAttemptState(t).key; return k === 'checking' || k === 'approved'; };
+      const group = (list, key) => list.reduce((m, t) => { (m[t[key]] = m[t[key]] || []).push(t); return m; }, {});
+
+      if (!_ots.subject) {
+        const bySub = group(tests, 'subject');
+        body.innerHTML = '<div class="ots-grid">' + Object.keys(bySub).sort().map(s => {
+          const list = bySub[s], d = list.filter(done).length;
+          return `<button type="button" class="ots-card" data-sub="${otsEsc(s)}">
+            <span class="ic" aria-hidden="true">${OTS_ICONS[s] || '📄'}</span>
+            <h3>${otsEsc(s)}</h3>
+            <p>${list.length} test${list.length === 1 ? '' : 's'} · ${Object.keys(group(list, 'chapter')).length} chapter${Object.keys(group(list, 'chapter')).length === 1 ? '' : 's'}</p>
+            <div class="meta"><span class="ots-chip ${d === list.length ? 'ok' : ''}">${d}/${list.length} done</span></div>
+          </button>`;
+        }).join('') + '</div>';
+        body.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => otsGo(b.dataset.sub));
+        return;
+      }
+      const inSub = tests.filter(t => t.subject === _ots.subject);
+      if (!_ots.chapter) {
+        const byCh = group(inSub, 'chapter');
+        body.innerHTML = '<div class="ots-grid">' + Object.keys(byCh).sort().map(ch => {
+          const list = byCh[ch], d = list.filter(done).length;
+          return `<button type="button" class="ots-card" data-ch="${otsEsc(ch)}">
+            <span class="k">${otsEsc(_ots.subject)}</span>
+            <h3>${otsEsc(ch)}</h3>
+            <p>${list.length} test${list.length === 1 ? '' : 's'}</p>
+            <div class="meta"><span class="ots-chip ${d === list.length ? 'ok' : ''}">${d}/${list.length} done</span></div>
+          </button>`;
+        }).join('') + '</div>';
+        body.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => otsGo(_ots.subject, b.dataset.ch));
+        return;
+      }
+      const list = inSub.filter(t => t.chapter === _ots.chapter).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      body.innerHTML = '<div class="ots-grid">' + list.map(t => {
+        const st = otsAttemptState(t);
+        let btn;
+        if (st.key === 'new') btn = t.isActive ? `<button type="button" class="ots-btn" data-start="${t.id}">▶ Start test</button>` : '<button type="button" class="ots-btn soft" disabled>Closed</button>';
+        else if (st.key === 'started') btn = st.left > 0
+          ? `<button type="button" class="ots-btn amber" data-open="${t.id}">⏱ Continue · ${Math.ceil(st.left / 60000)} min left</button>`
+          : `<button type="button" class="ots-btn amber" data-open="${t.id}">⬆ Upload answer script${st.overGrace ? ' (late)' : ''}</button>`;
+        else if (st.key === 'approved') btn = `<button type="button" class="ots-btn green" data-report="${t.id}__${user.uid}">📄 View checked script</button>`;
+        else btn = '<button type="button" class="ots-btn soft" disabled>🧠 Being checked · teacher will approve</button>';
+        return `<div class="ots-card">
+          <span class="k">${otsEsc(t.subject)} · ${otsEsc(t.chapter)}</span>
+          <h3>${otsEsc(t.testName)}</h3>
+          <div class="meta"><span class="ots-chip">${t.totalMarks || '?'} marks</span><span class="ots-chip">⏱ ${t.durationMin} min</span>${t.board ? `<span class="ots-chip">${otsEsc(t.board)}</span>` : ''}</div>
+          ${t.instructions ? `<p>${otsEsc(t.instructions)}</p>` : ''}
+          <div class="act">${btn}</div>
+        </div>`;
+      }).join('') + '</div>';
+      body.querySelectorAll('[data-start]').forEach(b => b.onclick = () => otsStart(b.dataset.start, b));
+      body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => otsStart(b.dataset.open, b));
+      body.querySelectorAll('[data-report]').forEach(b => b.onclick = () => otsOpenReport(b.dataset.report));
+    }
+
+    async function otsStart(testId, btn) {
+      const t = _ots.tests.find(x => x.id === testId);
+      if (!t) return;
+      const fresh = !_ots.attempts[testId];
+      if (fresh && !confirm(`Start "${t.testName}"?\n\nThe ${t.durationMin}-minute timer starts now and cannot be paused. Keep paper and pen ready. When the time is up, scan your answers into one PDF and upload it.`)) return;
+      const label = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
+      try {
+        const a = await otsApi({ action: 'start', testId });
+        if (a.status && a.status !== 'started') { await otsLoad(); return; }
+        _ots.attempts[testId] = { status: 'started', deadline: a.deadline, startedAt: a.startedAt, questionPdfUrl: a.questionPdfUrl, uploadGraceMin: a.uploadGraceMin || 15 };
+        const offset = a.serverNow ? Date.parse(a.serverNow) - Date.now() : 0;
+        otsOpenExam(t, _ots.attempts[testId], offset);
+      } catch (e) {
+        alert(e.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+      }
+    }
+
+    function otsOpenExam(t, a, offset) {
+      _ots.exam = { test: t, attempt: a, offset: offset || 0, timer: null, warned: false };
+      document.getElementById('otsExamTitle').textContent = t.testName;
+      document.getElementById('otsExamSub').textContent = `${t.subject} · ${t.chapter} · ${t.totalMarks || '?'} marks`;
+      document.getElementById('otsPaperLink').href = a.questionPdfUrl;
+      document.getElementById('otsExam').hidden = false;
+      document.documentElement.style.overflow = 'hidden';
+      otsResetUpload();
+      otsTick();
+      _ots.exam.timer = setInterval(otsTick, 1000);
+      otsRenderPaper(a.questionPdfUrl);
+      if (Date.parse(a.deadline) - (Date.now() + _ots.exam.offset) <= 0) otsOpenUpload();
+    }
+
+    window.otsCloseExam = function () {
+      if (_ots.exam && _ots.exam.timer) clearInterval(_ots.exam.timer);
+      _ots.exam = null;
+      document.getElementById('otsExam').hidden = true;
+      document.documentElement.style.overflow = '';
+      otsRender();
+    };
+
+    function otsTick() {
+      const ex = _ots.exam;
+      if (!ex) return;
+      const left = Date.parse(ex.attempt.deadline) - (Date.now() + ex.offset);
+      const el = document.getElementById('otsTimer');
+      const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+      if (left > 0) {
+        el.textContent = fmt(left);
+        el.className = 'ots-timer' + (left < 5 * 60000 ? ' warn' : '');
+        if (left < 5 * 60000 && !ex.warned) { ex.warned = true; try { navigator.vibrate && navigator.vibrate(300); } catch (_) {} }
+      } else {
+        const grace = (ex.attempt.uploadGraceMin || 15) * 60000 + left;
+        el.textContent = grace > 0 ? '⬆ ' + fmt(grace) : 'LATE';
+        el.className = 'ots-timer over';
+        if (!ex.timeUp) { ex.timeUp = true; otsOpenUpload(); }
+      }
+      const up = document.getElementById('otsUpTime');
+      if (up && !document.getElementById('otsUpload').hidden) {
+        if (left > 0) { up.textContent = `${fmt(left)} of writing time left. You can submit early.`; up.className = 'ots-up-time'; }
+        else {
+          const grace = (ex.attempt.uploadGraceMin || 15) * 60000 + left;
+          up.textContent = grace > 0 ? `⏰ Time's up! Pens down — upload within ${fmt(grace)}.` : '⏰ The upload window has ended. Upload now — your teacher will see it was late.';
+          up.className = 'ots-up-time late';
+        }
+      }
+    }
+
+    window.otsZoom = function (dir) {
+      _ots.zoom = Math.max(0.6, Math.min(3, Math.round((_ots.zoom + dir * 0.25) * 100) / 100));
+      document.getElementById('otsZoomLabel').textContent = Math.round(_ots.zoom * 100) + '%';
+      document.querySelectorAll('#otsPaper canvas').forEach(c => { c.style.width = (c.dataset.baseW * _ots.zoom) + 'px'; });
+    };
+
+    async function otsRenderPaper(url) {
+      const wrap = document.getElementById('otsPaper');
+      wrap.innerHTML = '<div class="ots-empty">Loading question paper…</div>';
+      try {
+        const pdfjs = await otsLoadPdfJs();
+        const pdf = await pdfjs.getDocument({ url }).promise;
+        wrap.innerHTML = '';
+        const avail = Math.min(wrap.clientWidth - 24, 900);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        for (let i = 1; i <= pdf.numPages; i++) {
+          if (!_ots.exam) return;
+          const page = await pdf.getPage(i);
+          const base = page.getViewport({ scale: 1 });
+          const scale = (avail / base.width) * dpr * 1.5;   // extra detail for zooming in
+          const vp = page.getViewport({ scale });
+          const c = document.createElement('canvas');
+          c.width = vp.width; c.height = vp.height;
+          c.dataset.baseW = avail;
+          c.style.width = (avail * _ots.zoom) + 'px';
+          c.setAttribute('aria-label', 'Question paper page ' + i);
+          wrap.appendChild(c);
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        }
+      } catch (e) {
+        wrap.innerHTML = `<div class="ots-empty">Couldn't show the paper here. <a href="${otsEsc(url)}" target="_blank" rel="noopener">Open the question paper ↗</a></div>`;
+      }
+    }
+
+    // ── Answer-script upload ──
+    function otsResetUpload() {
+      _ots.file = null; _ots.filePdf = null;
+      const f = document.getElementById('otsFile'); if (f) f.value = '';
+      document.getElementById('otsThumbs').innerHTML = '';
+      document.getElementById('otsDropText').textContent = '📄 Choose answer-script PDF';
+      const m = document.getElementById('otsUpMsg'); m.textContent = ''; m.className = 'ots-up-msg';
+      const b = document.getElementById('otsUpSubmit'); b.disabled = true; b.textContent = 'Submit for checking →';
+      document.getElementById('otsUpBack').disabled = false;
+    }
+    window.otsOpenUpload = function () { document.getElementById('otsUpload').hidden = false; otsTick(); };
+    window.otsCloseUpload = function () { document.getElementById('otsUpload').hidden = true; };
+
+    window.otsPickFile = async function (file) {
+      const msg = document.getElementById('otsUpMsg'), btn = document.getElementById('otsUpSubmit'), thumbs = document.getElementById('otsThumbs');
+      _ots.file = null; _ots.filePdf = null; btn.disabled = true; thumbs.innerHTML = '';
+      if (!file) return;
+      if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { msg.className = 'ots-up-msg err'; msg.textContent = 'Please choose a PDF file (scan your pages into one PDF).'; return; }
+      if (file.size > 40 * 1024 * 1024) { msg.className = 'ots-up-msg err'; msg.textContent = 'This PDF is larger than 40 MB. Scan in normal quality and try again.'; return; }
+      msg.className = 'ots-up-msg'; msg.textContent = 'Reading your PDF…';
+      try {
+        const pdfjs = await otsLoadPdfJs();
+        const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+        if (pdf.numPages > 25) throw new Error(`Your PDF has ${pdf.numPages} pages — the limit is 25.`);
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const vp = page.getViewport({ scale: 120 / page.getViewport({ scale: 1 }).width });
+          const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+          c.setAttribute('aria-label', 'Page ' + i);
+          thumbs.appendChild(c);
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        }
+        _ots.file = file; _ots.filePdf = pdf;
+        document.getElementById('otsDropText').textContent = '📄 ' + file.name + ' · change';
+        msg.textContent = `${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'} ready. Check every page is clear and in order.`;
+        btn.disabled = false;
+      } catch (e) {
+        msg.className = 'ots-up-msg err';
+        msg.textContent = /password/i.test(e.message || '') ? 'This PDF is password-protected. Export it again without a password.' : (e.message || 'Could not read this PDF.');
+      }
+    };
+
+    async function otsPageJpeg(pdf, n) {
+      const page = await pdf.getPage(n);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(1600 / base.width, 2200 / base.height, 3);
+      const vp = page.getViewport({ scale });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      return new Promise(res => c.toBlob(b => res(b), 'image/jpeg', 0.82));
+    }
+
+    window.otsSubmit = async function () {
+      const ex = _ots.exam;
+      if (!ex || !_ots.file || !_ots.filePdf) return;
+      const msg = document.getElementById('otsUpMsg'), btn = document.getElementById('otsUpSubmit');
+      btn.disabled = true; document.getElementById('otsUpBack').disabled = true;
+      msg.className = 'ots-up-msg';
+      try {
+        if (typeof window._ntcUploadFile !== 'function') throw new Error('Upload service unavailable. Please refresh.');
+        btn.textContent = 'Uploading PDF…';
+        const pdfInfo = await window._ntcUploadFile(new File([_ots.file], 'answer-script.pdf', { type: 'application/pdf' }),
+          p => { msg.textContent = `Uploading your PDF… ${Math.round(p * 100)}%`; });
+        const pages = [];
+        for (let i = 1; i <= _ots.filePdf.numPages; i++) {
+          btn.textContent = `Preparing page ${i}/${_ots.filePdf.numPages}…`;
+          msg.textContent = 'Preparing pages for checking — keep this screen open.';
+          const blob = await otsPageJpeg(_ots.filePdf, i);
+          const info = await window._ntcUploadFile(new File([blob], `page-${i}.jpg`, { type: 'image/jpeg' }), () => {});
+          pages.push(info.url);
+        }
+        btn.textContent = 'Submitting…';
+        const r = await otsApi({ action: 'submit', testId: ex.test.id, scriptPdfUrl: pdfInfo.url, pageUrls: pages });
+        _ots.attempts[ex.test.id] = { ..._ots.attempts[ex.test.id], status: 'checking' };
+        msg.className = 'ots-up-msg ok';
+        msg.textContent = '✅ Submitted! Our AI is checking your script now. Once your teacher approves it, the full report appears in My Results.' +
+          (r.lateByMin > 15 ? ' (Marked as late.)' : '');
+        btn.textContent = 'Submitted ✓';
+        clearInterval(ex.timer);
+        setTimeout(() => { otsCloseUpload(); otsCloseExam(); }, 2600);
+      } catch (e) {
+        msg.className = 'ots-up-msg err';
+        msg.textContent = '⚠️ ' + (e.message || 'Upload failed') + ' — check your internet and tap Submit again.';
+        btn.disabled = false; btn.textContent = 'Try again';
+        document.getElementById('otsUpBack').disabled = false;
+      }
+    };
+
+    // Leaving mid-test: warn before the tab closes (the timer keeps running on the server).
+    window.addEventListener('beforeunload', e => {
+      if (_ots.exam && _ots.attempts[_ots.exam.test.id]?.status === 'started') { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    // ── Approved report ──
+    let _otsReportName = '';
+    window.otsOpenReport = async function (attemptId) {
+      const layer = document.getElementById('otsReport'), body = document.getElementById('otsReportBody');
+      layer.hidden = false; document.documentElement.style.overflow = 'hidden';
+      body.innerHTML = '<div class="ots-empty">Loading your report…</div>';
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/offlineReports/${encodeURIComponent(attemptId)}?key=${FIREBASE_CONFIG.apiKey}`,
+          { headers: { Authorization: 'Bearer ' + token } });
+        if (!res.ok) throw new Error('Your report is not ready yet — your teacher is still reviewing it.');
+        const f = (await res.json()).fields || {}, s = k => f[k]?.stringValue || '';
+        const report = JSON.parse(s('finalReport') || s('aiReport') || '{}');
+        const meta = {
+          studentName: s('studentName') || profile.name || '', studentId: s('studentId'), studentClass: s('studentClass'),
+          board: s('board') || s('studentBoard'), school: s('school'), subject: s('subject'), chapter: s('chapter'),
+          testName: s('testName'), durationMin: parseFloat(f.durationMin?.integerValue || f.durationMin?.doubleValue || '0'),
+          checkedAt: s('checkedAt'), pageUrls: (f.pageUrls?.arrayValue?.values || []).map(v => v.stringValue)
+        };
+        document.getElementById('otsReportTitle').textContent = `${meta.testName} · ${meta.subject}`;
+        _otsReportName = `${(meta.studentName || 'Student').split(' ')[0]}_${meta.subject}_${meta.testName}_Checked_Script_TNC`.replace(/[^\w-]+/g, '_');
+        NTCOfflineReport.render(body, { meta, report, approval: { name: s('approvedByName'), at: s('approvedAt') } });
+      } catch (e) {
+        body.innerHTML = '<div class="ots-empty" style="color:#b91c1c;">' + otsEsc(e.message) + '</div>';
+      }
+    };
+    window.otsCloseReport = function () {
+      document.getElementById('otsReport').hidden = true;
+      document.documentElement.style.overflow = '';
+    };
+    window.otsDownloadReport = function () {
+      NTCOfflineReport.download(document.getElementById('otsReportBody'), _otsReportName);
+    };
 
 
     // ══════════════════════════════════════════════════════════════
@@ -6347,6 +6828,7 @@ renderCards();
 <script>document.documentElement.classList.add('ntc-styled');</script>
 <link rel="stylesheet" href="/assets/css/portal-controls.css?v=d62c9c09">
 <link rel="stylesheet" href="/assets/css/brand-theme.css?v=a1c81d78">
+<link rel="stylesheet" href="/assets/css/offline-series.css?v=4fde36a1">
 <script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
 <script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>

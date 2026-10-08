@@ -1,0 +1,101 @@
+/* Offline Test Series — student browser, timed paper, upload sheet, report
+   viewer, and the teacher's approval workspace. Mobile-first. */
+.ots-crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 14px;font-size:13px;color:#64748b}
+.ots-crumbs button{border:0;background:none;padding:6px 2px;font:inherit;font-weight:600;color:#1d4ed8;cursor:pointer}
+.ots-crumbs span.sep{color:#cbd5e1}
+.ots-crumbs strong{color:#0f172a}
+.ots-empty{text-align:center;padding:2.5rem 1rem;color:#94a3b8;font-size:14px;line-height:1.6}
+.ots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.ots-card{position:relative;display:flex;flex-direction:column;gap:6px;text-align:left;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(15,23,42,.04);font:inherit;color:inherit}
+button.ots-card{cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+button.ots-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.08);border-color:#bfdbfe}
+button.ots-card:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.ots-card .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0284c7}
+.ots-card h3{margin:0;font-size:16px;line-height:1.3;color:#0b2d7b}
+.ots-card p{margin:0;font-size:13px;color:#64748b}
+.ots-card .ic{font-size:26px}
+.ots-card .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.ots-chip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:#eff6ff;color:#1e40af}
+.ots-chip.ok{background:#ecfdf5;color:#047857}.ots-chip.warn{background:#fffbeb;color:#b45309}.ots-chip.bad{background:#fef2f2;color:#b91c1c}
+.ots-card .act{margin-top:auto;padding-top:8px}
+.ots-btn{width:100%;min-height:44px;border:0;border-radius:12px;font:700 14px/1.2 inherit;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#0b2d7b,#1d4ed8);color:#fff}
+.ots-btn.green{background:linear-gradient(135deg,#047857,#10b981)}
+.ots-btn.soft{background:#fffbeb;color:#b45309;border:1px solid #fde68a;cursor:default}
+.ots-btn.amber{background:linear-gradient(135deg,#b45309,#f59e0b)}
+
+/* ── Full-screen layers (exam + report) ── */
+.ots-exam{position:fixed;inset:0;z-index:1500;display:flex;flex-direction:column;background:#eef2f8;font-family:'DM Sans',system-ui,sans-serif}
+.ots-exam[hidden]{display:none}
+.ots-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:#071a45;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.ots-bar-title{flex:1;min-width:0;display:flex;flex-direction:column}
+.ots-bar-title strong{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ots-bar-kicker{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#93c5fd}
+.ots-timer{font:700 18px/1 'DM Sans',ui-monospace,monospace;font-variant-numeric:tabular-nums;padding:8px 12px;border-radius:10px;background:#ffffff14;border:1px solid #ffffff26;min-width:84px;text-align:center}
+.ots-timer.warn{background:#f59e0b;color:#111827;border-color:#f59e0b}
+.ots-timer.over{background:#dc2626;border-color:#dc2626;animation:otsPulse 1s ease-in-out infinite}
+@keyframes otsPulse{50%{opacity:.7}}
+.ots-bar-btn{border:0;border-radius:10px;padding:10px 14px;min-height:42px;font:700 13.5px inherit;font-family:inherit;cursor:pointer;background:#38bdf8;color:#071a45;white-space:nowrap}
+.ots-bar-btn.ghost{background:#ffffff1a;color:#fff}
+.ots-zoom{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;border-bottom:1px solid #e2e8f0;font-size:13px}
+.ots-zoom button{min-width:36px;min-height:36px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font:700 16px inherit;cursor:pointer;color:#0b2d7b}
+.ots-zoom a{margin-left:auto;color:#1d4ed8;font-weight:600;text-decoration:none}
+.ots-zoom .ots-min{min-width:auto;padding:0 10px;font-size:13px}
+.ots-paper{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.ots-paper canvas{display:block;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.12);border-radius:4px;max-width:none}
+.ots-report-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}
+
+/* Upload bottom sheet */
+.ots-sheet-back{position:absolute;inset:0;background:rgba(7,26,69,.55);display:flex;align-items:flex-end;justify-content:center;padding:0}
+.ots-sheet-back[hidden]{display:none}
+.ots-sheet{width:100%;max-width:560px;max-height:92dvh;overflow:auto;background:#fff;border-radius:22px 22px 0 0;padding:10px 18px max(18px,env(safe-area-inset-bottom))}
+.ots-sheet-grip{width:36px;height:4px;border-radius:4px;background:#cbd5e1;margin:2px auto 12px}
+.ots-sheet h3{margin:0 0 4px;color:#0b2d7b;font-size:19px}
+.ots-up-time{margin:0 0 10px;font-size:13.5px;color:#475569}
+.ots-up-time.late{color:#b91c1c;font-weight:700}
+.ots-steps{margin:0 0 12px;padding-left:20px;font-size:13px;color:#334155;line-height:1.55}
+.ots-drop{display:flex;align-items:center;justify-content:center;min-height:64px;border:2px dashed #93c5fd;border-radius:14px;background:#f0f7ff;color:#1d4ed8;font-weight:700;cursor:pointer;text-align:center;padding:10px}
+.ots-drop input{position:absolute;width:1px;height:1px;opacity:0}
+.ots-drop:focus-within{outline:3px solid #93c5fd;outline-offset:2px}
+.ots-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px}
+.ots-thumbs canvas{width:100%;height:auto;border:1px solid #e2e8f0;border-radius:6px;background:#fff}
+.ots-up-msg{min-height:20px;margin-top:10px;font-size:13px;color:#475569}
+.ots-up-msg.err{color:#b91c1c}.ots-up-msg.ok{color:#047857;font-weight:600}
+.ots-up-actions{display:flex;gap:10px;margin-top:12px}
+.ots-up-actions button{flex:1;min-height:48px;border-radius:12px;font:700 14.5px inherit;font-family:inherit;cursor:pointer}
+.ots-primary{border:0;background:linear-gradient(135deg,#0b2d7b,#1d4ed8);color:#fff}
+.ots-primary[disabled]{opacity:.5;cursor:not-allowed}
+.ots-ghost{border:1px solid #cbd5e1;background:#fff;color:#334155}
+@media(min-width:640px){.ots-sheet-back{align-items:center;padding:24px}.ots-sheet{border-radius:22px}.ots-sheet-grip{display:none}}
+
+/* ── Teacher: approval workspace ── */
+.ota-list{display:flex;flex-direction:column;gap:10px}
+.ota-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px}
+.ota-row h4{margin:0;font-size:15px;color:#0b2d7b}
+.ota-row p{margin:2px 0 0;font-size:12.5px;color:#64748b}
+.ota-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.ota-tabs button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:7px 14px;font:600 13px inherit;font-family:inherit;cursor:pointer;color:#334155}
+.ota-tabs button.on{background:#0b2d7b;border-color:#0b2d7b;color:#fff}
+.ota-integrity{border-radius:14px;padding:12px 14px;margin-bottom:12px;border:1px solid}
+.ota-integrity.none{background:#f0fdf4;border-color:#bbf7d0}
+.ota-integrity.low{background:#f8fafc;border-color:#e2e8f0}
+.ota-integrity.medium{background:#fffbeb;border-color:#fde68a}
+.ota-integrity.high{background:#fef2f2;border-color:#fecaca}
+.ota-integrity h4{margin:0 0 6px;font-size:14px}
+.ota-integrity ul{margin:0;padding-left:18px;font-size:13px;line-height:1.55}
+.ota-integrity a{color:#1d4ed8;word-break:break-all}
+.ota-edit{width:100%;border-collapse:collapse;font-size:13px}
+.ota-edit th,.ota-edit td{border-bottom:1px solid #e2e8f0;padding:7px 6px;text-align:left;vertical-align:top}
+.ota-edit input[type=number]{width:70px;padding:6px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+.ota-edit textarea,.ota-remark{width:100%;min-height:54px;padding:7px 8px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;font-size:13px;resize:vertical}
+.ota-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.ota-preview{background:#eef2f8;border-radius:14px;padding:10px;margin-top:12px}
+@media(max-width:640px){.ota-edit thead{display:none}.ota-edit tr{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;padding:8px 0;border-bottom:1px solid #e2e8f0}.ota-edit td{border:0;padding:2px}.ota-edit td.rm{grid-column:1/-1}}
+@media(prefers-reduced-motion:reduce){.ots-timer.over{animation:none}button.ots-card{transition:none}}
+/* Printing the report from its full-screen layer: unpin the layer so every
+   A4 sheet prints, not just one screen's worth. */
+@media print{
+  html,body{overflow:visible!important;height:auto!important}
+  .ots-exam:not([hidden]){position:static!important;display:block!important;overflow:visible!important;background:#fff!important}
+  .ots-report-body,.ota-preview{overflow:visible!important;padding:0!important;background:#fff!important}
+  .ots-bar{display:none!important}
+}

@@ -349,6 +349,44 @@ service cloud.firestore {
                     && onlyChanges(['finalGrading','teacherNotes','status','releasedAt']);
     }
 
+    // ─── Offline Test Series (pen & paper, AI-checked) ──────────────
+    // offlineTests/{id}       what students browse: class, subject, chapter,
+    //                         name, marks, duration. No PDF links in here.
+    // offlineTestKeys/{id}    question paper + answer key PDFs. Staff only;
+    //                         the offline-test function hands the question
+    //                         paper to a student only when they press Start.
+    // offlineAttempts/{id}    {testId}__{uid}: server-recorded start time,
+    //                         deadline and status. Written by the offline-test
+    //                         function (service account); staff may mark it
+    //                         approved.
+    // offlineReports/{id}     the AI evaluation + integrity check. The student
+    //                         may read their OWN report only once a teacher has
+    //                         approved it; staff edit marks/remarks and approve.
+    match /offlineTests/{id} {
+      allow read:                   if isSignedIn();
+      allow create, update, delete: if isStaff();
+    }
+    match /offlineTestKeys/{id} {
+      allow read, write: if isStaff();
+    }
+    match /offlineAttempts/{id} {
+      allow get:    if isSignedIn() && (isStaff() || resource.data.uid == request.auth.uid);
+      allow list:   if isStaff();
+      allow create, delete: if false;
+      allow update: if isStaff() && onlyChanges(['status','approvedAt']);
+    }
+    match /offlineReports/{id} {
+      allow get:    if isSignedIn() && (
+                       isStaff()
+                       || (resource.data.uid == request.auth.uid && resource.data.status == 'approved')
+                    );
+      allow list:   if isStaff();
+      allow create, delete: if false;
+      allow update: if isStaff()
+                    && onlyChanges(['finalReport','status','approvedAt','approvedByUid','approvedByName'])
+                    && request.resource.data.status in ['ai_checked','approved'];
+    }
+
     // ─── ncertIndex/{class}_{subject}  (published-chapter index) ────
     // Tiny doc per class+subject: { published: [1,3,5], updatedAt }.
     // The public /ncert/ chapter-list page reads exactly ONE of these to
