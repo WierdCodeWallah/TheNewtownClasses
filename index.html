@@ -112,6 +112,10 @@
   <link rel="stylesheet" href="/assets/css/styles.css?v=7945ed98"/>
   <link rel="stylesheet" href="/assets/css/home-footer.css?v=dcef02c5"/>
   <link rel="stylesheet" href="/assets/css/home-mobile.css?v=2815219e"/>
+  <link rel="stylesheet" href="/assets/css/home-ribbon.css?v=60671a53"/>
+  <link rel="stylesheet" href="/assets/css/home-header.css?v=c4996c49"/>
+  <script src="/assets/js/home-ribbon.js?v=1c0604cd" defer></script>
+  <script src="/assets/js/home-header.js?v=cbaf3bb8" defer></script>
 
   <!-- ── SPLASH SCREEN (inline so it paints before anything else) ──
        Same look as the portal sign-in screens (auth-transitions.css). Only
@@ -334,61 +338,68 @@
 
 <div class="stars"></div>
 
-<!-- HEADER BANNER -->
-<div class="header-banner">
-  <div class="header-banner-inner">
-    <div class="header-title">THE NEWTOWN CLASSES</div>
-    <div class="header-pill"> 7-12 | Olympiad | JEE | NEET </div>
-  </div>
+<!-- MOBILE-FIRST HEADER -->
+<div class="site-utility">
+  <div><span><i aria-hidden="true"></i> ADMISSIONS OPEN <b>2026–27</b></span><a href="#contact">Your next chapter starts here <span aria-hidden="true">↗</span></a></div>
 </div>
-
-<!-- NAV -->
-<nav>
-  <a class="mobile-nav-brand" href="/" aria-label="The NewTown Classes home"><b>TRANSITION</b></a>
-  <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-    <span></span><span></span><span></span>
-  </button>
-  <ul class="nav-links" id="nav-links">
-    <li><a href="/courses/">Courses</a></li>
-    <li><a href="/ncert/">NCERT</a></li>
-    <li><a href="/why-us/">Why Us</a></li>
-    <li><a href="/toppers/">Toppers</a></li>
-    <li><a href="/results/">Results</a></li>
-    <li><a href="/faq/">FAQ</a></li>
-    <li><a href="/#contact">Contact</a></li>
-    <li class="login-dropdown">
-      <a href="#" class="login-toggle" id="loginToggle">Login ▾</a>
-      <ul class="login-menu" id="loginMenu">
-        <li><a href="/login/student">🎓 Student</a></li>
-        <li><a href="/login/teacher">👨‍🏫 Teacher</a></li>
-        <li><a href="/login/admin">🛡 Admin</a></li>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="/" aria-label="THE NEWTOWN CLASSES home">
+      <img src="/assets/img/logo-mark-192.webp" width="48" height="48" alt="">
+      <span class="site-brand-copy"><strong>THE NEWTOWN CLASSES</strong><span class="site-brand-subtitle">Class 7–12</span></span>
+    </a>
+    <button class="site-menu-toggle" type="button" aria-controls="site-menu" aria-expanded="false" aria-label="Open navigation menu">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="site-nav" aria-label="Main navigation" id="site-menu">
+      <div class="site-menu-intro"><span>MAKE YOUR NEXT MOVE</span><strong>Where will you go next?</strong></div>
+      <ul class="site-links">
+        <li><a class="site-course-link" href="/courses/">Explore courses <span aria-hidden="true">↗</span></a></li>
+        <li><a href="/ncert/">NCERT</a></li>
+        <li><a href="/why-us/">Why us</a></li>
+        <li><a href="/toppers/">Toppers</a></li>
+        <li><a href="/results/">Results</a></li>
+        <li><a href="/faq/">FAQ</a></li>
+        <li><a href="#contact">Contact</a></li>
       </ul>
-    </li>
-  </ul>
-  <a href="#contact" class="nav-cta">Enroll Now →</a>
-</nav>
-
-<!-- SCROLLING ANNOUNCEMENT TICKER -->
-<div class="announcement-ticker">
-  <div class="ticker-track">
-    <span class="ticker-item highlight">FREE TRIAL SESSION — Experience Before You Enroll!</span>
-    <span class="ticker-sep">&#10038;</span>
-     <span class="ticker-item">Offering Exam Prep: <strong>NEET</strong> | <strong>JEE</strong> | <strong>Foundation</strong> | <strong>Olympiad</strong> | <strong>7-12[CBSE/ICSE]</strong> | <b>Also : </b> <strong>IGCSE</strong> | <strong>GCSE</strong> | <strong>IB</strong> | <strong>AP</strong> | <strong>O/A Level</strong></span>
-    <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item">Satisfied? <strong>Take Admission</strong> — Else No Questions Asked</span>
-    <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item urgent">Limited-Period Offer Ends This Month!</span>
-    <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item">Offering Exam Prep: <strong>NEET</strong> | <strong>JEE</strong> | <strong>Foundation</strong> | <strong>Olympiad</strong> | <strong>7-12[CBSE/ICSE]</strong> <b>Also : </b> <strong>IGCSE</strong> | <strong>GCSE</strong> | <strong>IB</strong> | <strong>AP</strong> | <strong>O/A Level</strong></span>
-    <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item highlight">FREE TRIAL SESSION — Experience Before You Enroll!</span>
-    <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item">Satisfied? <strong>Take Admission</strong>— Else No Questions Asked</span>
-    <span class="ticker-sep">&#10038;</span>
-    <span class="ticker-item urgent">Limited-Period Offer Ends This Month!</span>
-    <span class="ticker-sep">&#10038;</span>
+      <div class="site-login">
+        <button class="site-login-toggle" type="button" aria-expanded="false" aria-controls="site-login-links">Login <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+        <ul class="site-login-links" id="site-login-links" hidden>
+          <li><a href="/login/student"><span>Student portal</span><span aria-hidden="true">↗</span></a></li>
+          <li><a href="/login/teacher"><span>Teacher portal</span><span aria-hidden="true">↗</span></a></li>
+          <li><a href="/login/admin"><span>Admin portal</span><span aria-hidden="true">↗</span></a></li>
+        </ul>
+      </div>
+    </nav>
   </div>
-</div>
+</header>
+
+<!-- COMPACT COURSE STRIP -->
+<aside class="prep-ribbon" aria-label="Explore our courses and free trial">
+  <div class="prep-ribbon-inner">
+    <div class="prep-ribbon-intro">
+      <strong>Your first class <em>is on us.</em></strong>
+      <button class="prep-motion" type="button" aria-label="Pause course highlights" aria-pressed="false" hidden>
+        <svg class="prep-pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10"/></svg>
+        <svg class="prep-play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 8 6-8 6Z"/></svg>
+      </button>
+    </div>
+    <div class="prep-ribbon-courses">
+      <div class="prep-course-rail">
+      <div class="prep-ribbon-window" tabindex="0" role="group" aria-label="Available programs. Scroll horizontally to explore.">
+        <div class="prep-ribbon-track">
+          <ul class="prep-ribbon-group" aria-label="Available programs">
+            <li class="prep-chip-featured">NEET</li><li class="prep-chip-featured">JEE</li>
+            <li class="prep-chip-featured">Olympiad</li><li class="prep-chip-featured">Class 7–12 · CBSE / ICSE</li><li>Foundation</li>
+            <li>IGCSE</li><li>GCSE</li><li>IB</li><li>AP</li><li>O / A Level</li>
+          </ul>
+        </div>
+      </div>
+      <button class="prep-next" type="button" aria-label="See more courses" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+      </div>
+    </div>
+  </div>
+</aside>
 
 <!-- HERO -->
 <section class="hero">

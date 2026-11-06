@@ -10,11 +10,18 @@ node qa/auth-transitions.cjs
 node qa/inquiries.cjs
 node qa/offline-series.cjs
 node qa/offline-functions.cjs
+node qa/home-header.cjs
 ```
 
 The browser check requires Playwright on Node's module path and an installed
 Chrome browser. Set `PORTAL_BROWSER=edge` to use Edge instead. No npm dependencies
 or build step are added to the website.
+
+The homepage header check covers 320–1920px widths, touch menus, login links,
+Escape and focus restoration, course scrolling and arrow controls, compact phone sizing,
+the NEET/JEE/Olympiad/Class 7–12 highlight sequence, pause/resume, and reduced-motion
+layouts. External services are blocked. Screenshots go to
+`qa/artifacts/home-header/`; these checks use browser emulation, not physical phones.
 
 The auth transition checks cover 320px and 390px phones, landscape and desktop,
 rapid stage changes, keyboard dismissal/focus restoration, logout failure recovery,
