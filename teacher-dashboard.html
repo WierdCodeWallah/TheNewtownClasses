@@ -43,9 +43,10 @@
   <script src="/assets/js/offline-report.js?v=d5022985"></script>
   <script src="/assets/js/uploadcare-config.js?v=8d3c4d5d"></script>
   <script src="/assets/js/offline-policy.js?v=6a27f8b3"></script>
-  <script src="/assets/js/offline-files.js?v=690a54d4"></script>
+  <script src="/assets/js/offline-files.js?v=a934e5f6"></script>
   <script src="/assets/js/ncert-chapters.js?v=336bdcee"></script>
-  <script src="/assets/js/portal-shell.js?v=07b4a260"></script>
+  <script src="/assets/js/portal-shell.js?v=226dabc7"></script>
+  <script src="/assets/js/offline-records.js?v=48e61409"></script>
   <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3944,9 +3945,15 @@
 
   window.otLoadMyTests = async function () {
     const wrap = $('otListWrap'); if (!wrap) return;
+    PortalUI.clearBrowser(wrap);
     wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">Loading…</div>';
     try {
-      const [tests, keys] = await Promise.all([fsGet('offlineTests'), fsGet('offlineTestKeys')]);
+      const token = await user.getIdToken();
+      const [tests, keys, reports] = await Promise.all([fsGet('offlineTests'), fsGet('offlineTestKeys'),
+        PortalUI.fetchList(NTCOfflineRecords.listUrl(FIREBASE_CONFIG.projectId, FIREBASE_CONFIG.apiKey), { headers: { Authorization: 'Bearer ' + token } }).catch(() => ({ documents: [] }))]);
+      // Submission counts per test: how many wrote it and how many still need checking.
+      const perTest = {};
+      (reports.documents || []).map(d => NTCOfflineRecords.parse(d)).forEach(r => { const c = perTest[r.testId] ||= { total: 0, pending: 0 }; c.total++; if (r.stage !== 'returned') c.pending++; });
       const keyMap = {};
       (keys.documents || []).forEach(d => { const f = d.fields || {}; keyMap[d.name.split('/').pop()] = { q: NTCUploadcare.deliveryUrl(f.questionPdfUrl?.stringValue || ''), a: NTCUploadcare.deliveryUrl(f.answerPdfUrl?.stringValue || '') }; });
       const docs = (tests.documents || []).map(d => { const f = d.fields || {}; return {
@@ -3955,17 +3962,26 @@
         totalMarks: parseFloat(f.totalMarks?.doubleValue || f.totalMarks?.integerValue || '0'),
         durationMin: parseInt(f.durationMin?.integerValue || '0', 10), isActive: f.isActive?.booleanValue !== false,
         teacherUid: f.teacherUid?.stringValue || '', createdAt: f.createdAt?.stringValue || ''
-      }; }).filter(d => d.teacherUid === user.uid).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      }; }).filter(d => d.teacherUid === user.uid).map(d => ({ ...d, status: d.isActive ? 'Live' : 'Closed' }))
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       if (!docs.length) { wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No offline tests yet — publish one above.</div>'; return; }
-      wrap.innerHTML = '<div class="ota-list">' + docs.map(d => `<div class="ota-row">
+      // Class → Subject → Chapter, then Module / Part and Live / Closed filters.
+      PortalUI.collection({ host: wrap, key: 'offline-tests', items: docs, title: 'Your offline tests', eyebrow: 'CLASS → SUBJECT → CHAPTER → PART',
+        drill: ['class', 'subject', 'chapter'], autoSingle: true, facets: ['class', 'board', 'subject', 'chapter', 'module', 'status'], alwaysShow: ['status'],
+        labels: { module: 'Module / Part', status: 'Status' }, plurals: { module: 'parts', status: 'statuses' }, unit: ['test', 'tests'],
+        searchLabel: 'Search test name, chapter or part', pageSize: matchMedia('(max-width:600px)').matches ? 5 : 10,
+        render: visible => {
+          wrap.innerHTML = '<div class="ota-list">' + visible.map(d => { const c = perTest[d.id] || { total: 0, pending: 0 }; return `<div class="ota-row">
         <div><h4>${otEsc(d.testName)}</h4>
           <p>Class ${otEsc(d.class)}${d.board ? ' · ' + otEsc(d.board) : ''} · ${otEsc(d.subject)} · ${otEsc(d.chapter)} · ${otEsc(d.module)} · ${d.totalMarks} marks · ${d.durationMin} min ·
           <b style="color:${d.isActive ? '#059669' : '#94a3b8'}">${d.isActive ? 'Live' : 'Closed'}</b></p>
-          <p>${keyMap[d.id]?.q ? `<a href="${otEsc(keyMap[d.id].q)}" target="_blank" rel="noopener">Question paper ↗</a>` : 'No question paper'} ·
+          <p><b>${c.total}</b> submitted${c.pending ? ` · <b style="color:#b45309">${c.pending} to check</b>` : ''} ·
+             ${keyMap[d.id]?.q ? `<a href="${otEsc(keyMap[d.id].q)}" target="_blank" rel="noopener">Question paper ↗</a>` : 'No question paper'} ·
              ${keyMap[d.id]?.a ? `<a href="${otEsc(keyMap[d.id].a)}" target="_blank" rel="noopener">Answer key ↗</a>` : 'No answer key'}</p></div>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
           <button class="btn btn-outline" style="font-size:.78rem;padding:.35rem .75rem;" onclick="otToggle('${d.id}',${!d.isActive})">${d.isActive ? 'Close' : 'Reopen'}</button>
-        </div></div>`).join('') + '</div>';
+        </div></div>`; }).join('') + '</div>';
+        } });
     } catch (e) { wrap.innerHTML = `<div style="color:#ef4444;padding:1rem;">${otEsc(e.message)}</div>`; }
   };
   window.otToggle = async function (id, active) {
@@ -4022,13 +4038,31 @@
   function otaRenderList() {
     const list = $('otaList');
     document.querySelectorAll('#otaTabs [data-ota]').forEach(b => b.classList.toggle('on', b.dataset.ota === _otaFilter));
-    const pick = { pending: r => ['submitted', 'ai_checked', 'failed'].includes(r.status), checking: r => ['checking', 'grading'].includes(r.status), approved: r => r.status === 'approved' }[_otaFilter];
-    const rows = _otaReports.filter(pick);
+    const picks = { pending: r => ['submitted', 'ai_checked', 'failed'].includes(r.status), checking: r => ['checking', 'grading'].includes(r.status), approved: r => r.status === 'approved' };
+    // Tab labels carry live counts so the size of each queue is visible at a glance.
+    document.querySelectorAll('#otaTabs [data-ota]').forEach(b => {
+      const n = _otaReports.filter(picks[b.dataset.ota]).length;
+      b.textContent = { pending: 'Awaiting review', checking: 'Being checked', approved: 'Returned scripts' }[b.dataset.ota] + (n ? ` (${n})` : '');
+    });
+    const rows = _otaReports.filter(picks[_otaFilter]);
     if (_otaFilter === 'pending') rows.sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+    PortalUI.clearBrowser(list);
     if (!rows.length) {
       list.innerHTML = `<div style="text-align:center;padding:1.5rem;color:#90a4ae;">${{ pending: 'Nothing waiting — all caught up. 🎉', checking: 'No scripts are being checked right now.', approved: 'No approved scripts yet.' }[_otaFilter]}</div>`;
       return;
     }
+    // Pending work stays a flat, oldest-first queue with filters; the returned
+    // archive grows forever, so it drills down Class → Subject → Chapter.
+    const byId = new Map(rows.map(r => [r.id, r]));
+    const items = rows.map(r => ({ id: r.id, class: r.studentClass || 'Unassigned', board: r.studentBoard || r.board, subject: r.subject, chapter: r.chapter || 'General',
+      module: r.module, test: r.testName, studentName: r.studentName, studentId: r.studentId, section: r.studentSection }));
+    PortalUI.collection({ host: list, key: 'ota-' + _otaFilter, items, title: { pending: 'Scripts to check', checking: 'Scripts being checked', approved: 'Returned scripts' }[_otaFilter],
+      eyebrow: _otaFilter === 'approved' ? 'CLASS → SUBJECT → CHAPTER → PART' : 'OLDEST FIRST', drill: _otaFilter === 'approved' ? ['class', 'subject', 'chapter'] : false, autoSingle: true,
+      facets: ['class', 'subject', 'chapter', 'module', 'test'], labels: { module: 'Module / Part', test: 'Test' }, plurals: { module: 'parts' }, alwaysShow: ['test'],
+      unit: ['script', 'scripts'], searchLabel: 'Search student name, ID or test', pageSize: matchMedia('(max-width:600px)').matches ? 5 : 10,
+      render: visible => otaRenderRows(list, visible.map(i => byId.get(i.id))) });
+  }
+  function otaRenderRows(list, rows) {
     list.innerHTML = rows.map(r => {
       const lv = OTA_LEVEL[r.integrityLevel] || OTA_LEVEL.none;
       const when = r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
@@ -4038,7 +4072,7 @@
       else right = `<button class="btn btn-primary" style="font-size:.8rem;" onclick="otaOpen('${r.id}')">${r.status === 'approved' ? 'View' : 'Review'}</button>`;
       return `<div class="ota-row"><div>
         <h4>${otEsc(r.studentName || 'Student')} <span style="font-weight:500;color:#64748b;font-size:.8rem;">${otEsc(r.studentId)}</span></h4>
-        <p>${otEsc(r.testName)} · Class ${otEsc(r.studentClass)}${r.studentSection ? ' · Section ' + otEsc(r.studentSection) : ''} · ${otEsc(r.studentBoard || r.board)} · ${otEsc(r.subject)} · ${otEsc(r.chapter)} · ${when}</p>
+        <p>${otEsc(r.testName)} · Class ${otEsc(r.studentClass)}${r.studentSection ? ' · Section ' + otEsc(r.studentSection) : ''} · ${otEsc(r.studentBoard || r.board)} · ${otEsc(r.subject)} · ${otEsc(r.chapter)} · ${otEsc(r.module)} · ${when}</p>
         <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
           ${r.aiMax ? `<span class="ots-chip">AI: ${NTCOfflineReport.markText(r.aiScore)}/${NTCOfflineReport.markText(r.aiMax)}</span>` : ''}
           ${r.reviewMode !== 'teacher' && (r.status === 'ai_checked' || r.status === 'approved') ? `<span class="ots-chip ${lv[0]}">Integrity: ${lv[1]}</span>` : ''}

@@ -378,6 +378,14 @@ service cloud.firestore {
       allow create, update: if isStaff();
       allow delete: if false; // Close tests instead, preserving attempts and history.
     }
+    // Admin-only audit of work done in a teacher's name (tests published and
+    // scripts returned by an admin). Teachers and students cannot read it;
+    // entries can be added but never changed or removed.
+    match /offlineAudit/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.byAdminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
     match /offlineTestKeys/{id} {
       allow read, create, update: if isStaff();
       allow delete: if false;

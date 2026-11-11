@@ -83,5 +83,47 @@
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
   }
-  window.NTCOfflineFiles = { isPhoto, isPdf, photosToPdf, validatePdf, downloadPdf };
+  // Full check: header, size and that PDF.js can open it (no password).
+  async function validateReadablePdf(file) {
+    await validatePdf(file);
+    if (!window.pdfjsLib) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        s.onload = resolve; s.onerror = () => reject(new Error('Could not load the PDF reader. Check your connection and retry.'));
+        document.head.appendChild(s);
+      });
+    }
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const task = window.pdfjsLib.getDocument({ data: await file.arrayBuffer() });
+    try { await task.promise; }
+    catch (e) { throw new Error(/password/i.test(e.message || '') ? 'Use a PDF without password protection.' : 'This PDF could not be read. Export it again and retry.'); }
+    finally { await task.destroy(); }
+  }
+  // Upload to the project's Uploadcare storage (kept until deleted manually).
+  function upload(file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('UPLOADCARE_PUB_KEY', NTCUploadcare.publicKey);
+      fd.append('UPLOADCARE_STORE', '1');
+      fd.append('file', file);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://upload.uploadcare.com/base/');
+      xhr.timeout = 300000;
+      xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+      xhr.onload = () => {
+        if (xhr.status !== 200) return reject(new Error('Upload failed: ' + xhr.responseText));
+        try {
+          const uuid = JSON.parse(xhr.responseText).file;
+          if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(uuid || '')) throw new Error();
+          resolve(NTCUploadcare.fileUrl(uuid));
+        } catch (_) { reject(new Error('The upload service returned an invalid response. Please retry.')); }
+      };
+      xhr.onerror = () => reject(new Error('Network error while uploading'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out. Please retry on a stable connection.'));
+      xhr.onabort = () => reject(new Error('Upload cancelled. Please retry.'));
+      xhr.send(fd);
+    });
+  }
+  window.NTCOfflineFiles = { isPhoto, isPdf, photosToPdf, validatePdf, validateReadablePdf, upload, downloadPdf };
 })();

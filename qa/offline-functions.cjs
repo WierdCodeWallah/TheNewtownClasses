@@ -309,4 +309,29 @@ const call = async (body) => {
   assert.equal((await call({ ...returnBody, idToken: 'uid:teach1' })).status, 200, 'retry after successful return is idempotent');
   assert.equal((await call({ ...returnBody, idToken: 'uid:teach1', score: 7 })).status, 409, 'returned script cannot be overwritten');
   console.log('✓ teacher workflow: board, concurrent timer/submission, no AI, assigned-teacher authorization, marks validation, atomic return, durable result and retry');
+
+  // An admin can check and return any script in a chosen teacher's name. The
+  // student sees only the teacher; the admin is recorded in the audit log.
+  db.set('admins/boss', { isAdmin: true, name: 'Office Admin' });
+  db.set('students/stu4', { name: 'Kabir Rao', studentId: 'NTC004', class: '11', board: 'CBSE' });
+  assert.equal((await call({ idToken: 'uid:stu4', action: 'start', testId: 'manual1' })).status, 200);
+  assert.equal((await call({ idToken: 'uid:stu4', action: 'submit', testId: 'manual1', scriptPdfUrl: currentScript })).status, 200);
+  const adminReturn = { action: 'return-script', attemptId: 'manual1__stu4', checkedScriptUrl: currentChecked, score: 7, remark: 'Show units.' };
+  assert.equal((await call({ ...adminReturn, idToken: 'uid:teach1', onBehalfOf: 'other' })).status, 403, 'a teacher cannot return in another teacher\'s name');
+  assert.equal((await call({ ...adminReturn, idToken: 'uid:boss', onBehalfOf: 'missing' })).status, 400, 'unknown teacher rejected');
+  assert.equal((await call({ ...adminReturn, idToken: 'uid:boss', onBehalfOf: '../teachers/x' })).status, 400, 'malformed teacher id rejected');
+  assert.equal(db.get('offlineReports/manual1__stu4').status, 'submitted', 'rejected attempts change nothing');
+  assert.equal((await call({ ...adminReturn, idToken: 'uid:boss', onBehalfOf: 'other' })).status, 200);
+  const onBehalf = db.get('offlineReports/manual1__stu4');
+  assert.equal(onBehalf.approvedByName, 'Other Teacher'); assert.equal(onBehalf.approvedByUid, 'other');
+  assert(!JSON.stringify(onBehalf).includes('boss'), 'student-readable report never names the admin');
+  const onBehalfResult = db.get('students/stu4/offlineResults/ots_manual1__stu4');
+  assert.equal(onBehalfResult.teacherName, 'Other Teacher'); assert.equal(onBehalfResult.teacherUid, 'other');
+  assert(!JSON.stringify(onBehalfResult).includes('boss'), 'student result never names the admin');
+  const audit = db.get('offlineAudit/return_manual1__stu4');
+  assert.equal(audit.byAdminUid, 'boss'); assert.equal(audit.onBehalfOfUid, 'other'); assert.equal(audit.action, 'return-script');
+  assert.equal((await call({ ...adminReturn, idToken: 'uid:boss', onBehalfOf: 'other' })).status, 200, 'admin retry is idempotent');
+  // A teacher returning their own script writes no audit entry.
+  assert(!db.has('offlineAudit/return_manual1__stu1'));
+  console.log('✓ admin returns in a teacher\'s name: teacher shown to the student, admin kept in a private audit log, misuse refused');
 })().catch(e => { console.error(e); process.exit(1); });

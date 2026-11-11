@@ -12,8 +12,10 @@
  *    action 'submit'  (student) { testId, scriptPdfUrl, pageUrls[] }
  *        Accepts the answer-script PDF (+ page images rendered in the
  *        browser for AI tests). Teacher-checked tests enter the review inbox.
- *    action 'return-script' (assigned teacher) { attemptId, checkedScriptUrl, score, remark }
+ *    action 'return-script' (assigned teacher or admin) { attemptId, checkedScriptUrl, score, remark, onBehalfOf? }
  *        Atomically saves the checked PDF to the report, attempt and results.
+ *        An admin may pass onBehalfOf (a teacher uid): that teacher is shown as
+ *        the checker, and offlineAudit/return_{attemptId} records the admin.
  *    action 'regrade' (staff)   { attemptId }
  *        Re-runs the AI check (e.g. after a failure).
  *
@@ -97,7 +99,19 @@ exports.handler = async function (event) {
       ]);
       if (!repDoc || !attDoc) return bad(404, 'Submitted script not found.');
       const rep = decFields(repDoc), att = decFields(attDoc);
-      if (rep.teacherUid !== uid && !(adminDoc && decFields(adminDoc).isAdmin)) return bad(403, 'Only the assigned teacher can return this script.');
+      const callerIsAdmin = !!(adminDoc && decFields(adminDoc).isAdmin);
+      if (rep.teacherUid !== uid && !callerIsAdmin) return bad(403, 'Only the assigned teacher can return this script.');
+      // Admins may return a script in a chosen teacher's name; that teacher is
+      // shown as the checker. The real actor goes to the admin-only audit log.
+      let actorUid = uid, actorName = (teacherDoc && decFields(teacherDoc).name) || 'Teacher';
+      if (body.onBehalfOf != null && body.onBehalfOf !== '') {
+        const onBehalfOf = String(body.onBehalfOf);
+        if (!callerIsAdmin) return bad(403, 'Only admins can return a script for another teacher.');
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(onBehalfOf)) return bad(400, 'Choose a valid teacher.');
+        const chosen = onBehalfOf === uid ? teacherDoc : await fsGet(projectId, sa, `teachers/${onBehalfOf}`);
+        if (!chosen) return bad(400, 'Choose a valid teacher.');
+        actorUid = onBehalfOf; actorName = decFields(chosen).name || 'Teacher';
+      }
       if (!rep.scriptPdfUrl || att.status === 'started') return bad(409, 'The student has not submitted yet.');
       if (['checking', 'grading'].includes(rep.status)) return bad(409, 'Wait for the current check to finish before returning this script.');
       const checkedScriptUrl = String(body.checkedScriptUrl || '');
@@ -110,11 +124,14 @@ exports.handler = async function (event) {
         return bad(409, 'This script has already been returned.');
       }
       const now = new Date().toISOString();
-      const name = (teacherDoc && decFields(teacherDoc).name) || 'Teacher';
+      const name = actorName;
+      const audit = actorUid !== uid
+        ? [{ path: `offlineAudit/return_${attemptId}`, data: { action: 'return-script', attemptId, byAdminUid: uid, onBehalfOfUid: actorUid, onBehalfOfName: actorName, at: now } }]
+        : [];
       await fsCommit(projectId, sa, [
         { path: `offlineReports/${attemptId}`, currentDocument: { updateTime: repDoc.updateTime }, data: {
           ...rep, status: 'approved', checkedScriptUrl, score, teacherRemark: remark,
-          reviewMode: 'teacher', approvedAt: now, checkedAt: now, approvedByUid: uid, approvedByName: name
+          reviewMode: 'teacher', approvedAt: now, checkedAt: now, approvedByUid: actorUid, approvedByName: name
         } },
         { path: `offlineAttempts/${attemptId}`, currentDocument: { updateTime: attDoc.updateTime }, data: {
           ...att, status: 'approved', approvedAt: now, checkedScriptUrl
@@ -124,11 +141,12 @@ exports.handler = async function (event) {
           testName: rep.testName, subject: rep.subject, topic: rep.chapter, module: rep.module || 'Full chapter', testType: 'subjective', class: rep.studentClass,
           score, totalMarks: rep.totalMarks, pct: Math.round(score / rep.totalMarks * 100),
           testDate: (rep.submittedAt || now).slice(0, 10), remark: remark || 'Offline Test Series · Teacher checked',
-          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: uid, teacherName: name,
+          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: actorUid, teacherName: name,
           studentUid: rep.uid, studentName: rep.studentName, studentId: rep.studentId, savedAt: now,
           submittedAt: rep.submittedAt, approvedAt: now
         } }
         ,{ path: `students/${rep.uid}/offlineHistory/${attemptId}`, data: { ...policy.history(rep), status: 'approved', score, totalMarks: rep.totalMarks } }
+        , ...audit
       ]);
       return ok({ ok: true, status: 'approved' });
     }

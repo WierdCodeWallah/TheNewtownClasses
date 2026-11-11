@@ -88,5 +88,24 @@ const remove = (path, auth, status) => request(path, 'DELETE', null, auth, statu
   await patch('offlineAttempts/legacy__student?updateMask.fieldPaths=status', { status: 'approved' }, teacher, 200);
   await patch('students/student/offlineResults/classroom', { score: '6' }, teacher, 200);
   await remove('students/student/offlineResults/classroom', teacher, 200);
-  console.log(`${checks} real local Firestore checks passed: private papers, own attempts/results, server-only manual returns, protected history, class promotion and legacy compatibility.`);
+
+  // Admin-only audit of work done in a teacher's name.
+  const admin = token('admin');
+  await patch('admins/admin', { isAdmin: true }, 'owner', 200);
+  await patch('offlineAudit/publish_t1', { byAdminUid: 'admin', onBehalfOfUid: 'teacher', action: 'publish-test' }, admin, 200);
+  await get('offlineAudit/publish_t1', admin, 200);
+  await get('offlineAudit', admin, 200);
+  await get('offlineAudit/publish_t1', teacher, 403);
+  await get('offlineAudit', teacher, 403);
+  await get('offlineAudit/publish_t1', student, 403);
+  await patch('offlineAudit/forged', { byAdminUid: 'someone-else', onBehalfOfUid: 'teacher' }, admin, 403);
+  await patch('offlineAudit/by-teacher', { byAdminUid: 'teacher', onBehalfOfUid: 'teacher' }, teacher, 403);
+  await patch('offlineAudit/publish_t1', { byAdminUid: 'admin', onBehalfOfUid: 'other' }, admin, 403);
+  await remove('offlineAudit/publish_t1', admin, 403);
+  // Admins can publish and close tests in a teacher's name.
+  await patch('offlineTests/admin-made', { testName: 'Admin made', class: '11', teacherUid: 'teacher', teacherName: 'Teacher', isActive: true }, admin, 200);
+  await patch('offlineTestKeys/admin-made', { questionPdfUrl: 'https://32zbpzustr.ucarecd.net/00000000-0000-4000-8000-000000000001/', teacherUid: 'teacher' }, admin, 200);
+  await patch('offlineTests/admin-made?updateMask.fieldPaths=isActive', { isActive: false }, admin, 200);
+  await get('offlineReports', admin, 200);
+  console.log(`${checks} real local Firestore checks passed: private papers, own attempts/results, server-only manual returns, protected history, class promotion, legacy compatibility and the admin-only audit log.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

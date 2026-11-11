@@ -127,3 +127,16 @@ downloads are saved as `Name_ID_Test.pdf`. Tests given include submitted
 attempts; chapter averages include all graded parts. The compact animated
 process guide promises results within 48 hours of submission. See
 `OFFLINE_TEST_RELEASE.md` for deployment steps.
+
+`offline-admin.cjs` checks Offline Test Series records at scale: 30 students and
+121 submissions across Classes 7, 9 and 11. The admin section (Offline Test Series)
+must show correct summary tiles; Records drill down Class → Subject → Chapter (a
+level with one choice is skipped) with Part/Test/Status filters and direct search;
+the review sheet shows marks, feedback and dates, opens the checked PDF and downloads
+it as `Name_ID_Test_checked.pdf`; Students lists per-subject counts and averages with
+sorting and a subject focus; the Class × Subject grid totals match and open the
+matching records. Admin views are read-only and list reads use a field mask. The
+teacher review desk shows queue counts, filters pending scripts and drills returned
+scripts by class/subject/chapter; teacher tests show submission counts. It also publishes a test as a chosen teacher (writes carry that teacher, plus a
+private admin audit entry) and checks/returns a script in a chosen teacher's name.
+Checked at 320, 390, 768 and 1440px with fixtures only.

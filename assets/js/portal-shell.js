@@ -80,7 +80,7 @@
         const select = filterWrap.querySelector('[data-facet="'+name+'"]');
         const choices = Array.from(new Set(upstream.flatMap(item => values(item,name)))).sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
         if (state.filters[name] && !choices.includes(state.filters[name])) state.filters[name] = '';
-        select.innerHTML = '<option value="">All '+esc(name === 'class' ? 'classes' : name === 'category' ? 'types' : name + 's')+'</option>' + choices.map(value => '<option value="'+esc(value)+'">'+esc((name === 'class' && /^\d+$/.test(value) ? 'Class ' : '') + value)+'</option>').join('');
+        select.innerHTML = '<option value="">All '+esc((options.plurals && options.plurals[name]) || (name === 'class' ? 'classes' : name === 'category' ? 'types' : name + 's'))+'</option>' + choices.map(value => '<option value="'+esc(value)+'">'+esc((name === 'class' && /^\d+$/.test(value) ? 'Class ' : '') + value)+'</option>').join('');
         select.value = state.filters[name] || '';
         upstream = upstream.filter(item => matches(item, name, state.filters[name]));
       });
@@ -89,6 +89,12 @@
       choices.replaceChildren();
       const hierarchy = Array.isArray(options.drill) ? options.drill : ['subject','chapter'];
       const stage = options.drill && !state.search ? hierarchy.find(name=>!state.filters[name]) : null;
+      // Optional: a level with exactly one choice is selected automatically, so
+      // small lists never need three taps to reach a single record.
+      if (stage && options.autoSingle && filtered.length) {
+        const only = new Set(filtered.flatMap(item => values(item, stage)));
+        if (only.size === 1) { state.filters[stage] = only.values().next().value; return draw(); }
+      }
       const leaf = options.drill && !stage && !state.search;
       box.dataset.stage=stage||'content';
       const steps=box.querySelector('.portal-steps');
@@ -101,7 +107,7 @@
       filterWrap.hidden = stage === hierarchy[0] && !!options.drill;
       filterWrap.querySelectorAll('select').forEach(select=>{
         const name=select.dataset.facet;
-        select.parentElement.hidden=(leaf&&!state.refine&&name!=='module')||(name==='chapter'&&!state.filters.subject&&!state.search)||(name==='module'&&!state.filters.chapter&&!state.search);
+        select.parentElement.hidden=(leaf&&!state.refine&&name!=='module'&&!(options.alwaysShow||[]).includes(name))||(name==='chapter'&&!state.filters.subject&&!state.search)||(name==='module'&&!state.filters.chapter&&!state.search);
       });
       const path = facets.filter(name => state.filters[name]).map(name => state.filters[name]);
       box.querySelector('.portal-path').textContent = path.length ? path.join('  /  ') : options.drill ? 'Choose a '+hierarchy[0]+' to begin, or search directly.' : 'Narrow your list with the filters above.';
@@ -115,7 +121,7 @@
         entries.slice(state.page*size,(state.page+1)*size).forEach(([value,count],index) => {
           const button = document.createElement('button');
           button.type = 'button'; button.className = 'portal-choice';
-          button.innerHTML = '<span class="portal-choice-icon" aria-hidden="true">'+(stage === 'class' ? esc(value) : stage === 'subject' ? subjectIcon(value) : '↳')+'</span><span><strong>'+esc((stage==='class'?'Class ':'')+value)+'</strong><small>'+count+' '+(count===1?'item':'items')+'</small></span><span aria-hidden="true">→</span>';
+          button.innerHTML = '<span class="portal-choice-icon" aria-hidden="true">'+(stage === 'class' ? esc(value) : stage === 'subject' ? subjectIcon(value) : '↳')+'</span><span><strong>'+esc((stage==='class'?'Class ':'')+value)+'</strong><small>'+count+' '+(count===1?(options.unit||['item'])[0]:(options.unit||['item','items'])[1])+(options.groupNote?options.groupNote(stage,value,filtered.filter(item=>values(item,stage).includes(value))):'')+'</small></span><span aria-hidden="true">→</span>';
           button.onclick = () => {window.PortalUI.navigation?.capture();state.filters[stage] = value; state.page=0; draw();window.PortalUI.navigation?.record();}; choices.append(button);
         });
         options.render([]);
@@ -127,7 +133,7 @@
         if (!total) choices.innerHTML = '<div class="portal-empty"><strong>No matches yet</strong><p>Try another subject or chapter, a shorter search, or reset your filters.</p></div>';
       }
       const pages = Math.max(1, Math.ceil(total/size));
-      box.querySelector('[role="status"]').textContent = total ? total+' '+(stage === 'class' ? 'classes' : stage ? stage+'s' : 'items')+' · Page '+(state.page+1)+' of '+pages : '0 items';
+      box.querySelector('[role="status"]').textContent = total ? total+' '+(stage === 'class' ? 'classes' : stage ? ((options.plurals&&options.plurals[stage])||stage+'s') : (options.unit||['item','items'])[1])+' · Page '+(state.page+1)+' of '+pages : '0 items';
       box.querySelector('[data-page="-1"]').disabled = state.page === 0;
       box.querySelector('[data-page="1"]').disabled = state.page >= pages-1;
       document.dispatchEvent(new CustomEvent('portal:collection-rendered',{detail:box}));
