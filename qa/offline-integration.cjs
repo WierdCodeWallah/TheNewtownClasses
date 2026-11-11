@@ -62,5 +62,17 @@ const call = async data => {
   const toDelete = await google.fsGet(project, auth, `students/integration/offlineHistory/delete_${testId}`);
   await google.fsCommit(project, auth, [{ path: `students/integration/offlineHistory/delete_${testId}`, remove: true, currentDocument: { updateTime: toDelete.updateTime } }]);
   assert.equal(await google.fsGet(project, auth, `students/integration/offlineHistory/delete_${testId}`), null);
-  console.log('Real Firestore integration passed: concurrent start, stale-write rollback, late submission, retry, named report and atomic checked-PDF archive. Authentication and file hosting remain fixtures.');
+
+  // Admin permanent delete through the real endpoint and real atomic commit.
+  await google.fsPatch(project, auth, 'admins/integrationAdmin', { isAdmin: true });
+  assert.equal((await call({ idToken: 'integrationTeacher', action: 'delete-record', attemptId })).status, 403, 'teacher cannot delete');
+  const removed = await call({ idToken: 'integrationAdmin', action: 'delete-record', attemptId });
+  assert.equal(removed.status, 200, JSON.stringify(removed));
+  for (const p of [`offlineReports/${attemptId}`, `offlineAttempts/${attemptId}`, `students/integration/offlineResults/ots_${attemptId}`, `students/integration/offlineHistory/${attemptId}`]) {
+    assert.equal(await google.fsGet(project, auth, p), null, p + ' deleted');
+  }
+  assert.equal((await read(`offlineAudit/delete_${attemptId}`)).byAdminUid, 'integrationAdmin');
+  assert(await google.fsGet(project, auth, `offlineTests/${testId}`), 'the test itself is kept');
+  assert.equal((await call({ idToken: 'integrationAdmin', action: 'delete-record', attemptId })).status, 404);
+  console.log('Real Firestore integration passed: concurrent start, stale-write rollback, late submission, retry, named report, atomic checked-PDF archive and atomic admin delete. Authentication and file hosting remain fixtures.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -16,6 +16,9 @@
  *        Atomically saves the checked PDF to the report, attempt and results.
  *        An admin may pass onBehalfOf (a teacher uid): that teacher is shown as
  *        the checker, and offlineAudit/return_{attemptId} records the admin.
+ *    action 'delete-record' (admin) { attemptId }
+ *        Permanently deletes one submission (report, attempt, result, history)
+ *        and its uploaded scripts/checked PDF; logs offlineAudit/delete_{id}.
  *    action 'regrade' (staff)   { attemptId }
  *        Re-runs the AI check (e.g. after a failure).
  *
@@ -60,6 +63,20 @@ async function triggerGrader(attemptId) {
   const r = await request(u.hostname, u.pathname, 'POST', { 'Content-Type': 'application/json' },
     { attemptId, sig: graderSignature(attemptId) });
   if (r.status !== 202 && r.status !== 200) throw new Error('Could not start the AI check (HTTP ' + r.status + ')');
+}
+
+// Permanently remove one uploaded file from Uploadcare storage (signed REST call).
+// 404/410 mean it is already gone. Needs UPLOADCARE_SECRET_KEY (server-only).
+async function deleteStoredFile(id) {
+  const secret = process.env.UPLOADCARE_SECRET_KEY, pub = process.env.UPLOADCARE_PUBLIC_KEY || require('../../assets/js/uploadcare-config').publicKey;
+  if (!secret || !/^[0-9a-f-]{36}$/.test(id)) return false;
+  const uri = `/files/${id}/storage/`, date = new Date().toUTCString();
+  const md5 = crypto.createHash('md5').update('').digest('hex');
+  const signed = crypto.createHmac('sha1', secret).update(['DELETE', md5, 'application/json', date, uri].join('\n')).digest('hex');
+  try {
+    const r = await request('api.uploadcare.com', uri, 'DELETE', { Accept: 'application/vnd.uploadcare-v0.7+json', 'Content-Type': 'application/json', Date: date, Authorization: `Uploadcare ${pub}:${signed}` });
+    return [200, 204, 404, 410].includes(r.status);
+  } catch (_) { return false; }
 }
 
 async function isStaff(projectId, saToken, uid) {
@@ -149,6 +166,36 @@ exports.handler = async function (event) {
         , ...audit
       ]);
       return ok({ ok: true, status: 'approved' });
+    }
+
+    // ── Admin: permanently delete one submission everywhere ──
+    // Report, attempt, the student's result and history go in one atomic
+    // commit; then the student's script, page images and checked PDF are
+    // removed from storage. Question papers are shared and never touched.
+    if (action === 'delete-record') {
+      const attemptId = String(body.attemptId || '');
+      if (!/^[A-Za-z0-9_-]{1,210}$/.test(attemptId) || !attemptId.includes('__')) return bad(400, 'Invalid record');
+      const adminDoc = await fsGet(projectId, sa, `admins/${uid}`);
+      if (!(adminDoc && decFields(adminDoc).isAdmin)) return bad(403, 'Only admins can delete records.');
+      const [repDoc, attDoc] = await Promise.all([fsGet(projectId, sa, `offlineReports/${attemptId}`), fsGet(projectId, sa, `offlineAttempts/${attemptId}`)]);
+      if (!repDoc && !attDoc) return bad(404, 'This record has already been deleted.');
+      const rep = repDoc ? decFields(repDoc) : {}, att = attDoc ? decFields(attDoc) : {};
+      if (['checking', 'grading'].includes(rep.status)) return bad(409, 'Wait for the current AI check to finish before deleting this record.');
+      const studentUid = rep.uid || att.uid || attemptId.split('__').pop();
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(studentUid)) return bad(400, 'Invalid record');
+      const now = new Date().toISOString();
+      await fsCommit(projectId, sa, [
+        ...(repDoc ? [{ path: `offlineReports/${attemptId}`, remove: true, currentDocument: { updateTime: repDoc.updateTime } }] : []),
+        ...(attDoc ? [{ path: `offlineAttempts/${attemptId}`, remove: true, currentDocument: { updateTime: attDoc.updateTime } }] : []),
+        { path: `students/${studentUid}/offlineResults/ots_${attemptId}`, remove: true },
+        { path: `students/${studentUid}/offlineHistory/${attemptId}`, remove: true },
+        // Minimal admin-only accountability record; no marks or files are kept.
+        { path: `offlineAudit/delete_${attemptId}`, data: { action: 'delete-record', attemptId, studentId: rep.studentId || att.studentId || '', testName: rep.testName || '', byAdminUid: uid, at: now } }
+      ]);
+      const ids = [...new Set([rep.scriptPdfUrl || att.scriptPdfUrl, rep.checkedScriptUrl || att.checkedScriptUrl, ...(rep.pageUrls || att.pageUrls || [])]
+        .map(u => require('../../assets/js/uploadcare-config').uuid(u)).filter(Boolean))];
+      const results = await Promise.all(ids.map(deleteStoredFile));
+      return ok({ ok: true, filesDeleted: results.filter(Boolean).length, filesFailed: results.filter(r => !r).length });
     }
 
     // ── Staff: re-run the AI check ──

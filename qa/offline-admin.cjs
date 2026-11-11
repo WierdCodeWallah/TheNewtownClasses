@@ -112,6 +112,12 @@ async function openPortal(browser, origin, role, file, width, ctx = { docs: repo
         docs[i] = { ...docs[i], fields: { ...f, status: field('approved'), score: field(body.score), checkedScriptUrl: field(body.checkedScriptUrl), teacherRemark: field(body.remark),
           approvedByName: field(teacher.name), approvedByUid: field(teacher.uid), approvedAt: field(new Date().toISOString()) } };
       }
+      if (body.action === 'delete-record') {
+        const i = docs.findIndex(d => d.name.endsWith('/offlineReports/' + body.attemptId));
+        if (i < 0) return route.fulfill({ status: 404, json: { error: 'This record has already been deleted.' } });
+        docs.splice(i, 1);
+        return route.fulfill({ json: { ok: true, filesDeleted: 2, filesFailed: 0 } });
+      }
       return route.fulfill({ json: { ok: true, status: 'approved' } });
     }
     if (url.origin === origin) return route.continue();
@@ -317,9 +323,34 @@ const choice = (page, scope, text) => page.locator(scope + ' .portal-browser .po
       assert.match(sheet, /checked by Neha Gupta/i); assert.match(sheet, /Checked by\s+Neha Gupta/); assert.match(sheet, /12½ \/ 20/);
       assert.equal(await page.locator('#oarReturnForm').count(), 0, 'form disappears once returned');
       await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-returned-${width}.png`) });
+      // Permanent delete: locked until the student ID is typed; record and totals update.
+      await page.click('#oadModalClose');
+      await page.fill('#oadRecordsPane .portal-search input', 'TNC-005');
+      await page.waitForFunction(() => { const rows = [...document.querySelectorAll('#oadRecords .oar-row')]; return rows.length && rows.every(r => r.textContent.includes('TNC-005')); });
+      const victim = page.locator('#oadRecords .oar-row', { hasText: 'Returned' }).first();
+      await victim.waitFor();
+      const victimId = await victim.locator('[data-oad-review]').getAttribute('data-oad-review');
+      const before = ctx.docs.length;
+      await victim.locator('[data-oad-review]').click();
+      await page.click('#oadDelete summary');
+      assert(await page.locator('#oadDelBtn').isDisabled(), 'delete is locked by default');
+      assert.match(await page.locator('#oadDelete').innerText(), /cannot be undone/);
+      await page.fill('#oadDelConfirm', 'TNC-004');
+      assert(await page.locator('#oadDelBtn').isDisabled(), 'wrong ID keeps delete locked');
+      await page.fill('#oadDelConfirm', 'tnc-005');
+      assert(await page.locator('#oadDelBtn').isEnabled(), 'typed ID (any case) unlocks delete');
+      assert(await fits(page), 'delete confirmation fits at ' + width);
+      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-delete-${width}.png`) });
+      await page.click('#oadDelBtn');
+      await page.waitForFunction(() => /Deleted .* permanently/.test(document.getElementById('oadNotice').textContent), null, { timeout: 20000 });
+      assert(await page.locator('#oadModal').isHidden(), 'sheet closes after delete');
+      assert.deepEqual(ctx.calls.filter(c => c.action === 'delete-record').map(c => c.attemptId), [victimId]);
+      assert.equal(ctx.docs.length, before - 1);
+      assert.match(await page.locator('#oadKpis').innerText(), new RegExp(`${before - 1}\\s+Tests submitted`), 'totals update after delete');
+      assert.equal(await page.locator(`#oadRecords [data-oad-review="${victimId}"]`).count(), 0, 'deleted record is gone from the list');
       assert.deepEqual(errors, [], 'no page errors on admin actions at ' + width);
       await page.close();
-      console.log(`✓ admin ${width}px: publishes a test as Neha Gupta (audit kept privately) · checks and returns a script in her name`);
+      console.log(`✓ admin ${width}px: publishes a test as Neha Gupta (audit kept privately) · checks and returns a script in her name · permanent delete with typed confirmation`);
     }
 
     // Teacher review desk and test list stay organised at the same volume.

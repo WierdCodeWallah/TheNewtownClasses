@@ -1320,6 +1320,7 @@
           <p>Every submitted answer script, kept permanently. Find any record by class, subject, chapter and part, or search a student directly.</p></div>
         <button type="button" class="oar-btn" onclick="ntcCall('loadOfflineRecords')">↻ Refresh</button>
       </div>
+      <div id="oadNotice" class="oar-msg" role="status" aria-live="polite"></div>
       <div class="oar-kpis" id="oadKpis" aria-live="polite"></div>
       <div class="oar-views" role="group" aria-label="Offline Test Series views" id="oadViews">
         <button type="button" class="oar-view" data-oad-view="records" aria-pressed="true">Records</button>
@@ -2653,7 +2654,7 @@
     const host = $('oadRecords'); if (!host) return;
     PortalUI.clearBrowser(host); PortalUI.clearBrowser($('oadStudents'));
     host.innerHTML = '<div class="oar-empty">Loading records…</div>';
-    $('oadKpis').innerHTML = '';
+    $('oadKpis').innerHTML = ''; oadMsg('oadNotice', '', '');
     try {
       const token = await auth.currentUser.getIdToken();
       const [json, teachers] = await Promise.all([
@@ -2817,7 +2818,21 @@
         <div class="oar-actions"><button type="submit" class="oar-btn primary" id="oarReturnBtn">Upload checked PDF &amp; return to student</button></div>
         <div id="oarMsg" class="oar-msg" role="status" aria-live="polite"></div>
       </form>` : ''}
-      <div id="oadAiReportBody"></div>`;
+      <div id="oadAiReportBody"></div>
+      ${r.stage === 'checking' ? '' : `<details class="oar-danger" id="oadDelete">
+        <summary>Delete this record permanently</summary>
+        <p>This removes <b>${oadEsc(r.studentName)}'s ${oadEsc(r.test)}</b> from the student, teacher and admin dashboards: marks, feedback, the checked PDF and the student's answer script. The uploaded files are deleted from storage. <b>This cannot be undone.</b> If the test is still open, the student will be able to take it again.</p>
+        <label for="oadDelConfirm">Type <b>${oadEsc(r.studentId || 'DELETE')}</b> to confirm</label>
+        <input id="oadDelConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <div class="oar-actions"><button type="button" class="oar-btn danger" id="oadDelBtn" disabled>Delete permanently</button></div>
+        <div id="oadDelMsg" class="oar-msg" role="status" aria-live="polite"></div>
+      </details>`}`;
+    const delInput = $('oadDelConfirm');
+    if (delInput) {
+      const expected = (r.studentId || 'DELETE').trim().toLowerCase();
+      delInput.addEventListener('input', () => { $('oadDelBtn').disabled = delInput.value.trim().toLowerCase() !== expected; });
+      $('oadDelBtn').addEventListener('click', () => oadDelete(r));
+    }
     if (r.stage === 'pending') {
       oadFillTeachers($('oarTeacher'), r.assignedTeacherUid);
       _oad.upload = { id: r.id, file: null, url: '' };
@@ -2891,6 +2906,29 @@
       $('oadModalBody').prepend(note);
     } catch (e) { oadMsg('oarMsg', 'err', e.message + ' You can retry without leaving this sheet.'); }
     finally { _oad.returning = false; if (document.contains(btn)) btn.disabled = false; }
+  }
+
+  async function oadDelete(r) {
+    if (_oad.returning) return;
+    const btn = $('oadDelBtn'), input = $('oadDelConfirm');
+    if (input.value.trim().toLowerCase() !== (r.studentId || 'DELETE').trim().toLowerCase()) return;
+    btn.disabled = true; input.disabled = true; _oad.returning = true;
+    oadMsg('oadDelMsg', '', 'Deleting…');
+    try {
+      const res = await oadApi({ action: 'delete-record', attemptId: r.id });
+      _oad.returning = false;
+      oadCloseReview();
+      await window.loadOfflineRecords();
+      const files = res.filesFailed ? ` The record is gone, but ${res.filesFailed} uploaded file${res.filesFailed === 1 ? '' : 's'} could not be removed from storage; delete ${res.filesFailed === 1 ? 'it' : 'them'} in Uploadcare if needed.` : '';
+      oadMsg('oadNotice', res.filesFailed ? 'err' : 'ok', `Deleted ${r.studentName}'s ${r.test} permanently.${files}`);
+      $('oadNotice')?.scrollIntoView({ block: 'nearest' });
+    } catch (e) {
+      _oad.returning = false;
+      // An earlier attempt may have succeeded before its response was lost.
+      if (/already been deleted/.test(e.message)) { oadCloseReview(); await window.loadOfflineRecords(); oadMsg('oadNotice', 'ok', `${r.studentName}'s ${r.test} was already deleted.`); return; }
+      oadMsg('oadDelMsg', 'err', e.message + ' Nothing was deleted; you can retry.');
+      input.disabled = false; btn.disabled = false;
+    }
   }
 
   // ── Tests: every teacher's offline tests, plus publishing in a teacher's name ──
@@ -4557,7 +4595,7 @@ Share it with the teacher — it is not stored anywhere.`);
 <link rel="stylesheet" href="/assets/css/portal-experience.css?v=3bb993cb">
 <link rel="stylesheet" href="/assets/css/admin-workspace.css?v=2d4de7c6">
 <link rel="stylesheet" href="/assets/css/admin-enquiries.css?v=b498c69b">
-<link rel="stylesheet" href="/assets/css/offline-records.css?v=93b321a9">
+<link rel="stylesheet" href="/assets/css/offline-records.css?v=4822cad1">
 <script>document.documentElement.classList.add('ntc-styled');</script>
 <script src="/assets/js/admin-workspace.js?v=aecbe9ad"></script>
 <link rel="stylesheet" href="/assets/css/portal-controls.css?v=d62c9c09">

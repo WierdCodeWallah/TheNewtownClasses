@@ -47,7 +47,8 @@ choice are skipped, and long lists are paged.
   legacy AI reports. **Students:** tests per student with per-subject counts and
   averages, sortable, filterable by class/board/subject. **Class × Subject:**
   submissions, students and average per cell; tap a cell to open those records.
-  Admin views never edit or delete records.
+  Admins can permanently delete a single record (see below); nothing else in
+  the admin views edits records.
 
 ## Admin acting in a teacher's name
 
@@ -69,10 +70,24 @@ admin and only for an existing teacher.
 **Deploy note:** this adds the `offlineAudit` rule, so publish the rules again with
 `firebase deploy --only firestore:rules --project the-newtown-classes-d98e8`.
 
+## Admin permanent delete
+
+In an admin record's review sheet, **Delete this record permanently** (collapsed,
+red) explains what is removed and stays locked until the admin types the student's
+ID. The server (admin only) deletes the report, attempt, the student's result and
+history in one atomic commit, then deletes the student's answer script, page images
+and checked PDF from Uploadcare using signed requests (`UPLOADCARE_SECRET_KEY`,
+already set in Netlify). The test and its question paper are kept, so a student can
+retake a still-open test. If a file cannot be removed, the record is still deleted
+and the admin is told to remove the file in Uploadcare. A minimal entry
+`offlineAudit/delete_{attemptId}` (admin uid, student ID, test name, time; no marks
+or files) is kept for accountability. Deletion is refused while an AI check runs.
+
 ## Retention: permanent
 
 Checked PDFs, marks, feedback, answer scripts and history are kept permanently.
-Nothing expires and there is no scheduled cleanup job. Teachers cannot delete
+Nothing expires and there is no scheduled cleanup job; only an admin can delete
+a record, one at a time, with typed confirmation. Teachers cannot delete
 test-series results from the dashboard (Firestore rules); tests are closed, not
 deleted. My Results shows ordinary results for the last 12 months but always
 shows Offline Test Series results.

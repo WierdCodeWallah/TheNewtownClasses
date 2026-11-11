@@ -14,7 +14,8 @@ process.env.URL = 'https://example.test';
 const db = new Map();
 const versions = new Map();
 let version = 0, failCommit = false;
-const calls = { gemini: [], triggers: [], openai: [] };
+const calls = { gemini: [], triggers: [], openai: [], uploadcare: [] };
+let uploadcareStatus = 204;
 let openaiMode = [];
 let geminiMode = 'ok';
 const pdfWith = created => Buffer.from(`%PDF-1.4\n1 0 obj << /Producer (Fixture Scanner) /CreationDate (D:${created}) >> endobj\n%%EOF`, 'latin1');
@@ -48,7 +49,7 @@ const stub = {
         const err = new Error('Conflict'); err.conflict = true; throw err;
       }
     }
-    for (const { path, data } of records) { db.set(path, JSON.parse(JSON.stringify(data))); versions.set(path, ++version); }
+    for (const { path, data, remove } of records) { if (remove) { db.delete(path); versions.delete(path); continue; } db.set(path, JSON.parse(JSON.stringify(data))); versions.set(path, ++version); }
   },
   decFields(doc) { return JSON.parse(JSON.stringify(doc.fields || {})); },
   async fetchBinary(url) {
@@ -62,6 +63,7 @@ const stub = {
       const hash = body.structuredQuery.where.fieldFilter.value.stringValue;
       return { status: 200, body: [...db.entries()].filter(([k, v]) => k.startsWith('offlineReports/') && v.scriptHash === hash).map(([, v]) => ({ document: { fields: v } })) };
     }
+    if (host === 'api.uploadcare.com') { calls.uploadcare.push({ p, method, headers }); return { status: uploadcareStatus, body: '' }; }
     if (host === 'api.openai.com') {
       calls.openai.push({ p, body, headers });
       const mode = openaiMode.shift() || 'ok';
@@ -334,4 +336,37 @@ const call = async (body) => {
   // A teacher returning their own script writes no audit entry.
   assert(!db.has('offlineAudit/return_manual1__stu1'));
   console.log('✓ admin returns in a teacher\'s name: teacher shown to the student, admin kept in a private audit log, misuse refused');
+
+  // Admin permanent delete: every copy removed atomically, files deleted from
+  // storage, a minimal admin-only audit entry kept, nobody else allowed.
+  const del = (who, attemptId) => call({ idToken: 'uid:' + who, action: 'delete-record', attemptId });
+  const paths = id => [`offlineReports/${id}`, `offlineAttempts/${id}`, `students/${id.split('__')[1]}/offlineResults/ots_${id}`, `students/${id.split('__')[1]}/offlineHistory/${id}`];
+  assert(paths('manual1__stu4').every(p => db.has(p)), 'fixture record exists everywhere');
+  assert.equal((await del('teach1', 'manual1__stu4')).status, 403, 'teachers cannot delete');
+  assert.equal((await del('stu4', 'manual1__stu4')).status, 403, 'students cannot delete');
+  assert.equal((await del('boss', '../../students/stu4')).status, 400, 'malformed id rejected');
+  assert(paths('manual1__stu4').every(p => db.has(p)), 'refused deletes change nothing');
+  delete process.env.UPLOADCARE_SECRET_KEY; calls.uploadcare = [];
+  let d = await del('boss', 'manual1__stu4');
+  assert.equal(d.status, 200);
+  assert(paths('manual1__stu4').every(p => !db.has(p)), 'report, attempt, result and history all removed');
+  assert.equal(d.body.filesFailed, 2, 'without the secret key, files are reported as not removed');
+  assert.equal(calls.uploadcare.length, 0);
+  const delAudit = db.get('offlineAudit/delete_manual1__stu4');
+  assert.equal(delAudit.byAdminUid, 'boss'); assert.equal(delAudit.studentId, 'NTC004'); assert.equal(delAudit.action, 'delete-record');
+  assert(!('score' in delAudit) && !JSON.stringify(delAudit).includes('ucarecd'), 'audit keeps no marks or file links');
+  assert.equal((await del('boss', 'manual1__stu4')).status, 404, 'second delete reports already deleted');
+  process.env.UPLOADCARE_SECRET_KEY = 'fixture-secret'; process.env.UPLOADCARE_PUBLIC_KEY = 'fixture-public';
+  d = await del('boss', 'manual1__stu1');
+  assert.equal(d.status, 200); assert(paths('manual1__stu1').every(p => !db.has(p)));
+  assert.equal(d.body.filesDeleted, 2); assert.equal(d.body.filesFailed, 0);
+  const expectedIds = [currentScript, currentChecked].map(u => currentCdn.uuid(u)).sort();
+  assert.deepEqual(calls.uploadcare.map(c => c.p).sort(), expectedIds.map(id => `/files/${id}/storage/`).sort(), 'only the student script and checked PDF are deleted');
+  assert(calls.uploadcare.every(c => c.method === 'DELETE' && /^Uploadcare fixture-public:[0-9a-f]{40}$/.test(c.headers.Authorization) && c.headers.Date), 'signed Uploadcare requests');
+  assert(db.has('offlineTestKeys/manual1') && db.has('offlineTests/manual1'), 'the test and its question paper are kept');
+  db.set('offlineReports/manual1__stu9', { uid: 'stu9', status: 'checking' });
+  assert.equal((await del('boss', 'manual1__stu9')).status, 409, 'cannot delete during an AI check');
+  assert(db.has('offlineReports/manual1__stu9'));
+  delete process.env.UPLOADCARE_SECRET_KEY; delete process.env.UPLOADCARE_PUBLIC_KEY;
+  console.log('✓ admin permanent delete: all copies removed atomically, files deleted with signed requests, audit kept, others refused');
 })().catch(e => { console.error(e); process.exit(1); });
