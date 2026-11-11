@@ -168,6 +168,23 @@ async function fsPatch(projectId, token, path, obj) {
   return r.body;
 }
 
+// Commit related records together, optionally protecting against stale writes.
+async function fsCommit(projectId, token, records) {
+  const r = await request('firestore.googleapis.com',
+    `/v1/projects/${projectId}/databases/(default)/documents:commit`, 'POST',
+    { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    { writes: records.map(({ path, data, currentDocument, remove }) => ({
+      ...(remove ? { delete: `projects/${projectId}/databases/(default)/documents/${path}` } : { update: { name: `projects/${projectId}/databases/(default)/documents/${path}`, fields: enc(data).mapValue.fields } }),
+      ...(currentDocument ? { currentDocument } : {})
+    })) });
+  if (r.status !== 200) {
+    const err = new Error('Could not save the test records. Please retry.');
+    err.conflict = [409, 412].includes(r.status) || ['FAILED_PRECONDITION', 'ALREADY_EXISTS', 'ABORTED'].includes(r.body?.error?.status);
+    throw err;
+  }
+  return r.body;
+}
+
 // ── JS value -> Firestore Value ──
 function enc(v) {
   if (v === null || v === undefined) return { nullValue: null };
@@ -209,5 +226,5 @@ function decFields(doc) {
 module.exports = {
   request, fetchBinary, b64url, b64urlToBuf,
   verifyFirebaseIdToken, getServiceAccountAccessToken,
-  fsGet, fsPatch, enc, dec, decFields
+  fsGet, fsPatch, fsCommit, enc, dec, decFields
 };

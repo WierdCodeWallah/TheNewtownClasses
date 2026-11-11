@@ -92,7 +92,18 @@ service cloud.firestore {
       // and admins) can read and write all of them.
       match /offlineResults/{resultId} {
         allow read:                   if isSignedIn() && (request.auth.uid == uid || isStaff());
-        allow create, update, delete: if isStaff();
+        // Teacher-returned PDFs are published atomically by the server only.
+        allow create: if isStaff() && request.resource.data.get('reviewMode', '') != 'teacher';
+        allow update: if isStaff() && resource.data.get('reviewMode', '') != 'teacher'
+                      && request.resource.data.get('reviewMode', '') != 'teacher';
+        // Keep test-series history; ordinary in-class marks retain their edit flow.
+        allow delete: if isStaff() && resource.data.get('reportId', '') == '';
+      }
+
+      // Server-written, permanent submission history powers the test counts.
+      match /offlineHistory/{attemptId} {
+        allow read: if isSignedIn() && (request.auth.uid == uid || isStaff());
+        allow write: if false;
       }
 
       // ─── students/{uid}/attendance/{recordId} ─────────────────────
@@ -364,16 +375,19 @@ service cloud.firestore {
     //                         approved it; staff edit marks/remarks and approve.
     match /offlineTests/{id} {
       allow read:                   if isSignedIn();
-      allow create, update, delete: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if false; // Close tests instead, preserving attempts and history.
     }
     match /offlineTestKeys/{id} {
-      allow read, write: if isStaff();
+      allow read, create, update: if isStaff();
+      allow delete: if false;
     }
     match /offlineAttempts/{id} {
       allow get:    if isSignedIn() && (isStaff() || resource.data.uid == request.auth.uid);
       allow list:   if isStaff();
       allow create, delete: if false;
-      allow update: if isStaff() && onlyChanges(['status','approvedAt']);
+      allow update: if isStaff() && onlyChanges(['status','approvedAt'])
+                    && get(/databases/$(database)/documents/offlineReports/$(id)).data.get('reviewMode', 'ai') != 'teacher';
     }
     match /offlineReports/{id} {
       allow get:    if isSignedIn() && (
@@ -383,6 +397,7 @@ service cloud.firestore {
       allow list:   if isStaff();
       allow create, delete: if false;
       allow update: if isStaff()
+                    && resource.data.get('reviewMode', 'ai') != 'teacher'
                     && onlyChanges(['finalReport','status','approvedAt','approvedByUid','approvedByName'])
                     && request.resource.data.status in ['ai_checked','approved'];
     }

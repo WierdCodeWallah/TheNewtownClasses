@@ -39,7 +39,10 @@
   <!-- Shared role-based content access helper -->
   <script src="/assets/js/content-access.js?v=f846bf50"></script>
   <!-- Shared AI answer-sheet report renderer -->
-  <script src="/assets/js/offline-report.js?v=5be933c4"></script>
+  <script src="/assets/js/offline-report.js?v=d5022985"></script>
+  <script src="/assets/js/uploadcare-config.js?v=8d3c4d5d"></script>
+  <script src="/assets/js/offline-policy.js?v=6a27f8b3"></script>
+  <script src="/assets/js/offline-files.js?v=690a54d4"></script>
   <script src="/assets/js/portal-shell.js?v=07b4a260"></script>
   <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
   <style>
@@ -1216,6 +1219,24 @@
       </style>
       <!-- ═══════ OFFLINE TEST SERIES (pen & paper, AI-checked) ═══════ -->
       <div id="otsSection" style="display:none;">
+        <section class="ots-hero ots-compact-guide" aria-labelledby="otsHeroTitle">
+          <div class="ots-guide-top"><h2 id="otsHeroTitle">Offline tests</h2><span class="ots-promise">Results within <b>48 hrs</b></span></div>
+          <div class="ots-guide-main">
+            <div class="ots-mini-scene" aria-hidden="true">
+              <svg viewBox="0 0 120 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 67h104" stroke="#557093" stroke-width="2"/>
+                <g class="ots-scene ots-scene-1"><rect x="48" y="10" width="46" height="35" rx="5" fill="#233e67" stroke="#aec8df"/><path d="M71 17v17m-7-7 7 7 7-7M65 49h12" stroke="#ffdb62" stroke-width="3" stroke-linecap="round"/><circle cx="28" cy="24" r="8" fill="#a7ecdf"/><path d="M28 34v18m0-13 16 4m-16 9-8 13m8-13 9 13" stroke="#a7ecdf" stroke-width="5" stroke-linecap="round"/><path d="M45 47h57" stroke="#aec8df" stroke-width="3"/></g>
+                <g class="ots-scene ots-scene-2"><circle cx="36" cy="22" r="8" fill="#a7ecdf"/><path d="M36 33v19l17 1v13m-17-14-6 14M20 45v12h16" stroke="#a7ecdf" stroke-width="5" stroke-linecap="round"/><path d="M48 47h51m-4 0v20" stroke="#aec8df" stroke-width="3"/><path d="m64 39 20 0-5 8H60z" fill="#fff7d5"/><g class="ots-writing-hand"><path d="m36 36 16 7 13-4" stroke="#a7ecdf" stroke-width="5" stroke-linecap="round"/><path d="m66 30-5 13" stroke="#ffdb62" stroke-width="3"/></g><path d="M74 13a10 10 0 1 1 0 20 10 10 0 0 1 0-20" stroke="#ffdb62"/><path d="M74 17v6l4 2" stroke="#ffdb62" stroke-width="2"/></g>
+                <g class="ots-scene ots-scene-3"><circle cx="27" cy="23" r="8" fill="#a7ecdf"/><path d="M27 34v17m0-12 17-4m-17 16-8 15m8-15 10 15" stroke="#a7ecdf" stroke-width="5" stroke-linecap="round"/><rect x="43" y="22" width="15" height="23" rx="3" fill="#233e67" stroke="#ffdb62" stroke-width="2"/><g class="ots-upload-page"><rect x="73" y="23" width="23" height="30" rx="3" fill="#fff7d5"/><path d="M78 32h13m-13 6h13m-13 6h8" stroke="#62758e" stroke-width="2"/></g><path d="m65 22 0-12m-4 4 4-4 4 4" stroke="#ffdb62" stroke-width="2"/></g>
+                <g class="ots-scene ots-scene-4"><circle cx="30" cy="23" r="8" fill="#a7ecdf"/><path d="M30 34v17m0-13 19 5m-19 8-8 15m8-15 10 15" stroke="#a7ecdf" stroke-width="5" stroke-linecap="round"/><rect x="60" y="16" width="34" height="43" rx="4" fill="#fff7d5"/><path d="M67 24h20m-20 6h12" stroke="#8b9bad" stroke-width="2"/><path class="ots-check-stroke" d="m68 43 6 6 13-13" stroke="#13866e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>
+              </svg>
+            </div>
+            <div class="ots-guide-copy"><strong>Write. Upload. Improve.</strong><p>Download + timer → Write → Upload PDF/photos → Teacher checks.</p><span>Checked results within 48 hours of submission.</span></div>
+          </div>
+          <div class="ots-retention-note">Checked PDFs, marks &amp; feedback: <b>saved permanently</b></div>
+          <div class="ots-summary" id="otsSummary" aria-label="Your test progress"></div>
+        </section>
+        <div class="ots-library-head"><nav class="ots-view-switch" aria-label="Offline test series sections"><button type="button" data-ots-view="tests" aria-pressed="true" onclick="otsSetView('tests')">Tests</button><button type="button" data-ots-view="results" aria-pressed="false" onclick="otsSetView('results')">Results</button></nav><h3 id="otsLibraryTitle" class="ots-library-caption">Subjects</h3><div class="ots-library-tools"><details class="ots-guide"><summary>How it works</summary><ol class="ots-journey" aria-label="How offline tests work"><li><span>01</span><strong>Download &amp; write</strong><small>The timer starts with your paper</small></li><li><span>02</span><strong>Upload answers</strong><small>One PDF or photos → PDF</small></li><li><span>03</span><strong>Results in 48 hours</strong><small>Checked PDF &amp; marks saved permanently</small></li></ol></details><button type="button" class="ots-refresh" onclick="otsLoad()" aria-label="Refresh tests and checked scripts"><span aria-hidden="true">↻</span><span class="ots-refresh-label">Refresh</span></button></div></div>
         <nav class="ots-crumbs" id="otsCrumbs" aria-label="Offline test series navigation"></nav>
         <div id="otsBody"><div class="ots-empty">Loading…</div></div>
       </div>
@@ -1230,31 +1251,43 @@
           <div class="ots-timer" id="otsTimer" aria-live="off">--:--</div>
           <button type="button" class="ots-bar-btn" onclick="otsOpenUpload()">Submit answers</button>
         </header>
+        <div class="ots-time-track" aria-hidden="true"><span id="otsTimeProgress"></span></div>
         <div class="ots-zoom">
           <button type="button" onclick="otsZoom(-1)" aria-label="Zoom out">−</button>
           <span id="otsZoomLabel">100%</span>
           <button type="button" onclick="otsZoom(1)" aria-label="Zoom in">+</button>
-          <a id="otsPaperLink" href="#" target="_blank" rel="noopener">Open PDF ↗</a>
+          <a id="otsPaperLink" href="#" target="_blank" rel="noopener" download aria-label="Download question paper">Paper ↗</a>
           <button type="button" class="ots-min" onclick="otsCloseExam()">Minimise</button>
         </div>
         <div class="ots-paper" id="otsPaper"><div class="ots-empty">Loading question paper…</div></div>
 
         <div class="ots-sheet-back" id="otsUpload" hidden>
-          <div class="ots-sheet" role="document">
+          <div class="ots-sheet" role="dialog" aria-modal="true" aria-labelledby="otsUpTitle">
             <div class="ots-sheet-grip"></div>
+            <div class="ots-sheet-heading"><span class="ots-eyebrow">READY FOR REVIEW</span>
             <h3 id="otsUpTitle">Submit your answer script</h3>
             <p class="ots-up-time" id="otsUpTime"></p>
+            </div><div class="ots-sheet-content">
+            <details class="ots-upload-help"><summary>How to prepare your pages</summary>
             <ol class="ots-steps">
               <li>Write all answers on paper, with question numbers.</li>
-              <li>Scan every page, in order, into <b>one PDF</b> — in Google Drive tap <b>+</b> then <b>Scan</b>, or use Adobe Scan or your phone camera's “Scan document”.</li>
-              <li>Choose that PDF below and submit.</li>
+              <li>Choose <b>one PDF or photos of your pages</b> (JPG, PNG or WebP). Up to 25 pages and 40 MB.</li>
+              <li>Arrange photos in page order. We convert them into one PDF for your teacher.</li>
             </ol>
+            </details>
             <label class="ots-drop">
-              <input type="file" id="otsFile" accept="application/pdf,.pdf" onchange="otsPickFile(this.files[0])">
-              <span id="otsDropText">📄 Choose answer-script PDF</span>
+              <input type="file" id="otsFile" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp" multiple onchange="otsPickFiles(this.files)">
+              <span class="ots-upload-icon" aria-hidden="true">↑</span>
+              <span id="otsDropText">📄 Choose PDF or page photos</span>
+              <small>PDF, JPG, PNG or WebP · 25 pages · 40 MB max</small>
             </label>
+            <label class="ots-camera">📷 Take a page photo
+              <input type="file" id="otsCamera" accept="image/jpeg,image/png,image/webp" capture="environment" onchange="otsPickFiles(this.files,true);this.value='';">
+            </label>
+            <div id="otsPhotoOrder" class="ots-photo-order"></div>
             <div class="ots-thumbs" id="otsThumbs"></div>
             <div class="ots-up-msg" id="otsUpMsg" role="status"></div>
+            </div>
             <div class="ots-up-actions">
               <button type="button" class="ots-ghost" id="otsUpBack" onclick="otsCloseUpload()">Back to paper</button>
               <button type="button" class="ots-primary" id="otsUpSubmit" onclick="otsSubmit()" disabled>Submit for checking →</button>
@@ -1536,7 +1569,7 @@ renderCards();
            addDoc, serverTimestamp }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { getMessaging, getToken, onMessage, isSupported as fcmSupported }
                                                         from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
-  import { FIREBASE_CONFIG, initAppCheck, FCM_VAPID_KEY } from "/assets/js/firebase-config.js?v=4b98d617";
+  import { FIREBASE_CONFIG, initAppCheck, FCM_VAPID_KEY } from "/assets/js/firebase-config.js?v=0970664c";
 
   const app  = initializeApp(FIREBASE_CONFIG);
   await initAppCheck(app);
@@ -1556,7 +1589,7 @@ renderCards();
   // We bind it on the next microtask since `uploadcareUpload` is hoisted as a function declaration.
 
   // ── Uploadcare config (same public key as admin-panel.html) ──
-  const UPLOADCARE_PUBLIC_KEY = '1c7d49b03c2e34052dc8'; // ← same key as admin panel
+  const UPLOADCARE_PUBLIC_KEY = NTCUploadcare.publicKey;
 
   // Expose for the modern profile menu's photo upload
   window._ntcUploadFile = (file, onProgress) => uploadcareUpload(file, onProgress);
@@ -1569,14 +1602,20 @@ renderCards();
       fd.append('file',               file);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', 'https://upload.uploadcare.com/base/');
+      xhr.timeout = 300000;
       xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
       xhr.onload = () => {
         if (xhr.status === 200) {
-          const uuid = JSON.parse(xhr.responseText).file;
-          resolve({ url: 'https://ucarecdn.com/' + uuid + '/', uuid });
+          try {
+            const uuid = JSON.parse(xhr.responseText).file;
+            if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(uuid || '')) throw new Error();
+            resolve({ url: NTCUploadcare.fileUrl(uuid), uuid });
+          } catch (_) { reject(new Error('The upload service returned an invalid response. Please retry.')); }
         } else { reject(new Error('Upload failed: ' + xhr.responseText)); }
       };
       xhr.onerror = () => reject(new Error('Network error'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out. Please retry on a stable connection.'));
+      xhr.onabort = () => reject(new Error('Upload cancelled. Please retry.'));
       xhr.send(fd);
     });
   }
@@ -1928,12 +1967,11 @@ renderCards();
           let offlineResults = [];
           try {
             const token = await user.getIdToken();
-            const offlineRes = await fetch(
+            // Read every page: Offline Test Series results are permanent and accumulate.
+            const offlineJson = await PortalUI.fetchList(
               `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${user.uid}/offlineResults?key=${FIREBASE_CONFIG.apiKey}&pageSize=200`,
               { headers: { Authorization: 'Bearer ' + token } }
             );
-            if (offlineRes.ok) {
-              const offlineJson = await offlineRes.json();
               offlineResults = (offlineJson.documents || []).map(d => {
                 const f = d.fields || {};
                 const score = parseFloat(f.score?.doubleValue || f.score?.integerValue || '0');
@@ -1942,7 +1980,8 @@ renderCards();
                   source: 'offline',
                   resultId: f.resultId?.stringValue || (d.name || '').split('/').pop() || '',
                   testId: f.resultId?.stringValue || (d.name || '').split('/').pop() || '',
-                  submittedAt: f.testDate?.stringValue || f.savedAt?.stringValue || '',
+                  submittedAt: f.submittedAt?.stringValue || f.testDate?.stringValue || f.savedAt?.stringValue || '',
+                  savedAt: f.savedAt?.stringValue || '', approvedAt: f.approvedAt?.stringValue || '',
                   testDate: f.testDate?.stringValue || '',
                   testName: f.testName?.stringValue || 'Offline Test',
                   subject: f.subject?.stringValue || '',
@@ -1955,12 +1994,12 @@ renderCards();
                   pct: parseInt(f.pct?.integerValue || (totalMarks ? String(Math.round(score / totalMarks * 100)) : '0')),
                   remark: f.remark?.stringValue || '',
                   teacherName: f.teacherName?.stringValue || '',
-                  answerSheetUrl: f.answerSheetUrl?.stringValue || '',
+                  answerSheetUrl: NTCUploadcare.deliveryUrl(f.answerSheetUrl?.stringValue || ''),
                   reportId: f.reportId?.stringValue || '',
+                  reviewMode: f.reviewMode?.stringValue || '',
                   cycleAttempted: 1
                 };
               });
-            }
           } catch(fetchErr) {
             console.warn('Could not sync offline results:', fetchErr.message);
           }
@@ -1997,9 +2036,13 @@ renderCards();
               correctCount:     parseInt(r.correctCount || 0),
               wrongCount:       parseInt(r.wrongCount || 0),
               unattemptedCount: parseInt(r.unattemptedCount || 0),
-              cycleAttempted:    parseInt(r.cycleAttempted || 1)
+              cycleAttempted:    parseInt(r.cycleAttempted || 1),
+              reportId:         r.reportId || '',
+              answerSheetUrl:   r.answerSheetUrl || '',
+              reviewMode:       r.reviewMode || ''
             }))
-            .filter(r => r.submittedMs >= cutoffMs)
+            // Offline Test Series results are permanent; other results show the last 12 months.
+            .filter(r => r.reportId || r.submittedMs >= cutoffMs)
             .sort((a, b) => b.submittedMs - a.submittedMs);
 
           // A late empty response must not clear a tab opened during the reads.
@@ -2153,7 +2196,7 @@ renderCards();
                 <div class="test-card-footer" style="flex-direction:column;align-items:flex-start;gap:.25rem;">
                   <span class="test-card-meta"><strong style="color:${col};">${scoreText}</strong>${isOffline ? (r.remark ? ' &nbsp;·&nbsp; ' + resultEscape(r.remark) : '') : ' &nbsp;·&nbsp; ✓ ' + r.correctCount + ' &nbsp; ✗ ' + r.wrongCount + ' &nbsp; ⊘ ' + r.unattemptedCount}</span>
                   <span class="test-card-meta" style="font-size:.72rem;">${dateMs ? fmtDate(dateMs) : 'Date not available'}${isOffline && r.teacherName ? ' · Uploaded by ' + resultEscape(r.teacherName) : ''}</span>
-                  ${isOffline && r.reportId ? `<button type="button" onclick="event.stopPropagation();otsOpenReport('${resultEscape(r.reportId)}')" style="font:700 .74rem inherit;font-family:inherit;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:.35rem .6rem;cursor:pointer;">📄 View / Download checked script</button><span class="test-card-meta" style="font-size:.68rem;color:#047857;">✓ Checked using Trained AI models &amp; Approved by ${resultEscape(r.teacherName || 'your teacher')}</span>` : ''}
+                  ${isOffline && r.reportId ? `<button type="button" onclick="event.stopPropagation();otsOpenReport('${resultEscape(r.reportId)}')" style="font:700 .74rem inherit;font-family:inherit;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:.35rem .6rem;cursor:pointer;">📄 View marks &amp; feedback</button><span class="test-card-meta" style="font-size:.68rem;color:#047857;">✓ ${r.reviewMode === 'teacher' ? 'Checked by' : 'Checked using Trained AI models &amp; Approved by'} ${resultEscape(r.teacherName || 'your teacher')}</span>` : ''}
                   ${isOffline && r.answerSheetUrl ? `<a href="${resultEscape(r.answerSheetUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="font-size:.72rem;color:#dc2626;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem;">📄 View / Download Result PDF</a>` : ''}
                   ${reviewable ? '<span class="test-card-meta" style="font-size:.72rem;color:#0ea5e9;font-weight:700;">🔍 Tap to review answers</span>' : ''}
                 </div>
@@ -2421,7 +2464,7 @@ renderCards();
     //  upload the answer script as ONE PDF → AI check → teacher approves →
     //  report in My Results. Server side: netlify/functions/offline-test.js.
     // ══════════════════════════════════════════════════════════
-    const _ots = { tests: [], attempts: {}, subject: '', chapter: '', exam: null, pdfjs: null, zoom: 1, file: null, filePdf: null };
+    const _ots = { tests: [], attempts: {}, results: [], history: [], view: 'tests', subject: '', chapter: '', module: '', exam: null, pdfjs: null, zoom: 1, file: null, filePdf: null };
     const OTS_ICONS = { Physics: '⚛️', Chemistry: '🧪', Mathematics: '📐', Maths: '📐', Biology: '🧬', Science: '🔬', English: '📘', Computer: '💻' };
     const otsEsc = s => chatEscape(String(s == null ? '' : s));
 
@@ -2446,6 +2489,9 @@ renderCards();
         body: JSON.stringify({ idToken: token, ...body })
       });
       let data = {}; try { data = await res.json(); } catch (_) {}
+      if ([404, 405].includes(res.status) && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+        throw new Error('The offline-test backend is unavailable on this local server. Run Netlify Dev and open http://localhost:8888/learn. Live Server cannot run test downloads or submissions.');
+      }
       if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
       return data;
     }
@@ -2468,18 +2514,34 @@ renderCards();
       try {
         const token = await user.getIdToken();
         const base = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
-        const res = await fetch(`${base}/offlineTests?key=${FIREBASE_CONFIG.apiKey}&pageSize=300`, { headers: { Authorization: 'Bearer ' + token } });
-        const json = await res.json();
-        if (!res.ok) throw new Error((json.error && json.error.message) || 'Could not load tests');
+        async function list(path) {
+          const documents = []; let pageToken = '';
+          do {
+            const res = await fetch(`${base}/${path}?key=${FIREBASE_CONFIG.apiKey}&pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`, { headers: { Authorization: 'Bearer ' + token } });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error?.message || 'Could not load records. Please refresh.');
+            documents.push(...(json.documents || [])); pageToken = json.nextPageToken || '';
+          } while (pageToken);
+          return documents;
+        }
+        const [testLoad, resultLoad, historyLoad] = await Promise.allSettled([list('offlineTests'), list(`students/${user.uid}/offlineResults`), list(`students/${user.uid}/offlineHistory`)]);
+        _ots.historyError = historyLoad.status === 'rejected';
+        _ots.history = (historyLoad.value || []).map(d => Object.fromEntries(Object.entries(d.fields || {}).map(([k, v]) => [k, v.stringValue ?? v.doubleValue ?? (v.integerValue == null ? v.booleanValue : Number(v.integerValue))])));
+        _ots.testsError = testLoad.status === 'rejected' ? testLoad.reason.message : '';
+        _ots.resultsError = resultLoad.status === 'rejected' ? resultLoad.reason.message : '';
+        _ots.results = (resultLoad.value || []).map(d => {
+          const f = d.fields || {}, s = k => f[k]?.stringValue || '', n = k => Number(f[k]?.doubleValue ?? f[k]?.integerValue ?? 0);
+          return { reportId: s('reportId'), status: 'approved', chapter: s('topic') || 'General', module: s('module') || 'Full chapter', submittedAt: s('submittedAt'), approvedAt: s('approvedAt'), testName: s('testName'), subject: s('subject'), class: s('class'), testDate: s('testDate'), savedAt: s('savedAt'), score: n('score'), totalMarks: n('totalMarks'), teacherName: s('teacherName'), remark: s('remark'), answerSheetUrl: s('answerSheetUrl') };
+        }).filter(r => r.reportId).sort((a, b) => (b.savedAt || b.testDate).localeCompare(a.savedAt || a.testDate));
         const myClass = String(profile.class || studentClass || ''), myBoard = String(profile.board || '');
-        _ots.tests = (json.documents || []).map(d => {
+        _ots.tests = (testLoad.value || []).map(d => {
           const f = d.fields || {}, n = v => parseFloat(v?.doubleValue ?? v?.integerValue ?? '0') || 0;
           return {
             id: d.name.split('/').pop(), testName: f.testName?.stringValue || 'Test',
             class: f.class?.stringValue || '', board: f.board?.stringValue || '',
-            subject: f.subject?.stringValue || 'General', chapter: f.chapter?.stringValue || 'General',
+            subject: f.subject?.stringValue || 'General', chapter: f.chapter?.stringValue || 'General', module: f.module?.stringValue || 'Full chapter',
             totalMarks: n(f.totalMarks), durationMin: n(f.durationMin) || 60,
-            instructions: f.instructions?.stringValue || '', teacherName: f.teacherName?.stringValue || '',
+            instructions: f.instructions?.stringValue || '', teacherName: f.teacherName?.stringValue || '', gradingMode: f.gradingMode?.stringValue || 'ai',
             isActive: f.isActive?.booleanValue !== false, createdAt: f.createdAt?.stringValue || ''
           };
         }).filter(t => t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
@@ -2489,21 +2551,30 @@ renderCards();
           const f = (await r.json()).fields || {};
           return [t.id, {
             status: f.status?.stringValue || '', deadline: f.deadline?.stringValue || '', startedAt: f.startedAt?.stringValue || '',
-            questionPdfUrl: f.questionPdfUrl?.stringValue || '', uploadGraceMin: parseInt(f.uploadGraceMin?.integerValue || '15', 10)
+            questionPdfUrl: NTCUploadcare.deliveryUrl(f.questionPdfUrl?.stringValue || ''), uploadGraceMin: parseInt(f.uploadGraceMin?.integerValue || '15', 10)
           }];
         }));
         _ots.attempts = Object.fromEntries(attempts.filter(Boolean));
         // Closed tests stay visible only to students who already took them.
         _ots.tests = _ots.tests.filter(t => t.isActive || _ots.attempts[t.id]);
-        if (_ots.subject && !_ots.tests.some(t => t.subject === _ots.subject)) { _ots.subject = ''; _ots.chapter = ''; }
+        const navigationRows = _ots.view === 'results' ? _ots.results : _ots.tests;
+        if (_ots.subject && !navigationRows.some(t => t.subject === _ots.subject)) { _ots.subject = ''; _ots.chapter = ''; _ots.module = ''; }
+        if (_ots.chapter && !navigationRows.some(t => t.subject === _ots.subject && t.chapter === _ots.chapter)) { _ots.chapter = ''; _ots.module = ''; }
+        if (_ots.module && !navigationRows.some(t => t.subject === _ots.subject && t.chapter === _ots.chapter && t.module === _ots.module)) _ots.module = '';
         otsRender();
       } catch (e) {
         body.innerHTML = '<div class="ots-empty" style="color:#b91c1c;">' + otsEsc(e.message) + '</div>';
       }
     };
 
-    window.otsGo = function (subject, chapter) {
-      _ots.subject = subject || ''; _ots.chapter = chapter || '';
+    window.otsSetView = function (view) {
+      _ots.view = view === 'results' ? 'results' : 'tests';
+      _ots.subject = ''; _ots.chapter = ''; _ots.module = '';
+      otsRender();
+    };
+
+    window.otsGo = function (subject, chapter, module) {
+      _ots.subject = subject || ''; _ots.chapter = chapter || ''; _ots.module = module || '';
       otsRender();
       window.scrollTo({ top: 0, behavior: 'instant' });
     };
@@ -2512,69 +2583,78 @@ renderCards();
       const c = document.getElementById('otsCrumbs');
       if (!c) return;
       const parts = ['<button type="button" onclick="otsGo()">All subjects</button>'];
-      if (_ots.subject) {
-        parts.push('<span class="sep">›</span>');
-        parts.push(_ots.chapter
-          ? `<button type="button" data-ots-subject="${otsEsc(_ots.subject)}">${otsEsc(_ots.subject)}</button>`
-          : `<strong>${otsEsc(_ots.subject)}</strong>`);
-      }
-      if (_ots.chapter) parts.push('<span class="sep">›</span><strong>' + otsEsc(_ots.chapter) + '</strong>');
+      if (_ots.subject) parts.push('<span class="sep">›</span><button type="button" data-level="subject">' + otsEsc(_ots.subject) + '</button>');
+      if (_ots.chapter) parts.push('<span class="sep">›</span><button type="button" data-level="chapter">' + otsEsc(_ots.chapter) + '</button>');
+      if (_ots.module) parts.push('<span class="sep">›</span><strong>' + otsEsc(_ots.module) + '</strong>');
       c.innerHTML = parts.join('');
-      c.querySelectorAll('[data-ots-subject]').forEach(b => b.onclick = () => otsGo(b.dataset.otsSubject));
+      c.querySelectorAll('[data-level]').forEach(b => b.onclick = () => otsGo(_ots.subject, b.dataset.level === 'chapter' ? _ots.chapter : ''));
+    }
+
+    function otsRenderFolders(items, body) {
+      const key = !_ots.subject ? 'subject' : !_ots.chapter ? 'chapter' : !_ots.module ? 'module' : '';
+      if (!key || !items.length) return false;
+      const scoped = items.filter(r => (!_ots.subject || r.subject === _ots.subject) && (!_ots.chapter || r.chapter === _ots.chapter));
+      const groups = scoped.reduce((all, r) => { (all[r[key]] ||= []).push(r); return all; }, Object.create(null));
+      const results = _ots.view === 'results';
+      document.getElementById('otsLibraryTitle').textContent = { subject: 'Subjects', chapter: 'Chapters', module: 'Modules / Parts' }[key];
+      body.innerHTML = '<div class="ots-grid">' + Object.keys(groups).sort((a,b) => a.localeCompare(b, undefined, {numeric:true})).map(label => {
+        const rows = groups[label];
+        const scored = rows.filter(r => r.totalMarks > 0 && r.score != null);
+        const average = scored.length ? Math.round(scored.reduce((n,r) => n + r.score / r.totalMarks * 100,0) / scored.length) : 0;
+        const done = results ? rows.length : rows.filter(t => ['checking','approved'].includes(otsAttemptState(t).key)).length;
+        return `<button type="button" class="ots-card" data-folder="${otsEsc(label)}" data-${key === 'subject' ? 'sub' : key === 'chapter' ? 'ch' : 'module'}="${otsEsc(label)}"><span class="k">${key === 'subject' ? (results ? 'YOUR RESULTS' : 'YOUR TESTS') : otsEsc(_ots.subject + (key === 'module' ? ' · ' + _ots.chapter : ''))}</span><h3>${otsEsc(label)}</h3><p>${rows.length} ${results ? 'result' : 'test'}${rows.length === 1 ? '' : 's'}</p><div class="meta"><span class="ots-chip ${results ? 'ok' : ''}">${results ? average + '% average' : done + '/' + rows.length + ' done'}</span></div><span class="ots-card-link">${key === 'subject' ? 'View chapters' : key === 'chapter' ? 'View modules / parts' : results ? 'View results' : 'View tests'} <span aria-hidden="true">↗</span></span></button>`;
+      }).join('') + '</div>';
+      body.querySelectorAll('[data-folder]').forEach(b => b.onclick = () => otsGo(key === 'subject' ? b.dataset.folder : _ots.subject, key === 'chapter' ? b.dataset.folder : key === 'module' ? _ots.chapter : '', key === 'module' ? b.dataset.folder : ''));
+      return true;
     }
 
     function otsRender() {
       otsCrumbs();
       const body = document.getElementById('otsBody');
       const tests = _ots.tests;
+      const progress = NTCOfflinePolicy.stats(_ots.history, _ots.results);
+      document.getElementById('otsSummary').innerHTML = [
+        [_ots.historyError ? '—' : progress.count, 'Tests given'],
+        [_ots.history.filter(r => r.status !== 'approved' && !_ots.results.some(result => result.reportId === r.reportId)).length || tests.filter(t => otsAttemptState(t).key === 'checking').length, 'In review'],
+        [_ots.results.length, 'Returned']
+      ].map(([count, label]) => `<div><strong>${count}</strong><span>${label}</span></div>`).join('');
+      document.querySelectorAll('[data-ots-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.otsView === _ots.view)));
+      document.getElementById('otsCrumbs').hidden = false;
+      if (_ots.view === 'results') {
+        document.getElementById('otsLibraryTitle').textContent = 'Saved results';
+        if (_ots.resultsError) { body.innerHTML = '<div class="ots-empty">' + otsEsc(_ots.resultsError) + '</div>'; return; }
+        if (otsRenderFolders(_ots.results, body)) return;
+        const resultRows = _ots.results.filter(r => r.subject === _ots.subject && r.chapter === _ots.chapter && r.module === _ots.module);
+        const chapterProgress = NTCOfflinePolicy.stats([], _ots.results.filter(r => r.subject === _ots.subject && r.chapter === _ots.chapter));
+        const chapterStats = chapterProgress.chapters.length ? '<div class="ots-chapter-stats" aria-label="Average score per chapter">' + chapterProgress.chapters.map(c => `<article class="ots-chapter-stat"><div><span><strong>${otsEsc(c.chapter)}</strong><small>${otsEsc(c.subject)} · ${c.count} checked test${c.count === 1 ? '' : 's'}</small></span><b>${c.average}%</b></div><meter min="0" max="100" value="${c.average}" aria-label="${otsEsc(c.chapter)} average score"></meter></article>`).join('') + '</div>' : '';
+        body.innerHTML = _ots.results.length ? '<p class="ots-archive-note">All your checked tests, saved permanently · Chapter average across all parts. Marks for this module below.</p>' + chapterStats + '<div class="ots-grid">' + resultRows.map(r => {
+          const pdf = NTCUploadcare.isFileUrl(r.answerSheetUrl) ? NTCUploadcare.deliveryUrl(r.answerSheetUrl) : '';
+          const pdfNote = r.approvedAt ? 'Returned ' + new Date(r.approvedAt).toLocaleDateString('en-IN') : 'Saved permanently';
+          return `<article class="ots-card ots-test-card ots-archive-card"><span class="k">${otsEsc(r.module)} · Class ${otsEsc(r.class)} · ${otsEsc(r.testDate)}</span><h3>${otsEsc(r.testName)}</h3><div class="meta"><span class="ots-chip ok">${r.score} / ${r.totalMarks} marks</span></div><p>${otsEsc(r.teacherName ? 'Checked by ' + r.teacherName : 'Teacher approved')}</p>${r.remark ? `<p>${otsEsc(r.remark)}</p>` : ''}<p class="ots-expiry-label">${otsEsc(pdfNote)} · Saved permanently</p><div class="act"><button type="button" class="ots-btn green" data-report="${otsEsc(r.reportId)}">View feedback</button>${pdf ? `<a class="ots-btn soft" href="${otsEsc(pdf)}" target="_blank" rel="noopener noreferrer" download>Checked PDF ↗</a>` : ''}</div></article>`;
+        }).join('') + '</div>' : '<div class="ots-empty">No checked scripts yet.<br>Your checked results arrive within 48 hours of submission.</div>';
+        body.querySelectorAll('[data-report]').forEach(b => b.onclick = () => otsOpenReport(b.dataset.report));
+        return;
+      }
+      document.getElementById('otsLibraryTitle').textContent = _ots.module ? 'Tests' : _ots.chapter ? 'Modules / Parts' : (_ots.subject ? 'Chapters' : 'Subjects');
+      if (_ots.testsError) { body.innerHTML = '<div class="ots-empty">' + otsEsc(_ots.testsError) + '</div>'; return; }
       if (!tests.length) {
         body.innerHTML = '<div class="ots-empty">📭 No offline tests for your class yet.<br>Your teachers will add them here — check back soon!</div>';
         return;
       }
-      const done = t => { const k = otsAttemptState(t).key; return k === 'checking' || k === 'approved'; };
-      const group = (list, key) => list.reduce((m, t) => { (m[t[key]] = m[t[key]] || []).push(t); return m; }, {});
-
-      if (!_ots.subject) {
-        const bySub = group(tests, 'subject');
-        body.innerHTML = '<div class="ots-grid">' + Object.keys(bySub).sort().map(s => {
-          const list = bySub[s], d = list.filter(done).length;
-          return `<button type="button" class="ots-card" data-sub="${otsEsc(s)}">
-            <span class="ic" aria-hidden="true">${OTS_ICONS[s] || '📄'}</span>
-            <h3>${otsEsc(s)}</h3>
-            <p>${list.length} test${list.length === 1 ? '' : 's'} · ${Object.keys(group(list, 'chapter')).length} chapter${Object.keys(group(list, 'chapter')).length === 1 ? '' : 's'}</p>
-            <div class="meta"><span class="ots-chip ${d === list.length ? 'ok' : ''}">${d}/${list.length} done</span></div>
-          </button>`;
-        }).join('') + '</div>';
-        body.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => otsGo(b.dataset.sub));
-        return;
-      }
-      const inSub = tests.filter(t => t.subject === _ots.subject);
-      if (!_ots.chapter) {
-        const byCh = group(inSub, 'chapter');
-        body.innerHTML = '<div class="ots-grid">' + Object.keys(byCh).sort().map(ch => {
-          const list = byCh[ch], d = list.filter(done).length;
-          return `<button type="button" class="ots-card" data-ch="${otsEsc(ch)}">
-            <span class="k">${otsEsc(_ots.subject)}</span>
-            <h3>${otsEsc(ch)}</h3>
-            <p>${list.length} test${list.length === 1 ? '' : 's'}</p>
-            <div class="meta"><span class="ots-chip ${d === list.length ? 'ok' : ''}">${d}/${list.length} done</span></div>
-          </button>`;
-        }).join('') + '</div>';
-        body.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => otsGo(_ots.subject, b.dataset.ch));
-        return;
-      }
-      const list = inSub.filter(t => t.chapter === _ots.chapter).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      if (otsRenderFolders(tests, body)) return;
+      const list = tests.filter(t => t.subject === _ots.subject && t.chapter === _ots.chapter && t.module === _ots.module).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
       body.innerHTML = '<div class="ots-grid">' + list.map(t => {
         const st = otsAttemptState(t);
         let btn;
-        if (st.key === 'new') btn = t.isActive ? `<button type="button" class="ots-btn" data-start="${t.id}">▶ Start test</button>` : '<button type="button" class="ots-btn soft" disabled>Closed</button>';
+        if (st.key === 'new') btn = t.isActive ? `<button type="button" class="ots-btn" data-start="${t.id}">⬇ Download paper &amp; start timer</button>` : '<button type="button" class="ots-btn soft" disabled>Closed</button>';
         else if (st.key === 'started') btn = st.left > 0
           ? `<button type="button" class="ots-btn amber" data-open="${t.id}">⏱ Continue · ${Math.ceil(st.left / 60000)} min left</button>`
           : `<button type="button" class="ots-btn amber" data-open="${t.id}">⬆ Upload answer script${st.overGrace ? ' (late)' : ''}</button>`;
         else if (st.key === 'approved') btn = `<button type="button" class="ots-btn green" data-report="${t.id}__${user.uid}">📄 View checked script</button>`;
-        else btn = '<button type="button" class="ots-btn soft" disabled>🧠 Being checked · teacher will approve</button>';
-        return `<div class="ots-card">
-          <span class="k">${otsEsc(t.subject)} · ${otsEsc(t.chapter)}</span>
+        else btn = '<button type="button" class="ots-btn soft" disabled>Submitted · awaiting teacher review</button>';
+        return `<div class="ots-card ots-test-card" data-state="${st.key}">
+          <span class="ots-state">${{ new: 'Ready when you are', started: 'In progress', approved: 'Feedback is ready', checking: 'With your teacher' }[st.key]}</span>
+          <span class="k">${otsEsc(t.module)}</span>
           <h3>${otsEsc(t.testName)}</h3>
           <div class="meta"><span class="ots-chip">${t.totalMarks || '?'} marks</span><span class="ots-chip">⏱ ${t.durationMin} min</span>${t.board ? `<span class="ots-chip">${otsEsc(t.board)}</span>` : ''}</div>
           ${t.instructions ? `<p>${otsEsc(t.instructions)}</p>` : ''}
@@ -2590,15 +2670,17 @@ renderCards();
       const t = _ots.tests.find(x => x.id === testId);
       if (!t) return;
       const fresh = !_ots.attempts[testId];
-      if (fresh && !confirm(`Start "${t.testName}"?\n\nThe ${t.durationMin}-minute timer starts now and cannot be paused. Keep paper and pen ready. When the time is up, scan your answers into one PDF and upload it.`)) return;
+      if (fresh && !confirm(`Download "${t.testName}" and start?\n\nThe ${t.durationMin}-minute timer starts when the paper opens and cannot be paused. Keep paper and pen ready. Upload one PDF or photos of your answers when finished.`)) return;
       const label = btn ? btn.textContent : '';
       if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
       try {
         const a = await otsApi({ action: 'start', testId });
         if (a.status && a.status !== 'started') { await otsLoad(); return; }
+        a.questionPdfUrl = NTCUploadcare.deliveryUrl(a.questionPdfUrl);
         _ots.attempts[testId] = { status: 'started', deadline: a.deadline, startedAt: a.startedAt, questionPdfUrl: a.questionPdfUrl, uploadGraceMin: a.uploadGraceMin || 15 };
         const offset = a.serverNow ? Date.parse(a.serverNow) - Date.now() : 0;
         otsOpenExam(t, _ots.attempts[testId], offset);
+        if (fresh) await NTCOfflineFiles.downloadPdf(a.questionPdfUrl, t.testName + '_question_paper.pdf');
       } catch (e) {
         alert(e.message);
       } finally {
@@ -2621,9 +2703,11 @@ renderCards();
     }
 
     window.otsCloseExam = function () {
+      if (_ots.submitting) return;
       if (_ots.exam && _ots.exam.timer) clearInterval(_ots.exam.timer);
       _ots.exam = null;
       document.getElementById('otsExam').hidden = true;
+      document.getElementById('otsUpload').hidden = true;
       document.documentElement.style.overflow = '';
       otsRender();
     };
@@ -2632,6 +2716,8 @@ renderCards();
       const ex = _ots.exam;
       if (!ex) return;
       const left = Date.parse(ex.attempt.deadline) - (Date.now() + ex.offset);
+      const total = Date.parse(ex.attempt.deadline) - Date.parse(ex.attempt.startedAt);
+      document.getElementById('otsTimeProgress').style.width = Math.max(0, Math.min(100, left / Math.max(1, total) * 100)) + '%';
       const el = document.getElementById('otsTimer');
       const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
       if (left > 0) {
@@ -2691,18 +2777,65 @@ renderCards();
 
     // ── Answer-script upload ──
     function otsResetUpload() {
+      _ots.photos = []; _ots.pickVersion = (_ots.pickVersion || 0) + 1;
+      _ots.uploaded = null;
       _ots.file = null; _ots.filePdf = null;
       const f = document.getElementById('otsFile'); if (f) f.value = '';
+      document.getElementById('otsCamera').value = '';
+      document.getElementById('otsPhotoOrder').innerHTML = '';
+      document.getElementById('otsFile').disabled = false;
+      document.getElementById('otsCamera').disabled = false;
       document.getElementById('otsThumbs').innerHTML = '';
-      document.getElementById('otsDropText').textContent = '📄 Choose answer-script PDF';
+      document.getElementById('otsDropText').textContent = '📄 Choose PDF or page photos';
       const m = document.getElementById('otsUpMsg'); m.textContent = ''; m.className = 'ots-up-msg';
       const b = document.getElementById('otsUpSubmit'); b.disabled = true; b.textContent = 'Submit for checking →';
       document.getElementById('otsUpBack').disabled = false;
     }
     window.otsOpenUpload = function () { document.getElementById('otsUpload').hidden = false; otsTick(); };
-    window.otsCloseUpload = function () { document.getElementById('otsUpload').hidden = true; };
+    window.otsCloseUpload = function () { if (!_ots.submitting) document.getElementById('otsUpload').hidden = true; };
 
-    window.otsPickFile = async function (file) {
+    function otsPhotoOrder() {
+      const wrap = document.getElementById('otsPhotoOrder');
+      wrap.innerHTML = (_ots.photos || []).map((f, i) => `<div class="ots-photo-row"><span>Page ${i + 1}: ${otsEsc(f.name)}</span><button type="button" data-move="${i}" data-dir="-1" aria-label="Move page ${i + 1} up" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move="${i}" data-dir="1" aria-label="Move page ${i + 1} down" ${i === _ots.photos.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-remove="${i}" aria-label="Remove page ${i + 1}">×</button></div>`).join('');
+      wrap.querySelectorAll('[data-move]').forEach(b => b.onclick = () => {
+        if (_ots.submitting) return;
+        const i = +b.dataset.move, j = i + +b.dataset.dir;
+        [_ots.photos[i], _ots.photos[j]] = [_ots.photos[j], _ots.photos[i]];
+        otsPickFiles(_ots.photos.slice());
+      });
+      wrap.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => {
+        if (_ots.submitting) return;
+        _ots.photos.splice(+b.dataset.remove, 1); otsPickFiles(_ots.photos.slice());
+      });
+    }
+    window.otsPickFiles = async function (files, append = false) {
+      if (_ots.submitting) return;
+      const selected = Array.from(files || []), version = (_ots.pickVersion || 0) + 1;
+      _ots.pickVersion = version;
+      const msg = document.getElementById('otsUpMsg');
+      _ots.file = null; _ots.filePdf = null;
+      document.getElementById('otsUpSubmit').disabled = true;
+      document.getElementById('otsThumbs').innerHTML = '';
+      try {
+        if (!selected.length) { _ots.photos = []; otsPhotoOrder(); msg.textContent = 'Choose a PDF or page photos.'; return; }
+        if (selected.length === 1 && NTCOfflineFiles.isPdf(selected[0]) && !append) {
+          _ots.photos = []; otsPhotoOrder(); await otsPickFile(selected[0], version); return;
+        }
+        const photos = append ? (_ots.photos || []).concat(selected) : selected;
+        if (photos.some(f => !NTCOfflineFiles.isPhoto(f))) throw new Error('Choose one PDF or JPG, PNG or WebP photos. Do not mix a PDF with photos.');
+        if (photos.length > 25 || photos.reduce((sum, f) => sum + f.size, 0) > 40 * 1024 * 1024) throw new Error('Choose up to 25 photos, totalling no more than 40 MB.');
+        _ots.photos = photos; otsPhotoOrder();
+        msg.className = 'ots-up-msg';
+        const pdf = await NTCOfflineFiles.photosToPdf(photos, (i, n) => { if (version === _ots.pickVersion) msg.textContent = `Converting photo ${i}/${n} to PDF…`; });
+        if (version !== _ots.pickVersion) return;
+        await otsPickFile(pdf, version);
+      } catch (e) {
+        if (version !== _ots.pickVersion) return;
+        msg.className = 'ots-up-msg err'; msg.textContent = e.message;
+      }
+    };
+
+    window.otsPickFile = async function (file, version = _ots.pickVersion) {
       const msg = document.getElementById('otsUpMsg'), btn = document.getElementById('otsUpSubmit'), thumbs = document.getElementById('otsThumbs');
       _ots.file = null; _ots.filePdf = null; btn.disabled = true; thumbs.innerHTML = '';
       if (!file) return;
@@ -2710,10 +2843,13 @@ renderCards();
       if (file.size > 40 * 1024 * 1024) { msg.className = 'ots-up-msg err'; msg.textContent = 'This PDF is larger than 40 MB. Scan in normal quality and try again.'; return; }
       msg.className = 'ots-up-msg'; msg.textContent = 'Reading your PDF…';
       try {
+        await NTCOfflineFiles.validatePdf(file);
         const pdfjs = await otsLoadPdfJs();
         const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+        if (version !== _ots.pickVersion) return;
         if (pdf.numPages > 25) throw new Error(`Your PDF has ${pdf.numPages} pages — the limit is 25.`);
         for (let i = 1; i <= pdf.numPages; i++) {
+          if (version !== _ots.pickVersion) return;
           const page = await pdf.getPage(i);
           const vp = page.getViewport({ scale: 120 / page.getViewport({ scale: 1 }).width });
           const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
@@ -2721,11 +2857,13 @@ renderCards();
           thumbs.appendChild(c);
           await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
         }
+        if (version !== _ots.pickVersion) return;
         _ots.file = file; _ots.filePdf = pdf;
         document.getElementById('otsDropText').textContent = '📄 ' + file.name + ' · change';
         msg.textContent = `${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'} ready. Check every page is clear and in order.`;
         btn.disabled = false;
       } catch (e) {
+        if (version !== _ots.pickVersion) return;
         msg.className = 'ots-up-msg err';
         msg.textContent = /password/i.test(e.message || '') ? 'This PDF is password-protected. Export it again without a password.' : (e.message || 'Could not read this PDF.');
       }
@@ -2744,17 +2882,22 @@ renderCards();
 
     window.otsSubmit = async function () {
       const ex = _ots.exam;
-      if (!ex || !_ots.file || !_ots.filePdf) return;
+      if (!ex || !_ots.file || !_ots.filePdf || _ots.submitting || _ots.attempts[ex.test.id]?.status !== 'started') return;
+      _ots.submitting = true;
+      document.getElementById('otsFile').disabled = true;
+      document.getElementById('otsCamera').disabled = true;
       const msg = document.getElementById('otsUpMsg'), btn = document.getElementById('otsUpSubmit');
       btn.disabled = true; document.getElementById('otsUpBack').disabled = true;
       msg.className = 'ots-up-msg';
       try {
         if (typeof window._ntcUploadFile !== 'function') throw new Error('Upload service unavailable. Please refresh.');
         btn.textContent = 'Uploading PDF…';
-        const pdfInfo = await window._ntcUploadFile(new File([_ots.file], 'answer-script.pdf', { type: 'application/pdf' }),
+        if (!_ots.uploaded || _ots.uploaded.file !== _ots.file) _ots.uploaded = { file: _ots.file, pdfInfo: null, pages: [] };
+        const upload = _ots.uploaded;
+        if (!upload.pdfInfo) upload.pdfInfo = await window._ntcUploadFile(new File([_ots.file], 'answer-script.pdf', { type: 'application/pdf' }),
           p => { msg.textContent = `Uploading your PDF… ${Math.round(p * 100)}%`; });
-        const pages = [];
-        for (let i = 1; i <= _ots.filePdf.numPages; i++) {
+        const pdfInfo = upload.pdfInfo, pages = upload.pages;
+        for (let i = pages.length + 1; ex.test.gradingMode !== 'teacher' && i <= _ots.filePdf.numPages; i++) {
           btn.textContent = `Preparing page ${i}/${_ots.filePdf.numPages}…`;
           msg.textContent = 'Preparing pages for checking — keep this screen open.';
           const blob = await otsPageJpeg(_ots.filePdf, i);
@@ -2763,18 +2906,22 @@ renderCards();
         }
         btn.textContent = 'Submitting…';
         const r = await otsApi({ action: 'submit', testId: ex.test.id, scriptPdfUrl: pdfInfo.url, pageUrls: pages });
-        _ots.attempts[ex.test.id] = { ..._ots.attempts[ex.test.id], status: 'checking' };
+        _ots.attempts[ex.test.id] = { ..._ots.attempts[ex.test.id], status: r.status };
         msg.className = 'ots-up-msg ok';
-        msg.textContent = '✅ Submitted! Our AI is checking your script now. Once your teacher approves it, the full report appears in My Results.' +
+        msg.textContent = '✅ Submitted! Your checked result will arrive within 48 hours and stays saved in Results permanently.' +
           (r.lateByMin > 15 ? ' (Marked as late.)' : '');
         btn.textContent = 'Submitted ✓';
         clearInterval(ex.timer);
-        setTimeout(() => { otsCloseUpload(); otsCloseExam(); }, 2600);
+        setTimeout(() => { otsCloseUpload(); otsCloseExam(); otsLoad(); }, 2600);
       } catch (e) {
         msg.className = 'ots-up-msg err';
         msg.textContent = '⚠️ ' + (e.message || 'Upload failed') + ' — check your internet and tap Submit again.';
         btn.disabled = false; btn.textContent = 'Try again';
         document.getElementById('otsUpBack').disabled = false;
+      } finally {
+        _ots.submitting = false;
+        document.getElementById('otsFile').disabled = false;
+        document.getElementById('otsCamera').disabled = false;
       }
     };
 
@@ -2784,11 +2931,14 @@ renderCards();
     });
 
     // ── Approved report ──
-    let _otsReportName = '';
+    let _otsReportName = '', _otsCheckedUrl = '', _otsReportDownloadAllowed = false;
     window.otsOpenReport = async function (attemptId) {
       const layer = document.getElementById('otsReport'), body = document.getElementById('otsReportBody');
       layer.hidden = false; document.documentElement.style.overflow = 'hidden';
       body.innerHTML = '<div class="ots-empty">Loading your report…</div>';
+      _otsCheckedUrl = ''; _otsReportDownloadAllowed = false;
+      const downloadButton = document.querySelector('#otsReport [onclick="otsDownloadReport()"]');
+      if (downloadButton) downloadButton.disabled = true;
       try {
         const token = await user.getIdToken();
         const res = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/offlineReports/${encodeURIComponent(attemptId)}?key=${FIREBASE_CONFIG.apiKey}`,
@@ -2804,6 +2954,17 @@ renderCards();
         };
         document.getElementById('otsReportTitle').textContent = `${meta.testName} · ${meta.subject}`;
         _otsReportName = `${(meta.studentName || 'Student').split(' ')[0]}_${meta.subject}_${meta.testName}_Checked_Script_TNC`.replace(/[^\w-]+/g, '_');
+        _otsReportDownloadAllowed = true;
+        if (downloadButton) { downloadButton.disabled = false; downloadButton.textContent = 'Download PDF'; }
+        if (s('reviewMode') === 'teacher' || s('checkedScriptUrl')) {
+          const url = NTCUploadcare.deliveryUrl(s('checkedScriptUrl'));
+          if (url && !NTCUploadcare.isFileUrl(url)) throw new Error('Invalid checked-script link.');
+          _otsCheckedUrl = url;
+          const score = f.score?.doubleValue ?? f.score?.integerValue ?? report.totalAwarded ?? '';
+          const total = f.totalMarks?.doubleValue ?? f.totalMarks?.integerValue ?? '';
+          body.innerHTML = `<div class="ots-returned"><span class="ots-success-seal" aria-hidden="true">✓</span><span class="ots-eyebrow">REVIEW COMPLETE</span><h2>${otsEsc(meta.testName)}</h2><p>${otsEsc(meta.studentName)} · ${otsEsc(meta.studentId)} · Class ${otsEsc(meta.studentClass)}</p><div class="ots-score"><strong>${otsEsc(score)}<small> / ${otsEsc(total)}</small></strong><span>marks earned</span></div><p class="ots-reviewer">Checked by ${otsEsc(s('approvedByName'))}</p>${s('teacherRemark') ? `<div class="ots-feedback"><span class="ots-eyebrow">YOUR TEACHER'S FEEDBACK</span><p>${otsEsc(s('teacherRemark'))}</p></div>` : ''}${url ? `<a class="ots-btn green" href="${otsEsc(url)}" target="_blank" rel="noopener" download>Download checked answer script ↗</a>` : ''}<p class="ots-saved-note">Saved permanently in your Offline Test Series results.</p></div>`;
+          return;
+        }
         NTCOfflineReport.render(body, { meta, report, approval: { name: s('approvedByName'), at: s('approvedAt') } });
       } catch (e) {
         body.innerHTML = '<div class="ots-empty" style="color:#b91c1c;">' + otsEsc(e.message) + '</div>';
@@ -2814,6 +2975,8 @@ renderCards();
       document.documentElement.style.overflow = '';
     };
     window.otsDownloadReport = function () {
+      if (!_otsReportDownloadAllowed) return;
+      if (_otsCheckedUrl) { window.open(_otsCheckedUrl, '_blank', 'noopener'); return; }
       NTCOfflineReport.download(document.getElementById('otsReportBody'), _otsReportName);
     };
 
@@ -3930,7 +4093,7 @@ renderCards();
     fetchClasses, fmtClassTime, classTimeStatus, canJoinZoom,
     relativeJoinLabel, buildZoomJoinUrl, formatMeetingId,
     STATUS_BADGE, recordingSourceBadge
-  } from '/assets/js/live-classes.js?v=e498fe6b';
+  } from '/assets/js/live-classes.js?v=35b07d93';
 
   function lcEscape(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -6347,7 +6510,7 @@ renderCards();
           }).then(function (info) {
             // uploadcareUpload returns { url, uuid } — use the bare URL (no fragile transforms)
             var avatarUrl = (info && info.url)
-              || (info && info.uuid ? 'https://ucarecdn.com/' + info.uuid + '/' : '');
+              || (info && info.uuid ? NTCUploadcare.fileUrl(info.uuid) : '');
             if (!avatarUrl) throw new Error('No URL returned by Uploadcare');
             console.log('[Profile] photo uploaded:', avatarUrl);
             setStatus('Saving…');
@@ -6402,6 +6565,8 @@ renderCards();
       }
 
       if (!dataUrl) { showInitialOnly(); return; }
+      // Old photos were saved on ucarecdn.com, which this Uploadcare project no longer serves.
+      if (window.NTCUploadcare && /^https:/i.test(dataUrl)) dataUrl = NTCUploadcare.deliveryUrl(dataUrl);
 
       // If a cloud URL fails (e.g. fragile transforms on free tier), try the bare
       // Uploadcare URL first; then the local cache; then show the initial.
@@ -6409,7 +6574,7 @@ renderCards();
         return function () {
           var src = thisImg.src || '';
           // Step 1 — strip any Uploadcare transforms and retry the bare URL
-          var m = src.match(/^(https:\/\/ucarecdn\.com\/[0-9a-f-]+\/)(?:-\/.+)?$/i);
+          var m = src.match(/^(https:\/\/(?:ucarecdn\.com|[a-z0-9]+\.ucarecd\.net)\/[0-9a-f-]+\/)(?:-\/.+)?$/i);
           if (m && src !== m[1]) {
             console.warn('[Profile] cloud transform failed; retrying bare URL', m[1]);
             // Heal Firestore so the bad URL doesn't keep coming back
@@ -6508,7 +6673,7 @@ renderCards();
 <script>document.documentElement.classList.add('ntc-styled');</script>
 <link rel="stylesheet" href="/assets/css/portal-controls.css?v=d62c9c09">
 <link rel="stylesheet" href="/assets/css/brand-theme.css?v=a1c81d78">
-<link rel="stylesheet" href="/assets/css/offline-series.css?v=4fde36a1">
+<link rel="stylesheet" href="/assets/css/offline-series.css?v=14855da0">
 <script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
 <script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>

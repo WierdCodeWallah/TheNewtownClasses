@@ -1436,7 +1436,7 @@
            setDoc, getDoc, getDocs,
            updateDoc, deleteDoc, query,
            orderBy }                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { FIREBASE_CONFIG, initAppCheck, STAFF_APP, adoptLegacyStaffSession }          from "/assets/js/firebase-config.js?v=4b98d617";
+  import { FIREBASE_CONFIG, initAppCheck, STAFF_APP, adoptLegacyStaffSession }          from "/assets/js/firebase-config.js?v=0970664c";
 
   const app  = initializeApp(FIREBASE_CONFIG, STAFF_APP);
   await initAppCheck(app);
@@ -3438,7 +3438,7 @@ Share it with the teacher — it is not stored anywhere.`);
     fmtClassTime, classTimeStatus, STATUS_BADGE, toScheduledTs,
     detectRecordingSource, isLikelyRecordingUrl, attachRecording,
     recordingSourceBadge
-  } from '/assets/js/live-classes.js?v=e498fe6b';
+  } from '/assets/js/live-classes.js?v=35b07d93';
 
   window.loadAdminClasses = async function() {
     const wrap   = document.getElementById('lcAdminList');

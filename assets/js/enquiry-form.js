@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { FIREBASE_CONFIG, initAppCheck } from './firebase-config.js?v=4b98d617';
+import { FIREBASE_CONFIG, initAppCheck } from './firebase-config.js?v=0970664c';
 
 // A separate session keeps an inquiry from replacing a student or staff login.
 const app = initializeApp(FIREBASE_CONFIG, 'public-enquiry');

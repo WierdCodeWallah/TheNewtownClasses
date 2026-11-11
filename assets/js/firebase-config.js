@@ -35,9 +35,9 @@ export const FIREBASE_CONFIG = {
 //  SECURITY_SETUP.md), paste the reCAPTCHA v3 *site key* below. It's a
 //  public token (starts with "6L..."), safe to commit.
 //
-//  Leave it as the empty string in local development — initAppCheck()
-//  will skip initialisation so you don't have to run a debug token dance
-//  on `localhost`.
+//  Loopback development uses Firebase's debug provider. Register the token
+//  printed in your browser console under App Check → Manage debug tokens.
+//  Keep this site key configured: deployed pages still use reCAPTCHA.
 //
 export const RECAPTCHA_V3_SITE_KEY = "6LcGAdYsAAAAAAv2_DFaO7xNxZZYVFwpL8GpGlww"; // ← paste your reCAPTCHA v3 site key here
 
@@ -72,6 +72,20 @@ export async function initAppCheck(app) {
     return null;
   }
   try {
+    if (['localhost', '127.0.0.1', '[::1]'].includes(globalThis.location?.hostname)) {
+      // reCAPTCHA does not work on loopback, and an unregistered debug token
+      // makes every sign-in fail with auth/network-request-failed. So local
+      // pages skip App Check unless a developer opts in after registering
+      // this browser's debug token. Never embed an approved token here.
+      let optedIn = false;
+      try { optedIn = globalThis.localStorage?.getItem('ntcAppCheckDebug') === '1'; } catch (_) {}
+      if (!optedIn) {
+        console.info('[AppCheck] Skipped on local development. To test App Check locally, run localStorage.ntcAppCheckDebug = "1", reload, and register the printed debug token in Firebase Console → App Check → Apps → Manage debug tokens.');
+        return null;
+      }
+      globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN ??= true;
+      console.info('[AppCheck] Local debug token enabled: register it in Firebase Console → App Check → Apps → Manage debug tokens.');
+    }
     const { initializeAppCheck, ReCaptchaV3Provider } =
       await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
     return initializeAppCheck(app, {

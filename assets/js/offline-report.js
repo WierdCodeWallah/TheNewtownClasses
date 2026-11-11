@@ -296,6 +296,8 @@
     // ── 3. Checked script pages with red-pen marks ──
     var pages = meta.pageUrls || [];
     pages.forEach(function (url, i) {
+      // Old records saved ucarecdn.com links, which this Uploadcare project no longer serves.
+      if (window.NTCUploadcare) url = NTCUploadcare.deliveryUrl(url);
       var marks = (r.annotations || []).filter(function (a) { return a.page === i + 1; }).map(function (a) {
         var y0 = a.box[0] / 10, x0 = a.box[1] / 10, y1 = a.box[2] / 10, x1 = a.box[3] / 10;
         if (a.kind === 'tick' || a.kind === 'cross') {

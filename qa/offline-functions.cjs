@@ -12,6 +12,8 @@ process.env.URL = 'https://example.test';
 
 // ── In-memory stand-in for ./_google ──
 const db = new Map();
+const versions = new Map();
+let version = 0, failCommit = false;
 const calls = { gemini: [], triggers: [], openai: [] };
 let openaiMode = [];
 let geminiMode = 'ok';
@@ -37,10 +39,20 @@ const aiReport = {
 const stub = {
   async verifyFirebaseIdToken(token) { if (!/^uid:/.test(token || '')) throw new Error('Invalid Firebase ID token'); return { uid: token.slice(4) }; },
   async getServiceAccountAccessToken() { return 'sa'; },
-  async fsGet(_p, _t, p) { return db.has(p) ? { fields: db.get(p) } : null; },
+  async fsGet(_p, _t, p) { return db.has(p) ? { fields: db.get(p), updateTime: String(versions.get(p) || 0) } : null; },
   async fsPatch(_p, _t, p, obj) { db.set(p, JSON.parse(JSON.stringify(obj))); return {}; },
+  async fsCommit(_p, _t, records) {
+    if (failCommit) throw new Error('Fixture commit failure');
+    for (const { path, currentDocument: pre } of records) {
+      if (pre && ((pre.exists === false && db.has(path)) || (pre.updateTime !== undefined && pre.updateTime !== String(versions.get(path) || 0)))) {
+        const err = new Error('Conflict'); err.conflict = true; throw err;
+      }
+    }
+    for (const { path, data } of records) { db.set(path, JSON.parse(JSON.stringify(data))); versions.set(path, ++version); }
+  },
   decFields(doc) { return JSON.parse(JSON.stringify(doc.fields || {})); },
   async fetchBinary(url) {
+    url = url.replace('https://32zbpzustr.ucarecd.net/', 'https://ucarecdn.com/');
     if (files[url]) return { buffer: files[url], contentType: url.endsWith('.jpg') ? 'image/jpeg' : 'application/pdf' };
     throw new Error('unexpected fetch ' + url);
   },
@@ -85,6 +97,11 @@ const call = async (body) => {
 };
 
 (async () => {
+  assert.equal((await call(null)).status, 400, 'null JSON rejected cleanly');
+  assert.equal((await call([])).status, 400, 'array JSON rejected cleanly');
+  assert.equal((await offline.handler({ httpMethod: 'GET' })).statusCode, 405);
+  assert.equal((await offline.handler({ httpMethod: 'OPTIONS' })).statusCode, 204);
+  assert.equal((await offline.handler({ httpMethod: 'POST', body: '{' })).statusCode, 400);
   db.set('students/stu1', { name: 'Riya Sharma', studentId: 'NTC001', class: '11', board: 'CBSE' });
   db.set('students/stu2', { name: 'Aman', studentId: 'NTC002', class: '11', board: 'CBSE' });
   db.set('students/stu12', { name: 'Old', class: '12' });
@@ -120,7 +137,9 @@ const call = async (body) => {
   assert.equal(db.get('offlineAttempts/otsphy1__stu1').status, 'checking');
   assert.equal(db.get('offlineReports/otsphy1__stu1').status, 'checking');
   assert.equal(calls.triggers.length, 1, 'AI check triggered');
-  assert.equal((await call({ idToken: 'uid:stu1', action: 'submit', testId: 'otsphy1', scriptPdfUrl: ok1, pageUrls: [pg] })).status, 409, 'no double submission');
+  assert.equal((await call({ idToken: 'uid:stu1', action: 'submit', testId: 'otsphy1', scriptPdfUrl: ok1, pageUrls: [pg] })).status, 200, 'safe retry after a lost response');
+  assert.equal((await call({ idToken: 'uid:stu1', action: 'submit', testId: 'otsphy1', scriptPdfUrl: pg, pageUrls: [pg] })).status, 409, 'no replacement submission');
+  assert.equal(calls.triggers.length, 1, 'retry does not repeat the check');
   console.log('✓ submit: PDF-only, page limit, late minutes recorded, single submission, background check triggered');
 
   // ── background grader ──
@@ -246,4 +265,48 @@ const call = async (body) => {
   assert.equal(calls.openai.length, 0, 'AI_GRADER=gemini forces Gemini');
   delete process.env.AI_GRADER;
   console.log('✓ AI_GRADER switch');
+
+  // Teacher checking requires no AI key, accepts a converted PDF, and returns
+  // one durable result to exactly the student who submitted it.
+  db.set('offlineTests/manual1', { ...db.get('offlineTests/otsphy1'), board: 'CBSE', gradingMode: 'teacher', module: 'Part 1' });
+  db.set('offlineTestKeys/manual1', { questionPdfUrl: 'https://ucarecdn.com/q/' });
+  db.set('teachers/other', { name: 'Other Teacher' });
+  db.set('students/wrongboard', { class: '11', board: 'ICSE' });
+  assert.equal((await call({ idToken: 'uid:wrongboard', action: 'start', testId: 'manual1' })).status, 403);
+  const starts = await Promise.all([1, 2].map(() => call({ idToken: 'uid:stu1', action: 'start', testId: 'manual1' })));
+  assert(starts.every(r => r.status === 200));
+  assert.equal(starts[0].body.deadline, starts[1].body.deadline, 'concurrent starts keep one timer');
+  const currentCdn = require('../assets/js/uploadcare-config');
+  const currentScript = currentCdn.deliveryUrl(ok1), currentChecked = currentCdn.deliveryUrl(ok3);
+  const triggerCount = calls.triggers.length;
+  const submissions = await Promise.all([1, 2].map(() => call({ idToken: 'uid:stu1', action: 'submit', testId: 'manual1', scriptPdfUrl: currentScript })));
+  assert.deepEqual(submissions.map(r => r.status).sort(), [200, 409], 'concurrent submission accepted only once');
+  assert.equal(calls.triggers.length, triggerCount, 'teacher mode never invokes AI');
+  assert.equal(db.get('offlineReports/manual1__stu1').status, 'submitted');
+  assert.equal(db.get('offlineReports/manual1__stu1').studentId, 'NTC001');
+  assert.equal((await call({ idToken: 'uid:teach1', action: 'regrade', attemptId: 'manual1__stu1' })).status, 409);
+  const returnBody = { action: 'return-script', attemptId: 'manual1__stu1', checkedScriptUrl: currentChecked, score: 8.5, remark: 'Well done.' };
+  assert.equal((await call({ ...returnBody, idToken: 'uid:stu1' })).status, 403, 'student cannot return scripts');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:other' })).status, 403, 'another teacher cannot return scripts');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1', score: 11 })).status, 400, 'marks above maximum rejected');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1', score: '' })).status, 400, 'blank marks rejected');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1', score: -1 })).status, 400, 'negative marks rejected');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1', checkedScriptUrl: 'javascript:alert(1)' })).status, 400);
+  failCommit = true;
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1' })).status, 500);
+  assert.equal(db.get('offlineReports/manual1__stu1').status, 'submitted', 'failed return does not publish a partial result');
+  assert(!db.has('students/stu1/offlineResults/ots_manual1__stu1'));
+  failCommit = false;
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1' })).status, 200);
+  const returned = db.get('offlineReports/manual1__stu1');
+  assert.equal(returned.status, 'approved'); assert.equal(returned.checkedScriptUrl, currentChecked);
+  assert.equal(returned.approvedByName, 'Aarav Sen');
+  assert.equal(db.get('offlineAttempts/manual1__stu1').status, 'approved');
+  const result = db.get('students/stu1/offlineResults/ots_manual1__stu1');
+  assert.equal(result.answerSheetUrl, currentChecked); assert.equal(result.score, 8.5); assert.equal(result.reviewMode, 'teacher');
+  assert.equal(result.module, 'Part 1');
+  assert.equal(db.get('students/stu1/offlineHistory/manual1__stu1').module, 'Part 1');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1' })).status, 200, 'retry after successful return is idempotent');
+  assert.equal((await call({ ...returnBody, idToken: 'uid:teach1', score: 7 })).status, 409, 'returned script cannot be overwritten');
+  console.log('✓ teacher workflow: board, concurrent timer/submission, no AI, assigned-teacher authorization, marks validation, atomic return, durable result and retry');
 })().catch(e => { console.error(e); process.exit(1); });

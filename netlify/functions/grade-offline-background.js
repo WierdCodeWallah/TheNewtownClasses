@@ -35,6 +35,7 @@
  */
 const https  = require('https');
 const crypto = require('crypto');
+const { deliveryUrl } = require('../../assets/js/uploadcare-config');
 const {
   request, fetchBinary, getServiceAccountAccessToken, fsGet, fsPatch, decFields
 } = require('./_google');
@@ -542,8 +543,8 @@ exports.handler = async function (event) {
 
     const pageUrls = Array.isArray(rep.pageUrls) ? rep.pageUrls : [];
     const [qPdf, aPdf, scriptPdf, ...pages] = await Promise.all([
-      fetchBinary(key.questionPdfUrl), fetchBinary(key.answerPdfUrl), fetchBinary(rep.scriptPdfUrl),
-      ...pageUrls.map(u => fetchBinary(u))
+      fetchBinary(deliveryUrl(key.questionPdfUrl)), fetchBinary(deliveryUrl(key.answerPdfUrl)), fetchBinary(deliveryUrl(rep.scriptPdfUrl)),
+      ...pageUrls.map(u => fetchBinary(deliveryUrl(u)))
     ]);
     const ctx = {
       testName: rep.testName || test.testName || '', subject: rep.subject || test.subject || '',

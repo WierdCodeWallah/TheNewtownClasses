@@ -2,8 +2,13 @@
 
 Run from the repository root:
 
+For signed-in local use (including Netlify functions and Firebase App Check),
+follow [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md). Live Server is for static
+previews only.
+
 ```text
 node --experimental-vm-modules qa/portal-syntax.cjs
+node --experimental-vm-modules qa/local-development.cjs
 node qa/portal-smoke.cjs
 node qa/login-flow.cjs
 node qa/auth-transitions.cjs
@@ -74,9 +79,51 @@ live classes. Existing records remain accessible under General / full syllabus
 or General; no data migration is required. Netlify now rewrites the three clean
 portal routes directly to their HTML instead of loading a second HTML document.
 
-`offline-series.cjs` walks the Offline Test Series end to end with fixtures: a teacher
-publishes a test (question paper + answer key PDFs), a student starts it, sees the
-paper and timer and uploads a PDF answer script, the teacher edits and approves the
-AI report, and the student opens it from My Results (390px and 1440px).
+`offline-series.cjs` walks the Offline Test Series end to end with fixtures. A teacher
+publishes a question-paper PDF without needing an answer key. Students download the
+paper with a persistent timer and submit PDFs or photos. Real browser photo-to-PDF
+conversion and page reordering are checked using PDF.js. Teachers download named
+scripts, upload checked PDFs with marks, retry failed saves, and students reopen
+their saved scripts in a fresh session (320px, 390px, 768px and 1440px). Existing AI-report
+approval and PDF submission are also covered. Camera selection is simulated;
+physical phone camera permissions still require an on-device check. The modern
+offline screens are also checked at 320px and 768px, with a landscape upload sheet,
+visible touch-sized submit controls, no horizontal overflow, and reduced motion.
+Phone checks use 320×640 and 390×844 viewports and verify that the compact overview
+stays under 190px and the first test action appears above bottom navigation without
+scrolling. Instructions remain accessible from the expandable “How it works” menu.
 `offline-functions.cjs` runs the two Netlify functions (timer, submission rules, AI
 marking clean-up and integrity flags) against in-memory fakes; it needs no browser.
+It also checks concurrent starts/submissions, board restrictions, assigned-teacher
+authorization, marks validation, atomic return failures and idempotent retries.
+The browser checks also cover the dedicated Results archive after promotion and
+removal of the source test, paginated history, timer expiry/grace/late states,
+invalid/oversize PDFs, camera-page append/removal, corrupt checked PDFs and
+recovery from malformed upload responses and lost submission responses.
+
+Start the local Firestore emulator on port 8188 with project `demo-offline` and
+`--rules firestore.rules`, then run `node qa/offline-rules.cjs` and
+`node qa/offline-integration.cjs`. The former exercises 56 real rule checks;
+the latter runs the actual endpoint and Firestore REST helpers against the
+emulator, including concurrent creation, atomic rollback and result publication.
+Only localhost is used; authentication and file hosting remain fixtures.
+
+New tests default to teacher checking (`gradingMode: teacher`). Existing tests keep
+their AI workflow; teachers may explicitly select AI checking for new tests and
+provide an answer key. Teacher checking requires the existing Firebase service
+account and Uploadcare configuration, but no AI service. Deploy the dashboard,
+assets and Netlify functions together, and publish the updated `firestore.rules`
+separately. No data migration is required. See `OFFLINE_TEST_RELEASE.md` for the
+remaining live release checks and storage limitations.
+
+
+Offline series now uses Subject → Chapter → Module / Part navigation in both
+Tests and Results. Legacy records use Full chapter. Offline Test Series results
+are permanent: checked PDFs, marks, feedback and history never expire, and
+there is no scheduled cleanup job. `offline-series.cjs` checks that a
+three-year-old result keeps its PDF, marks, chapter average and count, and that
+My Results shows it beyond the usual 12-month window. Teachers' script
+downloads are saved as `Name_ID_Test.pdf`. Tests given include submitted
+attempts; chapter averages include all graded parts. The compact animated
+process guide promises results within 48 hours of submission. See
+`OFFLINE_TEST_RELEASE.md` for deployment steps.

@@ -11,7 +11,9 @@
  *        same deadline, so a refresh never resets the timer.
  *    action 'submit'  (student) { testId, scriptPdfUrl, pageUrls[] }
  *        Accepts the answer-script PDF (+ page images rendered in the
- *        browser), then hands it to grade-offline-background for the AI check.
+ *        browser for AI tests). Teacher-checked tests enter the review inbox.
+ *    action 'return-script' (assigned teacher) { attemptId, checkedScriptUrl, score, remark }
+ *        Atomically saves the checked PDF to the report, attempt and results.
  *    action 'regrade' (staff)   { attemptId }
  *        Re-runs the AI check (e.g. after a failure).
  *
@@ -24,8 +26,9 @@
  * ════════════════════════════════════════════════════
  */
 const crypto = require('crypto');
+const policy = require('../../assets/js/offline-policy');
 const {
-  request, verifyFirebaseIdToken, getServiceAccountAccessToken, fsGet, fsPatch, decFields
+  request, verifyFirebaseIdToken, getServiceAccountAccessToken, fsGet, fsPatch, fsCommit, decFields
 } = require('./_google');
 
 const CORS = {
@@ -39,7 +42,7 @@ const bad = (status, msg) => ({ statusCode: status, headers: CORS, body: JSON.st
 
 const MAX_PAGES = 25;
 const UPLOAD_GRACE_MIN = 15;   // time to scan & upload after the timer ends
-const UC = /^https:\/\/ucarecdn\.com\/[0-9a-f-]{36}\/[^\s"'<>]*$/i;
+const UC = { test: require('../../assets/js/uploadcare-config').isFileUrl };
 
 // Shared secret for the background grader, derived from the service account
 // (both functions already have it), so no extra env var is needed. Keep in
@@ -74,11 +77,61 @@ exports.handler = async function (event) {
 
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return bad(400, 'Invalid JSON'); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return bad(400, 'Expected a JSON object');
   const { idToken, action } = body;
 
   try {
     const { uid } = await verifyFirebaseIdToken(idToken, projectId);
     const sa = await getServiceAccountAccessToken();
+
+    // A teacher returns their checked PDF. All three student-facing records
+    // change atomically so a failed request cannot leave a half-published result.
+    if (action === 'return-script') {
+      const attemptId = String(body.attemptId || '');
+      if (!/^[A-Za-z0-9_-]{1,210}$/.test(attemptId) || !attemptId.includes('__')) return bad(400, 'Invalid attempt');
+      if (!(await isStaff(projectId, sa, uid))) return bad(403, 'Only teachers can return scripts.');
+      const [repDoc, attDoc, teacherDoc, adminDoc] = await Promise.all([
+        fsGet(projectId, sa, `offlineReports/${attemptId}`),
+        fsGet(projectId, sa, `offlineAttempts/${attemptId}`),
+        fsGet(projectId, sa, `teachers/${uid}`), fsGet(projectId, sa, `admins/${uid}`)
+      ]);
+      if (!repDoc || !attDoc) return bad(404, 'Submitted script not found.');
+      const rep = decFields(repDoc), att = decFields(attDoc);
+      if (rep.teacherUid !== uid && !(adminDoc && decFields(adminDoc).isAdmin)) return bad(403, 'Only the assigned teacher can return this script.');
+      if (!rep.scriptPdfUrl || att.status === 'started') return bad(409, 'The student has not submitted yet.');
+      if (['checking', 'grading'].includes(rep.status)) return bad(409, 'Wait for the current check to finish before returning this script.');
+      const checkedScriptUrl = String(body.checkedScriptUrl || '');
+      if (!UC.test(checkedScriptUrl)) return bad(400, 'Upload the checked script as a PDF.');
+      const score = body.score;
+      if (!Number.isFinite(Number(rep.totalMarks)) || Number(rep.totalMarks) <= 0 || typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > Number(rep.totalMarks)) return bad(400, 'Enter marks between 0 and the maximum marks.');
+      const remark = String(body.remark || '').trim().slice(0, 3000);
+      if (rep.status === 'approved') {
+        if (rep.checkedScriptUrl === checkedScriptUrl && rep.score === score && rep.teacherRemark === remark) return ok({ ok: true, status: 'approved' });
+        return bad(409, 'This script has already been returned.');
+      }
+      const now = new Date().toISOString();
+      const name = (teacherDoc && decFields(teacherDoc).name) || 'Teacher';
+      await fsCommit(projectId, sa, [
+        { path: `offlineReports/${attemptId}`, currentDocument: { updateTime: repDoc.updateTime }, data: {
+          ...rep, status: 'approved', checkedScriptUrl, score, teacherRemark: remark,
+          reviewMode: 'teacher', approvedAt: now, checkedAt: now, approvedByUid: uid, approvedByName: name
+        } },
+        { path: `offlineAttempts/${attemptId}`, currentDocument: { updateTime: attDoc.updateTime }, data: {
+          ...att, status: 'approved', approvedAt: now, checkedScriptUrl
+        } },
+        { path: `students/${rep.uid}/offlineResults/ots_${attemptId}`, data: {
+          resultId: 'ots_' + attemptId, source: 'offline', reportId: attemptId,
+          testName: rep.testName, subject: rep.subject, topic: rep.chapter, module: rep.module || 'Full chapter', testType: 'subjective', class: rep.studentClass,
+          score, totalMarks: rep.totalMarks, pct: Math.round(score / rep.totalMarks * 100),
+          testDate: (rep.submittedAt || now).slice(0, 10), remark: remark || 'Offline Test Series · Teacher checked',
+          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: uid, teacherName: name,
+          studentUid: rep.uid, studentName: rep.studentName, studentId: rep.studentId, savedAt: now,
+          submittedAt: rep.submittedAt, approvedAt: now
+        } }
+        ,{ path: `students/${rep.uid}/offlineHistory/${attemptId}`, data: { ...policy.history(rep), status: 'approved', score, totalMarks: rep.totalMarks } }
+      ]);
+      return ok({ ok: true, status: 'approved' });
+    }
 
     // ── Staff: re-run the AI check ──
     if (action === 'regrade') {
@@ -88,6 +141,7 @@ exports.handler = async function (event) {
       const att = await fsGet(projectId, sa, `offlineAttempts/${attemptId}`);
       if (!att) return bad(404, 'Attempt not found');
       const rep = await fsGet(projectId, sa, `offlineReports/${attemptId}`);
+      if (rep && decFields(rep).reviewMode === 'teacher') return bad(409, 'This script is assigned for teacher review.');
       // The report is approved first, so check it too, not just the attempt.
       if (decFields(att).status === 'approved' || (rep && decFields(rep).status === 'approved')) return bad(409, 'This script is already approved');
       await fsPatch(projectId, sa, `offlineAttempts/${attemptId}`, { ...decFields(att), status: 'checking' });
@@ -106,6 +160,7 @@ exports.handler = async function (event) {
     if (!studentDoc) return bad(403, 'Only enrolled students can take tests.');
     const test = decFields(testDoc), student = decFields(studentDoc);
     if (String(test.class) !== String(student.class || '')) return bad(403, 'This test is for a different class.');
+    if (test.board && test.board !== student.board) return bad(403, 'This test is for a different board.');
     const attemptId = `${testId}__${uid}`;
     const attDoc = await fsGet(projectId, sa, `offlineAttempts/${attemptId}`);
     const att = attDoc ? decFields(attDoc) : null;
@@ -121,6 +176,7 @@ exports.handler = async function (event) {
       const rec = {
         attemptId, testId, uid,
         studentName: student.name || '', studentId: student.studentId || '',
+        studentSection: student.section || '',
         durationMin: duration,
         startedAt: now.toISOString(),
         deadline: new Date(now.getTime() + duration * 60000).toISOString(),
@@ -128,44 +184,62 @@ exports.handler = async function (event) {
         questionPdfUrl: key.questionPdfUrl,
         status: 'started'
       };
-      await fsPatch(projectId, sa, `offlineAttempts/${attemptId}`, rec);
+      try {
+        await fsCommit(projectId, sa, [{ path: `offlineAttempts/${attemptId}`, data: rec, currentDocument: { exists: false } }]);
+      } catch (e) {
+        if (!e.conflict) throw e;
+        const existing = await fsGet(projectId, sa, `offlineAttempts/${attemptId}`);
+        if (!existing) throw e;
+        return ok({ ...decFields(existing), serverNow: new Date().toISOString() });
+      }
       return ok({ ...rec, serverNow: now.toISOString() });
     }
 
     if (action === 'submit') {
       if (!att) return bad(409, 'Start the test before submitting.');
-      if (att.status !== 'started') return bad(409, 'You have already submitted this test.');
+      if (att.status !== 'started') {
+        if (att.scriptPdfUrl && att.scriptPdfUrl === body.scriptPdfUrl) return ok({ ok: true, status: att.status, lateByMin: att.lateByMin || 0 });
+        return bad(409, 'You have already submitted this test.');
+      }
       const scriptPdfUrl = String(body.scriptPdfUrl || '');
       const pageUrls = Array.isArray(body.pageUrls) ? body.pageUrls.map(String) : [];
       if (!UC.test(scriptPdfUrl)) return bad(400, 'Upload your answer script as a PDF.');
-      if (!pageUrls.length || pageUrls.length > MAX_PAGES || !pageUrls.every(u => UC.test(u))) {
+      const manual = test.gradingMode === 'teacher';
+      if ((!manual && !pageUrls.length) || pageUrls.length > MAX_PAGES || !pageUrls.every(u => UC.test(u))) {
         return bad(400, `Your PDF must have between 1 and ${MAX_PAGES} pages.`);
       }
       const now = new Date();
       const lateByMin = Math.max(0, Math.round((now - new Date(att.deadline)) / 60000));
       const usedMin = Math.max(0, Math.round((now - new Date(att.startedAt)) / 60000));
-      const submitted = { ...att, status: 'checking', submittedAt: now.toISOString(), lateByMin, usedMin, scriptPdfUrl, pageUrls };
-      await fsPatch(projectId, sa, `offlineAttempts/${attemptId}`, submitted);
-      await fsPatch(projectId, sa, `offlineReports/${attemptId}`, {
-        attemptId, testId, uid,
+      const status = manual ? 'submitted' : 'checking';
+      const review = { reviewDueAt: new Date(now.getTime() + 2 * policy.DAY).toISOString() };
+      const submitted = { ...att, ...review, status, submittedAt: now.toISOString(), lateByMin, usedMin, scriptPdfUrl, pageUrls };
+      const report = {
+        attemptId, testId, uid, ...review,
         studentName: student.name || '', studentId: student.studentId || '',
-        studentClass: String(student.class || ''), studentBoard: student.board || '', school: student.school || '',
-        testName: test.testName || '', subject: test.subject || '', chapter: test.chapter || '',
+        studentClass: String(student.class || ''), studentBoard: student.board || '', studentSection: student.section || '', school: student.school || '',
+        testName: test.testName || '', subject: test.subject || '', chapter: test.chapter || '', module: test.module || 'Full chapter',
         board: test.board || '', totalMarks: Number(test.totalMarks) || 0, durationMin: att.durationMin,
         teacherUid: test.teacherUid || '', teacherName: test.teacherName || '',
         startedAt: att.startedAt, deadline: att.deadline, submittedAt: now.toISOString(),
         lateByMin, usedMin, scriptPdfUrl, pageUrls,
-        status: 'checking', aiReport: '', finalReport: '', integrity: '', error: '',
+        status, reviewMode: manual ? 'teacher' : 'ai', aiReport: '', finalReport: '', integrity: '', error: '',
         approvedByUid: '', approvedByName: '', approvedAt: ''
-      });
-      try { await triggerGrader(attemptId); }
+      };
+      await fsCommit(projectId, sa, [
+        { path: `offlineAttempts/${attemptId}`, data: submitted, currentDocument: { updateTime: attDoc.updateTime } },
+        { path: `offlineReports/${attemptId}`, data: report, currentDocument: { exists: false } },
+        { path: `students/${uid}/offlineHistory/${attemptId}`, data: policy.history(report) }
+      ]);
+      try { if (!manual) await triggerGrader(attemptId); }
       catch (e) { console.error('[offline-test] trigger failed', e); }   // teacher can re-run from the approval list
-      return ok({ ok: true, status: 'checking', lateByMin });
+      return ok({ ok: true, status, lateByMin });
     }
 
     return bad(400, 'Unknown action');
   } catch (e) {
     const msg = (e && e.message) || String(e);
+    if (e.conflict) return bad(409, 'This test was updated in another window. Refresh to see its current status.');
     if (/Invalid Firebase ID token|Missing idToken|expired/i.test(msg)) return bad(401, 'Please sign in again.');
     console.error('[offline-test]', e);
     return bad(500, msg);
