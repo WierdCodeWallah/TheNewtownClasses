@@ -91,6 +91,26 @@ async function openPortal(browser, origin, role, file, width, ctx = { docs: repo
     if (url.hostname === '32zbpzustr.ucarecd.net') return route.fulfill({ contentType: 'application/pdf', headers: { 'Access-Control-Allow-Origin': '*' }, body: Buffer.from('%PDF-1.4\n%fixture\n%%EOF') });
     if (url.hostname === 'firestore.googleapis.com') {
       const p = decodeURIComponent(url.pathname.split('/documents/')[1] || '');
+      ctx.savedDocs ||= new Map();
+      if (url.pathname.endsWith(':commit')) {
+        const batch = req.postDataJSON().writes;
+        if (ctx.failCustomCommit) { ctx.failCustomCommit = false; return route.fulfill({ status: 503, json: { error: { message: 'Simulated unavailable commit' } } }); }
+        if (batch.some(w => w.currentDocument?.exists === false && ctx.savedDocs.has(w.update.name.split('/documents/')[1]))) return route.fulfill({ status: 409, json: { error: { status: 'ALREADY_EXISTS' } } });
+        for (const w of batch) {
+          const path = w.update.name.split('/documents/')[1];
+          ctx.savedDocs.set(path, w.update); ctx.patches.push({ path, body: { fields: w.update.fields } }); writes.push(path);
+          if (path.startsWith('moduleRequests/')) {
+            const request = (ctx.requests || []).find(r => r.id === path.split('/')[1]);
+            if (request) for (const [k, v] of Object.entries(w.update.fields)) request[k] = v.stringValue;
+          }
+        }
+        if (ctx.loseCustomReply) { ctx.loseCustomReply = false; return route.abort('failed'); }
+        return route.fulfill({ json: { writeResults: batch.map(() => ({ updateTime: '2026-11-15T00:00:01Z' })) } });
+      }
+      if (p.startsWith('moduleRequests/') && req.method() === 'GET') {
+        const request = (ctx.requests || []).find(r => r.id === p.split('/')[1]);
+        return request ? route.fulfill({ json: { ...docOf(p, request), updateTime: '2026-11-15T00:00:00Z' } }) : route.fulfill({ status: 404, json: {} });
+      }
       // The Test Desk's count of waiting scripts is a query (a read), sent as POST.
       if (url.pathname.endsWith(':runAggregationQuery')) {
         const coll = req.postDataJSON().structuredAggregationQuery.structuredQuery.from[0].collectionId;
@@ -136,7 +156,11 @@ async function openPortal(browser, origin, role, file, width, ctx = { docs: repo
       return route.fulfill({ json: { ok: true, status: 'approved' } });
     }
     if (url.origin === origin) return route.continue();
-    if (/cdnjs.cloudflare.com/.test(url.hostname)) return route.continue();   // PDF.js reader
+    if (/cdnjs.cloudflare.com/.test(url.hostname)) {
+      const cached = path.join(__dirname, 'artifacts', 'vendor', path.basename(url.pathname));
+      if (url.pathname.startsWith('/ajax/libs/pdf.js/3.11.174/') && fs.existsSync(cached)) return js(fs.readFileSync(cached, 'utf8'));
+      return route.continue();
+    }
     if (req.resourceType() === 'script') return js('');
     return route.fulfill({ body: '', contentType: 'text/plain' });
   });

@@ -104,7 +104,7 @@ form.addEventListener('submit', async event => {
     $('enquiryReference').textContent = pendingDoc.id;
     render(); $('enquirySuccess').focus();
   } catch (_) {
-    message('We could not confirm your submission. Your details are saved on this page; please retry or call +91 9903461361.', true);
+    message('We could not confirm your submission. Your details are saved on this page; please retry or call +91 99034 61361.', true);
   } finally { saving = false; render(); }
 });
 render();

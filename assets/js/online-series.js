@@ -20,7 +20,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const FS = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
 const KEY = FIREBASE_CONFIG.apiKey;
 const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-const WA = 'https://wa.me/919874461218';
+const WA = 'https://wa.me/919903461361';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
 const SUBJECT_ICON = { Physics: 'physics', Chemistry: 'chemistry', Biology: 'biology', Mathematics: 'mathematics', Maths: 'mathematics', Science: 'science', Computer: 'computer', English: 'english' };
 const TINT = { Physics: ['#4f46e5', '#eef0ff'], Chemistry: ['#0e8a85', '#e2f5f4'], Biology: ['#2d8a3a', '#e7f5e9'], Mathematics: ['#c26a00', '#fff1dc'],
@@ -233,18 +233,36 @@ $('tncForm').onsubmit = async e => {
 // After signing out, Back goes to the homepage instead of walking through old tabs
 // behind the sign-in screen (same as the student / teacher / admin portals).
 window.addEventListener('popstate', () => { if (S.leftAt && !S.user) location.replace('/'); });
+let authGeneration = 0;
+function clearStudentState() {
+  authGeneration++;
+  S.loading = null;
+  S.user = null; S.session = null; S.tests = []; S.attempts = {}; S.results = []; S.boards = {};
+  S.modules = []; S.packages = []; S.cust = null; S.promo = null; S.ob = null; S.errors = {};
+  if (S.exam) clearInterval(S.exam.timer);
+  S.exam = null; S.view = ''; layers.length = 0;
+  $('exam').hidden = true; $('exUpload').hidden = true; $('exPaper').innerHTML = '';
+  document.documentElement.classList.remove('locked');
+  resetUpload();
+  $('view').innerHTML = ''; $('sheetBody').innerHTML = '';
+  $('sheet').hidden = true;
+}
 async function signOutNow(message) {
   S.leftAt = Date.now();
+  // Go straight to the sign-in screen: no sheet left fading over it.
+  const sh = $('sheet'); if (sh && !sh.hidden) { sh.classList.remove('on'); sh.hidden = true; $('sheetBody').innerHTML = ''; }
   try { history.replaceState(null, '', location.pathname); } catch (_) {}   // drop the old tab from the address bar
   try { localStorage.removeItem(cacheKey()); } catch (_) {}
-  S.user = null; S.session = null; S.tests = []; S.attempts = {}; S.results = []; S.boards = {};
+  clearStudentState();
+  show('auth');
   try { await signOut(auth); } catch (_) {}
   show('auth'); authErr(message || '');
 }
 
 onAuthStateChanged(auth, user => {
-  if (!user) { if (document.body.dataset.screen !== 'auth') { S.user = null; show('auth'); } return; }
+  if (!user) { clearStudentState(); show('auth'); return; }
   if (S.user && S.user.uid === user.uid) return;
+  clearStudentState();
   S.user = user; S.leftAt = 0;
   const cache = loadCache();
   if (cache && cache.session.profile && cache.session.profile.profileComplete) {
@@ -259,11 +277,14 @@ onAuthStateChanged(auth, user => {
 
 // ═══ Load everything for the signed-in student ═══
 function refresh() {
+  if (!S.user) return Promise.resolve();
   if (S.loading) return S.loading;
+  const generation = authGeneration, refreshUid = S.user.uid;
+  const current = () => generation === authGeneration && S.user && S.user.uid === refreshUid;
   S.loading = (async () => {
     try {
       const session = await fn('online-series', { action: 'session' });
-      if (!S.user || session.uid !== S.user.uid) return;
+      if (!current() || session.uid !== refreshUid) return;
       S.session = session;
       S.offset = session.serverNow ? Date.parse(session.serverNow) - Date.now() : 0;
       if (!session.profile.profileComplete) { startOnboarding(false); return; }
@@ -276,6 +297,7 @@ function refresh() {
         moduleEligible() ? fsQuery('moduleRequests', { uid }) : Promise.resolve([]),
         fsQuery('mockPackages', { class: cls })
       ]);
+      if (!current()) return;
       S.errors = {};
       // A custom module paper is made for one student only.
       if (tests.status === 'fulfilled') S.tests = tests.value.map(normaliseTest).filter(t => (!t.forUid || t.forUid === uid) && (!t.board || !session.profile.board || t.board === session.profile.board));
@@ -294,11 +316,12 @@ function refresh() {
       render();
       resumePendingPayment();
     } catch (e) {
+      if (!current()) return;
       if (e.status === 401) return signOutNow('Please sign in again.');
       if (e.status === 403) return signOutNow(e.message);
       if (document.body.dataset.screen === 'app') toast(navigator.onLine === false ? "You're offline — showing your saved data." : e.message, 'err');
       else bootMessage(e.message, true);
-    } finally { S.loading = null; }
+    } finally { if (current()) S.loading = null; }
   })();
   return S.loading;
 }
@@ -370,7 +393,7 @@ function openMore() {
   openSheet(`<div class="sh-head"><h2 id="sheetTitle">More</h2></div>
     <div class="menu more-menu">
       ${item('#/ranks', 'i-trophy', 'Leaderboard', rank ? `Your best: #${rank.rank} in ${esc(rank.subject || '')}` : 'All-India ranks by subject', r.name === 'ranks')}
-      ${moduleEligible() ? item('#/custom', 'i-layers', 'Custom test', 'Pick chapters — we make your paper', r.name === 'custom') : ''}
+      ${moduleEligible() ? item('#/packs', 'i-calendar', 'Mock packs', 'A full-syllabus mock every week', r.name === 'packs') : ''}
       ${item('#/me', 'i-user', 'Profile', esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
       <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span><b>Help on WhatsApp</b><small>Payments, papers, anything else</small></span>${ic('i-chev', 'chev')}</a>
       <a href="tel:${CONTACT.tel}">${ic('i-phone')}<span><b>Call us</b><small>${esc(CONTACT.show)}</small></span>${ic('i-chev', 'chev')}</a>
@@ -386,14 +409,17 @@ function render(navigated) {
   if (!S.session) return;
   const r = route(), p = S.session.profile;
   const titles = { home: 'Test Series', subject: r.subject, ranks: 'Leaderboard', results: 'Results', me: 'Profile', packs: 'Mock packs', custom: 'Custom test' };
+  // Phone tab bar: Home · Custom · Results · More (Classes 9–12; Packs is in More).
+  // Classes 7–8 have no Custom test, so Packs takes the second slot.
   $('navCustom').hidden = !moduleEligible();
+  $('navPacks').classList.toggle('nav-extra', moduleEligible());
   $('topTitle').textContent = titles[r.name];
   $('topBack').hidden = r.name !== 'subject';
   $('topMark').hidden = r.name === 'subject';
   $('topAvatar').textContent = initials(p.name);
   $('topAvatar').hidden = r.name === 'me';
-  // Phone bar: Home · Packs · Results · More (Ranks, Custom, Profile live in More).
-  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'custom', 'me'].includes(tab);
+  // Phone bar: Home · Custom (or Packs) · Results · More (Ranks, Packs, Profile live in More).
+  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'me', ...(moduleEligible() ? ['packs'] : [])].includes(tab);
   document.querySelectorAll('#nav [data-tab]').forEach(a => {
     const on = a.dataset.tab === tab || (a.dataset.tab === 'more' && inMore);
     a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
@@ -456,6 +482,12 @@ function emptyBlock(iconId, title, text, extra) {
   return `<div class="empty">${ic(iconId)}<b>${esc(title)}</b><p>${esc(text)}</p>${extra || ''}</div>`;
 }
 
+// Live "software checks → TNC teacher approves" card (Home). Same art as the sign-in screen.
+function checkCard() {
+  return `<div class="chk-card"><div class="chk-art">${(document.querySelector('#auth .chk-svg') || { outerHTML: '' }).outerHTML.replace(/chkBeam/g, 'chkBeamHome')}</div>
+    <div class="chk-copy"><span class="eyebrow">How your paper is checked</span>
+      <ol class="chk-steps"><li><b>You upload</b><small>Photos of your answer sheet</small></li><li><b>Software checks</b><small>Every answer, step by step</small></li><li><b>TNC teacher approves</b><small>Marks + feedback in 48 h</small></li></ol></div></div>`;
+}
 function viewHome() {
   const p = S.session.profile, ids = new Set(S.tests.map(t => t.id));
   const mine = Object.entries(S.attempts).filter(([id]) => ids.has(id)).map(([, a]) => a);
@@ -481,10 +513,12 @@ function viewHome() {
         <span class="subj-txt"><b>${esc(s.name)}</b><small>${s.count ? (s.count - s.mocks ? plural(s.count - s.mocks, 'test') : '') + (s.count - s.mocks && s.mocks ? ' · ' : '') + (s.mocks ? plural(s.mocks, 'mock') : '') : 'Coming soon'}</small></span>
         <span class="subj-meter" aria-label="${s.done} of ${s.count} done"><i style="width:${s.count ? Math.round(s.done / s.count * 100) : 0}%"></i></span>
       </a>`).join('')}</div>` : emptyBlock('i-doc', 'Tests are on the way', 'TNC faculty are preparing papers for your class. Check back soon.')}
-    ${nextMock() ? nextMockCard(nextMock()) : !ownedPacks().length && S.packages.some(p => p.active) && !S.results[0] ? `<a class="free-card pack-offer" href="#/packs" data-pseg-link="packs"><span class="free-ic">${ic('i-layers')}</span><span><b>Weekly mock packs</b><small>A full-syllabus mock every week · from ₹${Math.min(...S.packages.filter(p => p.active).map(p => p.priceInr))}</small></span>${ic('i-chev', 'chev')}</a>`
-      : freeLeft() && freeChoices().length && !S.results[0] ? `<button type="button" class="free-card" data-free-pick><span class="free-ic">${ic('i-gift')}</span><span><b>Your ${freeLeft() > 1 ? freeLeft() + ' free mock tests' : 'free mock test'}</b><small>Pick any subject — full mock${freeLeft() > 1 ? 's' : ''} on us</small></span>${ic('i-chev', 'chev')}</button>`
+    ${/* One bottom slot so Home fits one phone screen: a mock that is open/next comes first, then the live
+        "software checks → teacher approves" card until the first result, then the latest result.
+        (The free mock is offered by the pill at the top; packs live in More.) */ ''}
+    ${nextMock() ? nextMockCard(nextMock())
       : S.results[0] ? `<div class="sec"><h3>Latest result</h3><a class="link" href="#/results">See all</a></div>${resultRows(S.results.slice(0, 1))}`
-      : `<div class="how-card"><span class="eyebrow">How it works</span><ol class="how"><li>${ic('i-download')}<b>Download</b><small>Timer starts</small></li><li>${ic('i-pen')}<b>Write</b><small>On paper</small></li><li>${ic('i-camera')}<b>Upload</b><small>Checked in 48 h</small></li></ol></div>`}
+      : checkCard()}
   </section>`;
 }
 
@@ -618,11 +652,11 @@ function openTest(id, mode) {
   else if (st.key === 'ready' && mode === 'confirm') body = `<div class="warn-box">${ic('i-clock')}<p><b>Your ${t.durationMin}-minute timer starts as soon as the paper opens.</b> It can't be paused. Keep pen, paper and your phone camera ready.</p></div>
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="start">Start now</button></div>`;
   else if (st.key === 'ready') body = `${kindOf(t) === 'custom' && t.module ? `<p class="instr"><b>Chapters:</b> ${esc(t.module)}</p>` : ''}${t.instructions ? `<p class="instr">${esc(t.instructions)}</p>` : ''}<ol class="how"><li>${ic('i-download')}<b>Download</b><small>Timer starts</small></li><li>${ic('i-pen')}<b>Write</b><small>On paper</small></li><li>${ic('i-camera')}<b>Upload</b><small>PDF or photos</small></li></ol>
-    <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button><p class="fine center">Checked by TNC faculty · results within 48 hours</p>`;
+    <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button><p class="fine center">Software-checked · approved by a TNC teacher · results within 48 hours</p>`;
   else if (st.key === 'started') body = `<div class="warn-box">${ic('i-clock')}<p>${st.left > 0 ? `<b>${fmtTime(st.left).replace(/:\d\d$/, '')} left.</b> Your timer kept running while you were away.` : `<b>Time's up.</b> Upload your answers now${st.late ? ' — it will be marked late' : ''}.`}</p></div>
     <button type="button" class="btn primary block" data-go="resume">${st.left > 0 ? 'Continue test' : 'Upload answers'}</button>`;
   else if (st.key === 'scheduled') body = `<div class="warn-box">${ic('i-clock')}<p><b>This mock opens on ${esc(fmtWhen(st.at))}.</b> Come back then — the paper and your timer start only when you open it.</p></div>`;
-  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>With TNC faculty</b><small>Checking your script</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>`; }
+  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>`; }
   else if (st.key === 'checked') { const r = st.result; body = r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>'; }
   else body = '<p class="instr">This test is closed.</p>';
   openSheet(testHead(t) + body, root => {
@@ -644,7 +678,7 @@ function openTest(id, mode) {
 function resultBody(r) {
   const pct = pctOf(r);
   return `<div class="score ${tone(pct)}"><div class="ring" style="--p:${pct || 0}"><b>${Number.isFinite(r.score) ? r.score : '—'}</b><small>of ${r.totalMarks}</small></div>
-    <div><b>${pct == null ? '' : pct + '%'}</b><small>Checked by TNC faculty${r.approvedAt ? ' · ' + fmtDate(r.approvedAt) : ''}</small></div></div>
+    <div><b>${pct == null ? '' : pct + '%'}</b><small>Approved by a TNC teacher${r.approvedAt ? ' · ' + fmtDate(r.approvedAt) : ''}</small></div></div>
     ${r.remark && !/^Offline Test Series|^Checked by TNC faculty$/.test(r.remark) ? `<div class="feedback"><span class="eyebrow">Feedback from TNC faculty</span><p>${esc(r.remark)}</p></div>` : ''}
     ${r.pdf ? `<a class="btn primary block" href="${esc(r.pdf)}" target="_blank" rel="noopener noreferrer" download>${ic('i-download')}Checked answer script</a>` : ''}
     <p class="fine center">Saved permanently in your results.</p>`;
@@ -682,7 +716,7 @@ async function claimFree(t, btn) {
 
 // ── Promo codes (100% off one purchase) and the contact card shown until
 // online payment is switched on. S.promo = { target, code } for the open sheet.
-const CONTACT = { tel: '+919874461218', show: '+91 98744 61218' };
+const CONTACT = { tel: '+919903461361', show: '+91 99034 61361' };
 function promoBox(target, open) {
   const applied = S.promo && S.promo.target === target ? S.promo.code : '';
   if (applied) return `<div class="promo ok">${ic('i-check')}<span><b>${esc(applied)}</b> applied · this costs ₹0</span><button type="button" class="link" data-promo-remove>Remove</button></div>`;
@@ -705,7 +739,7 @@ function bindPromo(root, target, check, rerender) {
     const done = busy(apply, 'Checking');
     try {
       const r = await fn('online-series', { action: 'check-promo', code, ...check });
-      S.promo = { target, code: r.code }; haptic(20); rerender();
+      S.promo = { target, code: r.code, limits: r.limits || {} }; haptic(20); rerender();
     } catch (e) { done(); msg.className = 'promo-msg bad'; msg.textContent = e.message; }
   };
   const remove = root.querySelector('[data-promo-remove]');
@@ -915,7 +949,7 @@ function viewPacks() {
       : emptyBlock('i-calendar', 'No packs yet', 'Join a mock pack — your weekly mocks and their dates show up here.', '<button type="button" class="btn primary" data-pseg="packs">See all packs</button>');
   } else {
     const sale = S.packages.filter(p => p.active);
-    body = `<div class="cm-price">${ic('i-spark')}Opens at the set time · take it any time after · checked by TNC faculty</div>`
+    body = `<div class="cm-price">${ic('i-spark')}Opens at the set time · take it any time after · software-checked, teacher-approved</div>`
       + (sale.length ? `<div class="pack-list">${sale.map(packCard).join('')}</div>` : emptyBlock('i-layers', 'Mock packs are on the way', `Weekly mock packs for Class ${S.session.profile.class} will appear here soon.`));
   }
   return `<section class="v v-custom v-packs">${head}${body}</section>`;
@@ -956,7 +990,27 @@ function customBuild() {
     <div class="sec"><h3>${esc(c.subject)} · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</h3><button type="button" class="link" data-call>${picked.length === chapters.length ? 'Clear' : 'Select all'}</button></div>
     <ul class="rows picks" style="${tint(c.subject)}">${chapters.map((ch, i) => { const on = picked.includes(ch); return `<li><button type="button" class="row pick" data-ch="${i}" aria-pressed="${on}">
       <span class="row-ix">${String(i + 1).padStart(2, '0')}</span><span class="row-main"><b>${esc(ch)}</b></span><span class="tick" aria-hidden="true">${ic(on ? 'i-check' : 'i-plus')}</span></button></li>`; }).join('')}</ul>
-    ${n ? (() => { const short = cartShort(c.board); return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${plural(n, 'chapter')} · ₹${b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save ? `You save ₹${b.save}` : `${cartItems(c.board).length} paper${cartItems(c.board).length === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`; })() : ''}`;
+    ${cartBarHtml(c)}`;
+}
+function cartBarHtml(c) {
+  const n = cartCount(c.board), b = bill(n); if (!n) return '';
+  const short = cartShort(c.board);
+  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${plural(n, 'chapter')} · ₹${b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save ? `You save ₹${b.save}` : `${cartItems(c.board).length} paper${cartItems(c.board).length === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
+}
+// Picking chapters updates only what changed (ticks, counts, cart bar): no full redraw, no blink.
+function syncPicks() {
+  const root = $('view'), c = cust(), list = NTCSyllabus.chapters(c.board, S.session.profile.class, c.subject), picked = c.carts[c.board][c.subject] || [];
+  root.querySelectorAll('.row.pick[data-ch]').forEach(b => {
+    const on = picked.includes(list[+b.dataset.ch]);
+    if ((b.getAttribute('aria-pressed') === 'true') !== on) { b.setAttribute('aria-pressed', String(on)); const t = b.querySelector('.tick'); if (t) t.innerHTML = ic(on ? 'i-check' : 'i-plus'); }
+  });
+  const count = (el, k) => { if (!el) return; let i = el.querySelector('i'); if (k && !i) { i = document.createElement('i'); el.appendChild(i); } if (i) { if (k) i.textContent = k; else i.remove(); } };
+  root.querySelectorAll('[data-csub]').forEach(el => count(el, ((c.carts[c.board][el.dataset.csub]) || []).length));
+  root.querySelectorAll('[data-cboard]').forEach(el => count(el, cartCount(el.dataset.cboard)));
+  const all = root.querySelector('[data-call]'); if (all) all.textContent = picked.length === list.length ? 'Clear' : 'Select all';
+  const old = root.querySelector('.cart-bar'), html = cartBarHtml(c);
+  if (old && html) old.outerHTML = html; else if (old) old.remove(); else if (html) { const host = root.querySelector('.rows.picks'); if (host) host.insertAdjacentHTML('afterend', html); }
+  const bar = root.querySelector('.cart-bar [data-cart]'); if (bar) bar.onclick = openCart;
 }
 
 // ── One mock pack: details, schedule, join / pay; or progress if joined ──
@@ -975,7 +1029,7 @@ function openPackage(id) {
   } else {
     const per = Math.round(p.priceInr / Math.max(1, n));
     body = `<div class="price"><div class="price-top">${promo ? `<b>₹0</b><s>₹${p.priceInr}</s>` : `<b>₹${p.priceInr}</b>`}<small>${plural(n, 'mock')} · ₹${per} a mock</small></div>
-        <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Script &amp; marks checked by TNC facultys within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
+        <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Software-checked and approved by a TNC teacher within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
       ${p.description ? `<p class="instr">${esc(p.description)}</p>` : ''}
       ${`${promoBox('pkg:' + id, !S.session.paymentsReady)}${promo ? `<button type="button" class="btn primary block" data-pjoin>${ic('i-unlock')}Join for ₹0</button>`
           : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
@@ -1056,7 +1110,7 @@ function bindCustom(root) {
     if (cur.has(ch)) cur.delete(ch);
     else { if (cartCount(c.board) >= P.MODULE.maxChapters) return toast(`Up to ${P.MODULE.maxChapters} chapters at a time.`); cur.add(ch); haptic(8); }
     cart[c.subject] = list.filter(x => cur.has(x)); saveCart();
-    const keep = $('view').scrollTop; render(); $('view').scrollTop = keep;
+    syncPicks();
   });
   root.querySelectorAll('[data-call]').forEach(b => b.onclick = () => {
     const c = cust(), list = NTCSyllabus.chapters(c.board, S.session.profile.class, c.subject), cart = c.carts[c.board];
@@ -1064,7 +1118,7 @@ function bindCustom(root) {
     const others = cartCount(c.board) - (cart[c.subject] || []).length;
     if (!all && others + list.length > P.MODULE.maxChapters) return toast(`Up to ${P.MODULE.maxChapters} chapters at a time.`);
     cart[c.subject] = all ? [] : list.slice(); saveCart();
-    const keep = $('view').scrollTop; render(); $('view').scrollTop = keep;
+    syncPicks();
   });
   root.querySelectorAll('[data-cart]').forEach(b => b.onclick = openCart);
   root.querySelectorAll('[data-cmod]').forEach(b => b.onclick = () => {
@@ -1084,9 +1138,9 @@ function openCart() {
     <div class="bill">${`<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
       ${cartPromo() ? `<div class="save"><span>Promo ${esc(cartPromo())}</span><span>−₹${b.total}</span></div>` : ''}
       <div class="total"><span>Total</span><span>${cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
-    ${promoBox('cart:' + c.board, !S.session.paymentsReady)}
+    ${cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
     ${n < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - n} more chapter${M.firstCount + 1 - n === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
-    <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Timer, upload, checked by TNC faculty</small></li></ol>
+    <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>
     ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
       : cartPromo() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Confirm order · ₹0</button>`
       : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
@@ -1097,10 +1151,19 @@ function openCart() {
       render(); if (cartCount(cust().board)) openCart(); else closeSheet();
     });
     const buy = root.querySelector('[data-buy]'); if (buy && !buy.disabled) buy.onclick = () => buyModules(buy);
-    bindPromo(root, 'cart:' + c.board, { kind: 'custom' }, openCart);
+    bindPromo(root, 'cart:' + c.board, { kind: 'custom', board: c.board, items: cartItems(c.board) }, openCart);
   });
 }
-const cartPromo = () => S.promo && S.cust && S.promo.target === 'cart:' + S.cust.board ? S.promo.code : '';
+const cartPromoRaw = () => S.promo && S.cust && S.promo.target === 'cart:' + S.cust.board ? S.promo : null;
+// Why an applied code no longer covers the cart (chapters added after applying it), or ''.
+function cartPromoMiss() {
+  const p = cartPromoRaw(); if (!p) return '';
+  const l = p.limits || {}, n = cartCount(S.cust.board), total = bill(n).total;
+  if (l.maxChapters && n > l.maxChapters) return `${p.code} covers up to ${plural(l.maxChapters, 'chapter')} — remove ${n - l.maxChapters} to use it.`;
+  if (l.maxValueInr && total > l.maxValueInr) return `${p.code} covers up to ₹${l.maxValueInr} — this cart is ₹${total}.`;
+  return '';
+}
+const cartPromo = () => { const p = cartPromoRaw(); return p && !cartPromoMiss() ? p.code : ''; };
 
 function openModuleSheet(m) {
   openSheet(`<div class="sh-head" style="${tint(m.subject)}"><span class="sh-kicker">${subjIc(m.subject)}${esc(m.subject)} · Class ${esc(m.class)} ${esc(m.boardLabel || '')}</span><h2 id="sheetTitle">Custom module test</h2>

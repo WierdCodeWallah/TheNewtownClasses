@@ -156,3 +156,12 @@ write unlocks, results or requests; admins can mark a custom request ready.
 - `node qa/admin-stress.cjs` — admin panel stress check: every section at 320/390/1440 px, rapid switching, double taps, phone Back on sheets, injected names from teacher data.
 - `node qa/logout-back.cjs` — student, teacher and admin portals: Sign out → login → Back lands on the homepage, never the dashboard (390 and 1440 px).
 - `node qa/online-concurrency.cjs` — hundreds of simultaneous requests on payments, promo codes, free mocks, packs and submissions: nothing granted twice.
+
+Launch regression coverage (15 November 2026):
+- `online-functions.cjs` also races one buyer's test, pack and cart orders across ten tabs, and verifies two distinct legacy payments are both recorded with a duplicate refund flag.
+- `online-stress.cjs` delays a refresh across logout and account switching, ensuring the old student's data cannot return.
+- `admin-desk.cjs` rejects an atomic custom-paper commit and loses a successful response, then retries without duplicate publication.
+- `online-rules.cjs` now includes atomic custom publication/rollback and denies client reads/writes of payment reservations (92 checks total).
+- `node qa/online-payment-integration.cjs` runs against the same local `demo-online` emulator on port 8189. It uses the real Firestore encoding and commits for order races, payment reconciliation, lost responses and lease recovery. All network requests are restricted to that emulator; no real payment is made.
+
+For restricted-network browser runs, the online-series and offline-admin fixtures can serve the site's pinned PDF.js 3.11.174 files from ignored `qa/artifacts/vendor/pdf.min.js` and `pdf.worker.min.js`. Download those exact files from `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/` before running upload checks. They are test artifacts, not website dependencies.

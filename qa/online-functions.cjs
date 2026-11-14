@@ -63,7 +63,7 @@ const hook = async (payload, secret) => {
   const r = await webhook.handler({ httpMethod: 'POST', body: raw, headers: { 'X-Razorpay-Signature': sig } });
   return { status: r.statusCode, body: JSON.parse(r.body) };
 };
-const form = over => ({ name: 'Riya Sharma', dob: '2011-05-04', gender: 'Female', phone: '+91 98744 61218', class: '10', board: 'CBSE', school: 'DPS Newtown',
+const form = over => ({ name: 'Riya Sharma', dob: '2011-05-04', gender: 'Female', phone: '+91 98000 12345', class: '10', board: 'CBSE', school: 'DPS Newtown',
   subjects: ['Physics', 'Chemistry', 'Nonsense'], target: 'NEET', address: '12 Lake Road, Sector 5', city: 'Kolkata', state: 'West Bengal', pincode: '700156',
   guardianName: 'Anil Sharma', guardianRelation: 'Father', guardianPhone: '9830012345', ...over });
 const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(`${orderId}|${paymentId}`).digest('hex');
@@ -99,7 +99,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   const saved = await api({ idToken: 'g:riya', action: 'save-profile', profile: form() });
   assert.equal(saved.status, 200);
   const prof = db.get('onlineStudents/riya');
-  assert.equal(prof.phone, '9874461218', '+91 and spaces stripped');
+  assert.equal(prof.phone, '9800012345', '+91 and spaces stripped');
   assert.deepEqual(prof.subjects, ['Physics', 'Chemistry'], 'unknown subjects dropped');
   assert.equal(prof.onlineId, 'TNC-ON-RIYA'); assert.equal(prof.provider, 'google'); assert.equal(prof.email, 'riya@gmail.example');
   assert.equal(prof.profileComplete, true);
@@ -277,6 +277,22 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.match((await promo('g:sam', { action: 'module-order', board: 'CBSE', promoCode: 'TNCFORZOE', items: [{ subject: 'Science', chapters: [sci[0], sci[1]] }] })).body.error, /made for another student/);
   assert.equal(db.get('promoCodes/TNCFORZOE').uses, 0, 'nothing used up by the wrong student');
   assert.equal((await promo('g:zoe', { action: 'redeem-promo', code: 'TNCFORZOE', testId: 'onpromo3' })).status, 200, 'the student it was made for can use it');
+  // Limits: a code for 2 chapters (₹399) cannot pay for a bigger cart, a mock or a pack.
+  db.set('promoCodes/TWOCH', { code: 'TWOCH', scope: 'custom', maxUses: 0, uses: 0, oncePerStudent: true, active: true, maxChapters: 2, maxValueInr: 399 });
+  db.set('onlineStudents/lim', { ...prof, uid: 'lim', name: 'Lim' });
+  const bigCart = [{ subject: 'Science', chapters: [sci[0], sci[1]] }, { subject: 'Mathematics', chapters: [mat[0], mat[1]] }];
+  assert.match((await promo('g:lim', { action: 'check-promo', code: 'TWOCH', kind: 'custom', board: 'CBSE', items: bigCart })).body.error, /covers up to 2 chapters[\s\S]*has 4[\s\S]*remove 2/, 'checked against the cart');
+  const tooBig = await promo('g:lim', { action: 'module-order', board: 'CBSE', promoCode: 'TWOCH', items: bigCart });
+  assert.equal(tooBig.status, 400); assert.match(tooBig.body.error, /covers up to 2 chapters/, '4 chapters / 2 subjects refused at order time');
+  assert.equal(db.get('promoCodes/TWOCH').uses, 0, 'nothing used up');
+  const fits = await promo('g:lim', { action: 'check-promo', code: 'TWOCH', kind: 'custom', board: 'CBSE', items: [bigCart[0]] });
+  assert.equal(fits.status, 200); assert.deepEqual(fits.body.limits, { maxValueInr: 399, maxChapters: 2 }, 'limits sent to the app');
+  const twoCh = await promo('g:lim', { action: 'module-order', board: 'CBSE', promoCode: 'TWOCH', items: [bigCart[0]] });
+  assert.equal(twoCh.body.free, true, 'exactly 2 chapters goes through at ₹0'); assert.equal(db.get('promoCodes/TWOCH').uses, 1);
+  db.set('promoCodes/CAP399', { code: 'CAP399', scope: 'all', maxUses: 0, uses: 0, oncePerStudent: false, active: true, maxValueInr: 399 });
+  assert.match((await promo('g:lim', { action: 'redeem-promo', code: 'CAP399', testId: 'onpromo2' })).body.error, /covers up to ₹399[\s\S]*₹499/, '₹499 mock refused by a ₹399 code');
+  assert.equal((await promo('g:lim', { action: 'redeem-promo', code: 'CAP399', testId: 'onpromo3' })).status, 200, '₹199 chapter test is covered');
+  console.log('✓ promo limits: a 2-chapter / ₹399 code refuses a 4-chapter cart and a ₹499 mock (nothing used up), covers 2 chapters and a ₹199 test');
   console.log('✓ promo codes: validated (format, unknown, off, expired, scope), check uses nothing, redeem unlocks at ₹0 once per student, total limit, custom module ₹0 order');
 
   // ── Mock packs: weekly full-syllabus mocks at a fixed day and time ──
@@ -324,6 +340,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.match((await api({ idToken: 'g:sam', action: 'check-promo', code: 'TNCCHAP', packageId: 'pkphy8' })).body.error, /chapter-wise tests only|used up/);
   assert.match((await api({ idToken: 'g:sam', action: 'check-promo', code: 'TNCPACK', testId: 'onpromo3' })).body.error, /mock packs only/, 'pack code does not work on tests');
   assert.equal((await api({ idToken: 'g:sam', action: 'check-promo', code: 'TNCPACK', packageId: 'pkphy8' })).status, 200);
+  assert.match((await api({ idToken: 'g:sam', action: 'package-order', packageId: 'pkphy8', promoCode: 'CAP399' })).body.error, /covers up to ₹399[\s\S]*₹3199/, 'a ₹399 code cannot pay for a ₹3199 pack');
   const pj = await api({ idToken: 'g:sam', action: 'package-order', packageId: 'pkphy8', promoCode: 'TNCPACK' });
   assert.equal(pj.body.free, true); assert.equal(db.get('onlinePurchases/pkg_pkphy8__sam').via, 'promo'); assert.equal(db.get('promoCodes/TNCPACK').uses, 1);
   // TNC students can use a code on a pack or custom module (not on tests — those are free for them).
@@ -369,5 +386,34 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   board = db.get('onlineLeaderboard/c10_physics');
   assert.equal(board.count, 1); assert.deepEqual(board.top.map(t => t.name), ['Riya S.']);
   console.log('✓ admin delete: online result and history removed, leaderboard recomputed');
+  // Same buyer in multiple tabs: one external order for each purchase type.
+  await api({ idToken: 'g:racebuyer', action: 'save-profile', profile: form() });
+  db.set('offlineTests/racetest', { series: 'online', kind: 'chapter', class: '10', subject: 'Physics', isActive: true });
+  db.set('mockPackages/racepack', { title: 'Race pack', class: '10', subject: 'Physics', active: true, priceInr: 3199 });
+  const cartChapters = require('../assets/js/syllabus').chapters('CBSE', '10', 'Science').slice(0, 2);
+  for (const purchase of [
+    { action: 'create-order', testId: 'racetest' },
+    { action: 'package-order', packageId: 'racepack' },
+    { action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: cartChapters }] }
+  ]) {
+    const before = calls.razorpay.length;
+    const orders = await Promise.all(Array.from({ length: 10 }, () => api({ idToken: 'g:racebuyer', ...purchase })));
+    assert.ok(orders.every(r => r.status === 200), JSON.stringify(orders));
+    assert.equal(new Set(orders.map(r => r.body.orderId)).size, 1, 'tabs receive the same order');
+    assert.equal(calls.razorpay.length - before, 1, 'only one external order created');
+  }
+  // Legacy distinct orders may still be paid concurrently: record BOTH and flag the duplicate.
+  const firstId = [...db.values()].find(o => o.uid === 'racebuyer' && o.testId === 'racetest' && o.orderId)?.orderId;
+  const secondId = 'order_LegacyRace001';
+  db.set('onlineOrders/' + secondId, { ...db.get('onlineOrders/' + firstId), orderId: secondId });
+  const confirm = (orderId, i) => api({ idToken: 'g:racebuyer', action: 'verify-payment', orderId, paymentId: 'pay_Race00000' + i, signature: sign(orderId, 'pay_Race00000' + i) });
+  const confirmations = await Promise.all([confirm(firstId, 1), confirm(secondId, 2)]);
+  assert.ok(confirmations.every(r => r.status === 200));
+  const paidOrders = [firstId, secondId].map(id => db.get('onlineOrders/' + id));
+  assert.ok(paidOrders.every(o => o.status === 'paid' && o.paymentId));
+  assert.equal(paidOrders.filter(o => o.duplicate).length, 1, 'duplicate payment is visible for refund');
+  await Promise.all([confirm(firstId, 1), confirm(secondId, 2)]);
+  assert.equal([firstId, secondId].filter(id => db.get('onlineOrders/' + id).duplicate).length, 1);
+  console.log('✓ multi-tab orders: one test/pack/cart order; racing legacy payments both recorded, one flagged for refund');
   console.log('All online test series function checks passed.');
 })().catch(e => { console.error(e); process.exit(1); });

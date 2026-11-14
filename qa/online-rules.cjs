@@ -36,7 +36,7 @@ const count = (collectionId, status, auth, expected) => call(`${base}:runAggrega
   await put('admins/adm', { isAdmin: true });
   await put('teachers/t1', { name: 'Aarav' });
   await put('students/tnc1', { name: 'Aman', class: '10', board: 'CBSE', studentId: 'NTC-1' });
-  await put('onlineStudents/riya', { uid: 'riya', name: 'Riya', class: '10', board: 'CBSE', phone: '9874461218', profileComplete: true });
+  await put('onlineStudents/riya', { uid: 'riya', name: 'Riya', class: '10', board: 'CBSE', phone: '9800012345', profileComplete: true });
   await put('onlineStudents/tnc1', { uid: 'tnc1', name: 'Aman', class: '10', enrolled: true, profileComplete: true });
   await put('onlineStudents/riya/results/a__riya', { testId: 'a', score: 30, totalMarks: 40, class: '10', subject: 'Physics' });
   await put('offlineTests/a', { series: 'online', class: '10', subject: 'Physics', isActive: true });
@@ -117,5 +117,31 @@ const count = (collectionId, status, auth, expected) => call(`${base}:runAggrega
   await call(`${base}/promoCodes/TNCPACK1?currentDocument.exists=false`, 'PATCH', { fields: { ...promo, code: field('TNCPACK1'), scope: field('package') } }, admin, 200, 'admin creates a mock-pack code');
   await call(`${base}/promoCodes/TNCPACK2?currentDocument.exists=false`, 'PATCH', { fields: { ...promo, code: field('TNCPACK2'), scope: field('bundle') } }, admin, 403, 'unknown scope refused');
   console.log('✓ mock packs: everyone signed in reads; only admins create / pause; no delete; no self-written joins; mock-pack promo scope');
+  // The payment reservation is server-only, including for signed-in staff.
+  await put('onlineOrderReservations/reserved', { uid: 'riya', leaseUntil: 1 });
+  for (const auth of [riya, admin, teacher]) {
+    await get('onlineOrderReservations/reserved', auth, 403);
+    await call(`${base}/onlineOrderReservations/reserved`, 'PATCH', { fields: { uid: field('riya') } }, auth, 403, 'clients cannot change order reservations');
+  }
+  // Match the browser's four-document custom publication commit against real rules.
+  await put('moduleRequests/atomic_request', { uid: 'riya', status: 'requested', class: '10', subject: 'Physics' });
+  const requestDoc = await get('moduleRequests/atomic_request', admin, 200);
+  const write = (path, data, extra) => ({ update: { name: base.slice(4) + '/' + path, fields: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, field(v)])) }, ...extra });
+  const batch = [
+    write('offlineTestKeys/otcatomic', { questionPdfUrl: 'https://example.test/paper.pdf', answerPdfUrl: '' }, { currentDocument: { exists: false } }),
+    write('offlineTests/otcatomic', { testName: 'Custom', class: '10', subject: 'Physics', series: 'online', kind: 'custom', forUid: 'riya', gradingMode: 'teacher' }, { currentDocument: { exists: false } }),
+    write('moduleRequests/atomic_request', { status: 'ready', testId: 'otcatomic', readyAt: '2026-11-15T00:00:00Z', teacherName: 'Aarav' }, { currentDocument: { updateTime: requestDoc.updateTime }, updateMask: { fieldPaths: ['status', 'testId', 'readyAt', 'teacherName'] } }),
+    write('offlineAudit/publish_otcatomic', { action: 'publish-custom', byAdminUid: 'adm' }, { currentDocument: { exists: false } })
+  ];
+  const invalid = JSON.parse(JSON.stringify(batch)); invalid[3].update.fields.byAdminUid = field('someone-else');
+  await call(`${base}:commit`, 'POST', { writes: invalid }, admin, 403, 'failure of any publication write rolls back all writes');
+  await get('offlineTests/otcatomic', admin, 404); await get('offlineTestKeys/otcatomic', admin, 404);
+  assert.equal((await get('moduleRequests/atomic_request', admin, 200)).fields.status.stringValue, 'requested');
+  await call(`${base}:commit`, 'POST', { writes: batch }, admin, 200, 'admin publishes paper, private key, request and audit atomically');
+  assert.equal((await get('moduleRequests/atomic_request', riya, 200)).fields.testId.stringValue, 'otcatomic');
+  await get('offlineTests/otcatomic', riya, 200); await get('offlineTestKeys/otcatomic', riya, 403);
+  const duplicate = await fetch(host + `${base}:commit`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + admin }, body: JSON.stringify({ writes: batch }) });
+  assert.ok(!duplicate.ok, 'a stale second admin cannot overwrite a published paper'); checks++;
+  console.log('✓ atomic publication: rollback, safe retry, private paper keys, and server-only payment reservations');
   console.log(`All ${checks} online rules checks passed.`);
 })().catch(e => { console.error(e); process.exit(1); });

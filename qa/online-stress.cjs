@@ -30,13 +30,13 @@ const findings = [];
       const state = newState({ user: riya });
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
-      const tabs = ['packs', 'results', 'home', 'packs', 'home', 'results'];
+      const tabs = ['custom', 'results', 'home', 'custom', 'home', 'results'];
       for (let round = 0; round < 4; round++) for (const t of tabs) await page.click('#nav [data-tab=' + t + ']', { delay: 0 });
       await page.waitForSelector('.v-results');
       assert.equal(await page.evaluate(() => location.hash), '#/results', 'last tap wins');
       // Time a switch: tap → new view painted.
       const ms = [];
-      for (const t of ['home', 'packs', 'results', 'home']) {
+      for (const t of ['home', 'custom', 'results', 'home']) {
         const t0 = await page.evaluate(() => performance.now());
         await page.click('#nav [data-tab=' + t + ']');
         await page.waitForSelector('#nav [data-tab=' + t + '].on');
@@ -98,7 +98,7 @@ const findings = [];
       await page.context().setOffline(true);
       await page.evaluate(() => window.dispatchEvent(new Event('offline')));
       await page.waitForSelector('#netBadge:not([hidden])');
-      await page.click('#nav [data-tab=packs]'); await page.waitForSelector('.v-packs');
+      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom');
       await page.click('#nav [data-tab=home]'); await page.waitForSelector('.v-home .subj');
       await snap(page, 'offline-390');
       await page.context().setOffline(false);
@@ -114,7 +114,7 @@ const findings = [];
       const state = newState({ user: riya, profiles: { riya: { ...profile, name: evil, school: '<script>window.__xss=2</script>' } } });
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
-      for (const t of ['home', 'packs', 'results']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(80); }
+      for (const t of ['home', 'custom', 'results']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(80); }
       await page.click('#navMore'); await page.waitForSelector('.more-menu'); await page.click('.more-menu a[href="#/me"]'); await page.waitForSelector('.me-card');
       assert.equal(await page.evaluate(() => window.__xss), undefined, 'injected HTML never runs');
       assert.match(await page.textContent('.me-card'), /<img src=x/, 'shown as plain text');
@@ -128,8 +128,8 @@ const findings = [];
         schedule: Array.from({ length: 8 }, (_, i) => new Date(Date.now() + (i * 7 + 2) * 86400000).toISOString()) }] });
       const { page, errors } = await open(browser, origin, state, { width: 320, height: 640 });
       await page.waitForSelector('.v-home .subj');
-      for (const t of ['home', 'packs', 'results', 'ranks', 'custom', 'me']) {
-        if (['ranks', 'custom', 'me'].includes(t)) { await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu'); await page.click('.more-menu a[href="#/' + t + '"]'); await page.waitForSelector('#sheet', { state: 'hidden' }); }
+      for (const t of ['home', 'custom', 'results', 'ranks', 'packs', 'me']) {
+        if (['ranks', 'packs', 'me'].includes(t)) { await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu'); await page.click('.more-menu a[href="#/' + t + '"]'); await page.waitForSelector('#sheet', { state: 'hidden' }); }
         else await page.click('#nav [data-tab=' + t + ']');
         await page.waitForTimeout(150);
         const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, nav: Math.round(document.querySelector('#nav').getBoundingClientRect().bottom), h: innerHeight }));
@@ -148,7 +148,7 @@ const findings = [];
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.route(u => new URL(u).origin === origin && new URL(u).pathname === '/', r => r.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, 'index.html'), 'utf8') }));
       await page.waitForSelector('.v-home .subj');
-      for (const t of ['packs', 'results', 'home']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(120); }
+      for (const t of ['custom', 'results', 'home']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(120); }
       await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu'); await page.click('.more-menu a[href="#/me"]'); await page.waitForSelector('.me-card');
       await page.click('[data-act=signout]'); await page.waitForSelector('#sheet.on [data-out]'); await page.click('[data-out]');
       await page.waitForFunction(() => document.body.dataset.screen === 'auth');
@@ -158,6 +158,71 @@ const findings = [];
       assert.deepEqual(errors.filter(e => !/ViewTransition opt-in disabled/.test(e)), []); await page.close();
       console.log('✓ sign out: Back goes straight to the homepage');
     }
+    // ── 7. Picking chapters never redraws the screen; a 2-chapter code stops covering a bigger cart ──
+    {
+      const state = newState({ user: riya, paymentsReady: false });
+      const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
+      await page.waitForSelector('.v-home .subj');
+      await page.click('#nav [data-tab=custom]');
+      await page.waitForSelector('.v-custom .row.pick');
+      // Mark the screen: a full redraw would replace these elements.
+      await page.evaluate(() => { document.querySelector('.v-custom').dataset.mark = '1'; document.querySelector('.row.pick[data-ch="5"]').dataset.mark = '1'; });
+      // Taps done in the page itself, so the test runner never scrolls for us.
+      const scrollBefore = await page.evaluate(() => { const v = document.getElementById('view'); v.scrollTop = 200; return v.scrollTop; });
+      for (const i of [0, 1, 2, 1]) await page.evaluate(n => document.querySelector('.row.pick[data-ch="' + n + '"]').click(), i);
+      const kept = await page.evaluate(() => ({ view: document.querySelector('.v-custom').dataset.mark, row: document.querySelector('.row.pick[data-ch="5"]').dataset.mark, scroll: document.getElementById('view').scrollTop,
+        picked: [...document.querySelectorAll('.row.pick[aria-pressed=true]')].map(b => b.dataset.ch), bar: document.querySelector('.cart-bar b').textContent, chip: document.querySelector('[data-csub=Science] i').textContent }));
+      assert.equal(kept.view, '1', 'screen not redrawn'); assert.equal(kept.row, '1', 'other rows untouched'); assert.equal(kept.scroll, scrollBefore, 'scroll position kept');
+      assert.deepEqual(kept.picked, ['0', '2']); assert.match(kept.bar, /2 chapters · ₹398/); assert.equal(kept.chip, '2', 'subject count updated');
+      await page.click('[data-call]'); await page.waitForTimeout(50);
+      assert.equal(await page.evaluate(() => document.querySelector('.v-custom').dataset.mark), '1', 'Select all does not redraw either');
+      await page.click('[data-call]');                                  // Clear
+      assert.equal(await page.locator('.cart-bar').count(), 0, 'cart bar goes away when empty');
+      // 2 chapters → apply the 2-chapter code → ₹0.
+      await page.click('.row.pick[data-ch="0"]'); await page.click('.row.pick[data-ch="1"]');
+      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .contact-card');
+      await page.fill('#promoInput', 'tnctwo2'); await page.click('[data-promo-apply]'); await page.waitForSelector('#sheet .promo.ok');
+      assert.match(await page.textContent('#sheet .total'), /₹0/);
+      await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
+      // Add 2 Mathematics chapters → the code no longer covers the cart.
+      await page.click('[data-csub=Mathematics]'); await page.click('.row.pick[data-ch="0"]'); await page.click('.row.pick[data-ch="1"]');
+      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .promo.warn');
+      assert.match(await page.textContent('#sheet .promo.warn'), /TNCTWO2 covers up to 2 chapters — remove 2 to use it/);
+      assert.match(await page.textContent('#sheet .total'), /₹796/, 'full price shown, not ₹0');
+      assert.equal(await page.locator('#sheet [data-buy]:has-text("₹0")').count(), 0, 'no ₹0 order button');
+      await snap(page, 'promo-limit-cart-390');
+      // Applying it fresh on the 4-chapter cart is refused by the server.
+      await page.click('#sheet .promo.warn [data-promo-remove]'); await page.waitForSelector('#sheet .promo-box');
+      await page.fill('#promoInput', 'TNCTWO2'); await page.click('[data-promo-apply]');
+      await page.waitForFunction(() => /covers up to 2 chapters/.test(document.querySelector('#promoMsg').textContent));
+      assert.deepEqual(errors, []); await page.close();
+      console.log('✓ custom test: chapter taps update in place (no redraw, scroll kept); a 2-chapter code stops covering a 4-chapter cart and is refused if re-applied');
+    }
+    // A background database refresh must never resurrect a signed-out account.
+    for (const switchAccount of [false, true]) {
+      const state = newState({ user: riya, results, profiles: { riya: profile, meera: { ...profile, uid: 'meera', name: 'Meera Iyer' } } });
+      const { page, errors } = await open(browser, origin, state);
+      await page.route('**/assets/js/online-series.js*', r => r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(root, 'assets/js/online-series.js'), 'utf8') + '\nwindow.__review={S,refresh,signOutNow};' }));
+      await page.reload(); await page.waitForSelector('.v-home .subj');
+      let release, started;
+      const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { started = r; });
+      await page.route('https://firestore.googleapis.com/**', async r => {
+        if ((r.request().headers().authorization || '').includes('tok-riya')) { started(); await gate; }
+        await r.fallback();
+      });
+      await page.evaluate(() => { window.__oldRefresh = window.__review.refresh(); }); await waiting;
+      await page.evaluate(() => window.__review.signOutNow());
+      assert.equal(await page.locator('#view').textContent(), '', 'private dashboard DOM cleared on logout');
+      if (switchAccount) { await page.click('#googleBtn'); await page.waitForSelector('.v-home:has-text("Meera")'); }
+      release(); await page.evaluate(() => window.__oldRefresh);
+      const current = await page.evaluate(() => ({ screen: document.body.dataset.screen, uid: window.__review.S.user?.uid || null, sessionUid: window.__review.S.session?.uid || null, text: document.getElementById('view').innerText }));
+      assert.equal(current.screen, switchAccount ? 'app' : 'auth');
+      assert.equal(current.uid, switchAccount ? 'meera' : null);
+      assert.equal(current.sessionUid, switchAccount ? 'meera' : null);
+      assert.ok(!current.text.includes('Riya'), 'old student never returns');
+      assert.deepEqual(errors, []); await page.close();
+    }
+    console.log('✓ delayed refresh after logout/account switch: no old dashboard or session restored');
   } finally { await browser.close(); server.close(); }
   console.log('All stress checks passed.');
 })().catch(e => { console.error(e); process.exit(1); });

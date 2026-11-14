@@ -21,7 +21,7 @@
  *                      test (Classes 9–12): ₹199 a chapter for the first 4,
  *                      ₹150 after (TNC students pay too). Each subject
  *                      becomes a moduleRequests/{id} the team makes a paper for.
- *    'check-promo'     { code, testId } or { code, kind:'custom' } — is the code
+ *    'check-promo'     { code, testId } or { code, kind:'custom', board?, items? } — is the code
  *                      valid for this purchase? (100% off; nothing is used yet)
  *    'redeem-promo'    { code, testId } — use the code: the test unlocks at ₹0.
  *                      Custom modules pass promoCode to 'module-order' instead.
@@ -197,14 +197,14 @@ exports.handler = async function (event) {
         uid, testId: key, packageId, kind: 'package', orderId: '', paymentId: '', amountPaise: 0, currency: 'INR',
         testName: pkg.title || 'Mock pack', subject: pkg.subject || '', class: String(pkg.class || ''), studentName: profile.name || '', email: profile.email || email || '', paidAt: now, ...extra } });
       if (body.action === 'check-promo') {
-        const check = await online.checkPromo(projectId, sa, body.code, 'package', uid);
+        const check = await online.checkPromo(projectId, sa, body.code, 'package', uid, { valueInr: Number(pkg.priceInr || 0) });
         if (check.error) return bad(400, check.error);
-        return ok({ ok: true, code: check.code, kind: 'package' });
+        return ok({ ok: true, code: check.code, kind: 'package', limits: check.limits });
       }
       try {
         if (body.promoCode) return await retryOnConflict(async () => {
           if (await fsGet(projectId, sa, `onlinePurchases/${key}__${uid}`)) return bad(409, 'You have already joined this pack.', { unlocked: true });
-          const check = await online.checkPromo(projectId, sa, body.promoCode, 'package', uid);
+          const check = await online.checkPromo(projectId, sa, body.promoCode, 'package', uid, { valueInr: Number(pkg.priceInr || 0) });
           if (check.error) return bad(400, check.error);
           await fsCommit(projectId, sa, [...online.promoWrites(check, uid, key, 'package', { testName: pkg.title || '', subject: pkg.subject || '', class: String(pkg.class || ''), studentName: profile.name || '', onlineId: profile.onlineId || '', valuePaise: Number(pkg.priceInr || 0) * 100 }, now),
             purchase({ via: 'promo', promoCode: check.code })]);
@@ -217,15 +217,14 @@ exports.handler = async function (event) {
       if (!online.paymentsReady()) return bad(503, 'Payments are being set up. Please call or WhatsApp us to join now.');
       const amountPaise = Math.round(Number(pkg.priceInr || 0) * 100);
       if (!(amountPaise > 0)) return bad(409, 'This pack has no price set yet.');
-      const reuse = await online.reusableOrder(projectId, sa, uid, key, amountPaise);
-      if (reuse) return ok({ orderId: reuse, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID, testName: pkg.title || 'Mock pack',
-        prefill: { name: profile.name || '', email: profile.email || email || '', contact: profile.phone || '' } });
-      const rz = await online.createRazorpayOrder(amountPaise, `pkg_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, type: 'package', packageId });
-      await fsCommit(projectId, sa, [{ path: `onlineOrders/${rz.id}`, data: {
+      const orderId = await online.paymentOrder(projectId, sa, uid, key, amountPaise, async () => {
+        const rz = await online.createRazorpayOrder(amountPaise, `pkg_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, type: 'package', packageId });
+        return {
         orderId: rz.id, type: 'package', uid, testId: key, packageId, amountPaise, currency: 'INR', status: 'created', createdAt: now,
         testName: pkg.title || 'Mock pack', subject: pkg.subject || '', class: String(pkg.class || ''), kind: 'package',
-        studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || '' } }]);
-      return ok({ orderId: rz.id, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID, testName: pkg.title || 'Mock pack',
+        studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || '' };
+      });
+      return ok({ orderId, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID, testName: pkg.title || 'Mock pack',
         prefill: { name: profile.name || '', email: profile.email || email || '', contact: profile.phone || '' } });
     }
 
@@ -247,15 +246,23 @@ exports.handler = async function (event) {
         if (await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`)) return bad(409, 'You have already unlocked this test.', { unlocked: true });
         kind = policy.kindOf(test);
       }
+      // What the code would pay for: the test's price, or the custom cart (when the app sends it).
+      let use;
+      if (test) use = { valueInr: online.priceFor(test, false) };
+      else if (Array.isArray(body.items) && body.items.length) {
+        const cart = online.checkModuleCart(String(body.board || ''), profile.class, body.items);
+        if (!cart.ok) return bad(400, cart.error);
+        use = { chapters: cart.count, valueInr: policy.modulePrice(cart.count) };
+      }
       if (body.action === 'check-promo') {
-        const check = await online.checkPromo(projectId, sa, body.code, kind, uid);
-        if (check.error) return bad(400, check.error);
-        return ok({ ok: true, code: check.code, kind });
+        const check = await online.checkPromo(projectId, sa, body.code, kind, uid, use);
+        if (check.error) return bad(400, check.error, check.limits ? { limits: check.limits } : {});
+        return ok({ ok: true, code: check.code, kind, limits: check.limits });
       }
       try {
         return await retryOnConflict(async () => {
         if (await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`)) return bad(409, 'You have already unlocked this test.', { unlocked: true });
-        const check = await online.checkPromo(projectId, sa, body.code, kind, uid);
+        const check = await online.checkPromo(projectId, sa, body.code, kind, uid, use);
         if (check.error) return bad(400, check.error);
         await fsCommit(projectId, sa, [
           ...online.promoWrites(check, uid, testId, kind, { testName: test.testName || '', subject: test.subject || '', class: String(test.class || ''), studentName: profile.name || '', onlineId: profile.onlineId || '', valuePaise: online.priceFor(test, false) * 100 }, now),
@@ -285,7 +292,7 @@ exports.handler = async function (event) {
       if (body.promoCode) {   // a 100% promo code: the order is placed at ₹0
         try {
           return await retryOnConflict(async () => {
-            const check = await online.checkPromo(projectId, sa, body.promoCode, 'custom', uid);
+            const check = await online.checkPromo(projectId, sa, body.promoCode, 'custom', uid, { chapters: cart.count, valueInr: amountPaise / 100 });
             if (check.error) return bad(400, check.error);
             const orderId = 'promo_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex') + uid.slice(0, 6);
             const promoOrder = { ...order, orderId, amountPaise: 0, fullAmountPaise: amountPaise, promoCode: check.code };
@@ -301,9 +308,12 @@ exports.handler = async function (event) {
         }
       }
       if (!online.paymentsReady()) return bad(503, 'Payments are being set up. Please try again in a little while.');
-      const rz = await online.createRazorpayOrder(amountPaise, `mod_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, type: 'module', chapters: String(cart.count) });
-      await fsCommit(projectId, sa, [{ path: `onlineOrders/${rz.id}`, data: { ...order, orderId: rz.id, status: 'created' } }]);
-      return ok({ orderId: rz.id, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID, testName: order.testName,
+      const target = 'cart_' + crypto.createHash('sha256').update(JSON.stringify([profile.class, board, cart.items.slice().sort((a, b) => a.subject.localeCompare(b.subject))])).digest('hex');
+      const orderId = await online.paymentOrder(projectId, sa, uid, target, amountPaise, async () => {
+        const rz = await online.createRazorpayOrder(amountPaise, `mod_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, type: 'module', chapters: String(cart.count) });
+        return { ...order, testId: target, orderId: rz.id, status: 'created' };
+      });
+      return ok({ orderId, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID, testName: order.testName,
         prefill: { name: profile.name || '', email: profile.email || email || '', contact: profile.phone || '' } });
     }
 
@@ -326,17 +336,16 @@ exports.handler = async function (event) {
       if (await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`)) return bad(409, 'You have already unlocked this test.', { unlocked: true });
       const amountPaise = online.priceFor(test, enrolled) * 100;
       if (!(amountPaise > 0)) return bad(409, 'This test is free — just start it.');
-      const reuse = await online.reusableOrder(projectId, sa, uid, testId, amountPaise);
-      if (reuse) return ok({ orderId: reuse, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID, testName: test.testName || '',
-        prefill: { name: profile.name || '', email: profile.email || email || '', contact: profile.phone || '' } });
-      const order = await online.createRazorpayOrder(amountPaise, `ots_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, testId });
-      await fsCommit(projectId, sa, [{ path: `onlineOrders/${order.id}`, data: {
+      const orderId = await online.paymentOrder(projectId, sa, uid, testId, amountPaise, async () => {
+        const order = await online.createRazorpayOrder(amountPaise, `ots_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, testId });
+        return {
         orderId: order.id, uid, testId, amountPaise, currency: 'INR', status: 'created', createdAt: now,
         testName: test.testName || '', subject: test.subject || '', class: String(test.class || ''), kind: policy.kindOf(test),
         studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || ''
-      } }]);
+        };
+      });
       return ok({
-        orderId: order.id, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID,
+        orderId, amountPaise, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID,
         testName: test.testName || '', prefill: { name: profile.name || '', email: profile.email || email || '', contact: profile.phone || '' }
       });
     }

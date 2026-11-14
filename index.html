@@ -288,7 +288,12 @@
     var splash = document.getElementById('tnc-splash');
     if (!splash) return;
     try {
-      if (sessionStorage.getItem('tnc-splash-seen') === '1') {
+      // Only a fresh arrival from outside the site gets the launch screen. Coming back from a login
+      // page or portal (link, Back/Forward, after signing out) opens the homepage straight away.
+      var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      var fromSite = false;
+      try { fromSite = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
+      if (sessionStorage.getItem('tnc-splash-seen') === '1' || fromSite || (nav && nav.type === 'back_forward')) {
         document.body.classList.add('loaded');
         splash.parentNode.removeChild(splash);
         return;
@@ -415,7 +420,7 @@
     <div class="ts-phone-copy">
       <span class="ts-phone-eyebrow"><i></i> New launch</span>
       <h2>Test Series for serious rank growth</h2>
-      <p>Practice chapter tests, module tests and full mocks with hand-checked feedback and personalised improvement reports.</p>
+      <p>Practice chapter tests, module tests and full mocks — software-checked, approved by TNC teachers, with personalised improvement reports.</p>
       <a href="#contact">Join the Test Series</a>
     </div>
     <div class="ts-phone-device">
@@ -1195,7 +1200,7 @@
 
     <div class="faq-item fade-up">
       <button class="faq-q">How can I register or book a free demo class?<span class="faq-icon">+</span></button>
-      <div class="faq-a">Simply fill out the enquiry form in the Contact section below, or WhatsApp / call us at +91 9903461361. We will schedule a free demo class and a counselling session to help you pick the right batch.</div>
+      <div class="faq-a">Simply fill out the enquiry form in the Contact section below, or WhatsApp / call us at +91 99034 61361. We will schedule a free demo class and a counselling session to help you pick the right batch.</div>
     </div>
 
   </div>
@@ -1227,7 +1232,7 @@
         <div class="contact-detail-icon">📞</div>
         <div class="contact-detail-text">
           <strong>Phone</strong>
-          <span>+91 9903461361</span>
+          <span>+91 99034 61361</span>
         </div>
       </div>
 
@@ -1291,7 +1296,7 @@
               <span class="enquiry-eyebrow">FIRST, A LITTLE ABOUT YOU</span><h2 id="enquiryStudentTitle" tabindex="-1">Who’s ready to learn?</h2><p>Tell us the student’s name and where we can reach you.</p>
               <div class="enquiry-grid">
                 <div class="enquiry-field"><label for="enquiryName">Student name *</label><input id="enquiryName" name="student-name" autocomplete="name" enterkeyhint="next" placeholder="Full name" minlength="2" maxlength="120" required /></div>
-                <div class="enquiry-field"><label for="enquiryPhone">Mobile number *</label><input id="enquiryPhone" name="mobile" type="tel" autocomplete="tel" inputmode="tel" enterkeyhint="next" placeholder="+91 98765 43210" maxlength="18" required /></div>
+                <div class="enquiry-field"><label for="enquiryPhone">Mobile number *</label><input id="enquiryPhone" name="mobile" type="tel" autocomplete="tel" inputmode="tel" enterkeyhint="next" placeholder="10-digit mobile number" maxlength="18" required /></div>
               </div>
               </section>
               <section class="enquiry-screen" data-enquiry-step="1" aria-labelledby="enquiryCourseTitle" hidden>
@@ -1324,7 +1329,7 @@
           <button type="submit" form="enquiryForm" class="enquiry-submit" id="enquirySubmit" hidden>Send my inquiry →</button>
         </footer>
       </dialog>
-      <noscript>Please enable JavaScript to sign in and submit, or call +91 9903461361.</noscript>
+      <noscript>Please enable JavaScript to sign in and submit, or call +91 99034 61361.</noscript>
     </div>
 
   </div>
@@ -1332,9 +1337,9 @@
 
 <script src="/assets/js/enquiry-ui.js?v=bf3cf0e5"></script>
 <script type="module">
-  import('/assets/js/enquiry-form.js?v=4098a996').catch(() => {
+  import('/assets/js/enquiry-form.js?v=88d6429c').catch(() => {
     const message = document.getElementById('cmsEnquiryMsg');
-    message.textContent = 'Could not load sign-in. Please refresh the page or call +91 9903461361.';
+    message.textContent = 'Could not load sign-in. Please refresh the page or call +91 99034 61361.';
     message.classList.add('is-error');
   });
 </script>

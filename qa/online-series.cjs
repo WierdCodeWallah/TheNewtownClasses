@@ -33,7 +33,7 @@ const field = v => v === null ? { nullValue: null } : Array.isArray(v) ? { array
   : typeof v === 'boolean' ? { booleanValue: v } : typeof v === 'number' ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }) : { stringValue: String(v ?? '') };
 const docOf = (p, item) => ({ name: 'projects/fixture/databases/(default)/documents/' + p, fields: Object.fromEntries(Object.entries(item).map(([k, v]) => [k, field(v)])) });
 
-const profile = { uid: 'riya', onlineId: 'TNC-ON-RIYA', enrolled: false, provider: 'google', email: 'riya@example.test', name: 'Riya Sharma', dob: '2011-05-04', gender: 'Female', phone: '9874461218',
+const profile = { uid: 'riya', onlineId: 'TNC-ON-RIYA', enrolled: false, provider: 'google', email: 'riya@example.test', name: 'Riya Sharma', dob: '2011-05-04', gender: 'Female', phone: '9800012345',
   class: '10', board: 'CBSE', school: 'DPS Newtown', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'], target: 'NEET', address: '12 Lake Road', city: 'Kolkata', state: 'West Bengal', pincode: '700156',
   guardianName: 'Anil Sharma', guardianRelation: 'Father', guardianPhone: '9830012345', profileComplete: true, createdAt: '2026-11-01T10:00:00Z' };
 const T = (id, o) => ({ id, testName: 'Test', class: '10', board: '', subject: 'Physics', chapter: 'Light', module: 'Full chapter', totalMarks: 40, durationMin: 90, isActive: true, kind: 'chapter', teacherName: 'Aarav Sen', gradingMode: 'teacher', series: 'online', createdAt: '2026-11-01', ...o });
@@ -103,11 +103,16 @@ async function open(browser, origin, state, viewport) {
         state.saved = b.profile; state.profiles[uid] = { ...b.profile, uid, onlineId: 'TNC-ON-MEERA', profileComplete: true, email: uid + '@example.test' };
         return route.fulfill({ json: { ok: true, profile: state.profiles[uid] } });
       }
-      if (b.action === 'create-order') return route.fulfill({ json: { orderId: 'order_Fx000001', amountPaise: 49900, currency: 'INR', keyId: 'rzp_test', testName: 'Chapter test 1', prefill: { name: 'Riya Sharma', email: 'riya@example.test', contact: '9874461218' } } });
+      if (b.action === 'create-order') return route.fulfill({ json: { orderId: 'order_Fx000001', amountPaise: 49900, currency: 'INR', keyId: 'rzp_test', testName: 'Chapter test 1', prefill: { name: 'Riya Sharma', email: 'riya@example.test', contact: '9800012345' } } });
       if (b.action === 'claim-free') { state.unlocked.push(b.testId); state.freeUsed = b.testId; return route.fulfill({ json: { ok: true, testId: b.testId, freeMock: { allowance: 1, usedCount: 1, left: 0, claims: [{ testId: b.testId, subject: 'Physics' }] } } }); }
       if (b.action === 'create-order' && b.testId !== 'phy1') return route.fulfill({ status: 500, json: { error: 'unexpected order' } });
       if (b.action === 'check-promo') {
         state.promoChecks = (state.promoChecks || 0) + 1;
+        if (String(b.code).toUpperCase() === 'TNCTWO2') {
+          const n = (b.items || []).reduce((k, i) => k + i.chapters.length, 0);
+          if (n > 2) return route.fulfill({ status: 400, json: { error: 'This code covers up to 2 chapters. Your cart has ' + n + ' — remove ' + (n - 2) + ' to use it.', limits: { maxChapters: 2, maxValueInr: 399 } } });
+          return route.fulfill({ json: { ok: true, code: 'TNCTWO2', kind: 'custom', limits: { maxChapters: 2, maxValueInr: 399 } } });
+        }
         if (String(b.code).toUpperCase() === 'TNCGIFT1') return route.fulfill({ json: { ok: true, code: 'TNCGIFT1', kind: b.kind || 'chapter' } });
         return route.fulfill({ status: 400, json: { error: 'This promo code is not valid.' } });
       }
@@ -120,7 +125,7 @@ async function open(browser, origin, state, viewport) {
       }
       if (b.action === 'module-order') {
         state.moduleOrder = b; const n = b.items.reduce((k, i) => k + i.chapters.length, 0);
-        return route.fulfill({ json: { orderId: 'order_Mod000001', amountPaise: onlinePolicy.modulePrice(n) * 100, currency: 'INR', keyId: 'rzp_test', testName: 'Custom module · ' + n + ' chapters', prefill: { name: 'Riya Sharma', contact: '9874461218' } } });
+        return route.fulfill({ json: { orderId: 'order_Mod000001', amountPaise: onlinePolicy.modulePrice(n) * 100, currency: 'INR', keyId: 'rzp_test', testName: 'Custom module · ' + n + ' chapters', prefill: { name: 'Riya Sharma', contact: '9800012345' } } });
       }
       if (b.action === 'verify-payment' && b.orderId === 'order_Mod000001') {
         const now = Date.now();
@@ -153,6 +158,10 @@ async function open(browser, origin, state, viewport) {
       return route.fulfill({ status: 404, json: { error: { message: 'Not found' } } });
     }
     if (url.origin === origin) return route.continue();
+    if (url.hostname === 'cdnjs.cloudflare.com' && url.pathname.startsWith('/ajax/libs/pdf.js/3.11.174/')) {
+      const cached = path.join(__dirname, 'artifacts', 'vendor', path.basename(url.pathname));
+      if (fs.existsSync(cached)) return js(fs.readFileSync(cached, 'utf8'));
+    }
     if (/cdnjs\.cloudflare\.com|fonts\.(googleapis|gstatic)\.com/.test(url.hostname)) return route.continue();
     if (req.resourceType() === 'script') return js('');
     return route.fulfill({ body: '', contentType: 'text/plain' });
@@ -241,8 +250,10 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForFunction(() => /went wrong/.test(document.querySelector('#obErr').textContent));
       await page.click('#obNext');   // retry after a failed save
       await page.waitForSelector('#app:not([hidden]) .v-home');
-      await page.waitForSelector('.free-card:has-text("Your free mock test")');
-      await page.click('.free-card');
+      // New student: the free mock is offered by the pill at the top; the live checking card fills the bottom.
+      await page.waitForSelector('.v-home .chk-card .chk-svg');
+      assert.match(await page.textContent('.chk-card'), /You upload[\s\S]*Software checks[\s\S]*TNC teacher approves/);
+      await page.click('.plan[data-free-pick]');
       await page.waitForSelector('#sheet.on [data-pick]');
       assert.equal(await page.locator('#sheet [data-pick]').count(), 3, 'one choice per subject with a full mock (Physics, Chemistry, Biology)');
       await shot(page, '07b-free-mock-picker-390');
@@ -314,7 +325,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.match(await page.textContent('#toast'), /Payment successful/);
       assert.equal(await page.evaluate(() => window.__rzOpened.amount), 49900, 'fixture order amount passed through');
       assert.match(await page.evaluate(() => window.__rzOpened.description), /Non-refundable/, 'Razorpay window says non-refundable');
-      assert.equal(await page.evaluate(() => window.__rzOpened.prefill.contact), '9874461218');
+      assert.equal(await page.evaluate(() => window.__rzOpened.prefill.contact), '9800012345');
       assert.ok(state.calls.includes('verify-payment'), 'payment signature verified on the server');
       await shot(page, '11-unlocked-390');
       // Tap the unlocked test → timer warning → Start now → exam.
@@ -346,9 +357,9 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('#sheet', { state: 'hidden' });
 
       // Phone tab bar: 4 items; Ranks, Custom and Profile are in More.
-      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'packs', 'results', 'more'], 'four tabs on phones');
+      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'results', 'more'], 'four tabs on phones: Custom second');
       await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu');
-      assert.match(await page.textContent('.more-menu'), /Leaderboard[\s\S]*Custom test[\s\S]*Profile[\s\S]*Help on WhatsApp[\s\S]*Call us/);
+      assert.match(await page.textContent('.more-menu'), /Leaderboard[\s\S]*Mock packs[\s\S]*Profile[\s\S]*Help on WhatsApp[\s\S]*Call us/);
       await shot(page, '31-more-390');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
       // Ranks, Results, Profile.
@@ -447,6 +458,9 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('.v-home .subj');
       await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu');
       assert.equal(await page.locator('.more-menu a[href="#/custom"]').count(), 0, 'no Custom test below Class 9');
+      assert.equal(await page.locator('.more-menu a[href="#/packs"]').count(), 0, 'Packs is on the tab bar instead');
+      await page.keyboard.press('Escape'); await page.waitForSelector('#sheet', { state: 'hidden' });
+      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'packs', 'results', 'more'], 'Class 8: Packs takes the second slot');
       assert.deepEqual(errors, []); await page.close();
     }
     console.log('✓ custom module: CBSE/ICSE chapters, per-board cart, ₹199 × 4 then ₹150, cart sheet + remove, Razorpay → one paper per subject, ready paper starts, only own papers, Classes 9–12');
@@ -458,8 +472,8 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('.v-home .subj');
       await page.click('.subj:has-text("Physics")'); await page.click('[data-seg=chapter]');
       await page.click('.row:has-text("Chapter test 2")'); await page.waitForSelector('#sheet.on .contact-card');
-      assert.match(await page.textContent('.contact-card'), /Online payment opens soon[\s\S]*\+91 98744 61218[\s\S]*WhatsApp/);
-      assert.equal(await page.getAttribute('.contact-card a[href^="tel:"]', 'href'), 'tel:+919874461218');
+      assert.match(await page.textContent('.contact-card'), /Online payment opens soon[\s\S]*\+91 99034 61361[\s\S]*WhatsApp/);
+      assert.equal(await page.getAttribute('.contact-card a[href^="tel:"]', 'href'), 'tel:+919903461361');
       assert.match(decodeURIComponent(await page.getAttribute('.contact-card a[href*="wa.me"]', 'href')), /Chapter test 2[\s\S]*Class 10[\s\S]*TNC-ON-RIYA/, 'WhatsApp message says what and who');
       assert.equal(await page.locator('[data-go=pay]').count(), 0, 'no pay button before Razorpay');
       assert.equal(await page.locator('.promo-box[open]').count(), 1, 'promo box open while payments are off');
@@ -503,8 +517,8 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
       assert.equal(await page.locator('.subj:has-text("Physics")').count(), 1);
-      assert.match(await page.textContent('.pack-offer'), /pack/i, 'Home offers mock packs');
-      await page.click('#navPacks'); await page.waitForSelector('.v-packs .pack-card');
+      assert.equal(await page.locator('.v-home .chk-card').count(), 1, 'Home shows the live checking card before any result');
+      await goTab(page, 'packs'); await page.waitForSelector('.v-packs .pack-card');
       assert.equal(await page.locator('.v-packs .pack-card').count(), 2, 'paused packs are not on sale');
       assert.match(await page.textContent('.pack-card[data-pack=pkphy8]'), /Physics · 8 weekly mocks[\s\S]*8 mocks[\s\S]*₹3199[\s\S]*₹400\/mock/);
       assert.match(await page.textContent('.pack-card[data-pack=pkche4]'), /₹1699[\s\S]*₹425\/mock/);
@@ -572,7 +586,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       }
       await shot(page, '19-tnc-subject-390');
       // Mock packs and custom tests are paid for TNC students too (promo codes work there).
-      await page.click('#navPacks'); await page.waitForSelector('.pack-card[data-pack=pkphy8]');
+      await goTab(page, 'packs'); await page.waitForSelector('.pack-card[data-pack=pkphy8]');
       assert.match(await page.textContent('.pack-card[data-pack=pkphy8]'), /₹3199[\s\S]*₹400\/mock/);
       await page.click('.pack-card[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');
       assert.match(await page.textContent('[data-ppay]'), /Join for ₹3199/); assert.equal(await page.locator('#sheet .promo-box').count(), 1, 'promo box offered');

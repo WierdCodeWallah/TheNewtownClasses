@@ -41,6 +41,21 @@ async function patch(path, fields) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw new Error((json.error && json.error.message) || 'Could not save. Please try again.');
 }
+async function readDoc(path) {
+  const res = await fetch(`${base()}/${path}?key=${ctx.config.apiKey}`, { headers: await auth() });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error('Could not confirm the saved paper. Please retry.');
+  return json;
+}
+async function commit(records) {
+  const writes = records.map(({ path, fields, currentDocument, mask }) => ({
+    update: { name: base().replace('https://firestore.googleapis.com/v1/', '') + '/' + path, fields },
+    ...(currentDocument ? { currentDocument } : {}), ...(mask ? { updateMask: { fieldPaths: mask } } : {})
+  }));
+  const res = await fetch(`${base()}:commit?key=${ctx.config.apiKey}`, { method: 'POST', headers: await auth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ writes }) });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error('Could not confirm publication. Retry safely to check or finish sending this paper.');
+}
 async function api(body) {
   const res = await fetch('/.netlify/functions/offline-test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: await ctx.token(), ...body }) });
   let data = {}; try { data = await res.json(); } catch (_) {}
@@ -470,18 +485,27 @@ async function publishCustom(r) {
   if (!file) return say('Choose the question paper PDF.', 'bad');
   S.sending = true; btn.disabled = true;
   try {
+    const request = await readDoc(`moduleRequests/${r.id}`);
+    if (str(request.fields, 'status') === 'ready') {
+      await loadAll(); S.sending = false; closeSheet(); render(); setBadge(inbox().length);
+      toast('This paper has already been sent to the student.'); return;
+    }
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(r.id));
+    const id = 'otc' + Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
     say('Reading the PDF…'); await F().validateReadablePdf(file);
     const url = await F().upload(file, p => say(`Uploading question paper… ${Math.round(p * 100)}%`));
     say('Sending to the student…');
-    const id = 'otc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), now = new Date().toISOString(), s = x => ({ stringValue: x });
+    const now = new Date().toISOString(), s = x => ({ stringValue: x });
     const chapters = (r.chapters || []).join('; ').slice(0, 900);
-    await patch(`offlineTestKeys/${id}`, { questionPdfUrl: s(url), answerPdfUrl: s(''), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) });
-    await patch(`offlineTests/${id}`, { testName: s(name), class: s(String(r.class)), board: s(''), subject: s(r.subject), chapter: s('Custom module'), module: s(chapters),
+    await commit([
+      { path: `offlineTestKeys/${id}`, currentDocument: { exists: false }, fields: { questionPdfUrl: s(url), answerPdfUrl: s(''), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) } },
+      { path: `offlineTests/${id}`, currentDocument: { exists: false }, fields: { testName: s(name), class: s(String(r.class)), board: s(''), subject: s(r.subject), chapter: s('Custom module'), module: s(chapters),
       totalMarks: { doubleValue: marks }, durationMin: { integerValue: String(mins) }, instructions: s(v('dkrNote')), gradingMode: s('teacher'),
       series: s('online'), kind: s('custom'), isFree: { booleanValue: false }, forUid: s(r.uid), requestId: s(r.id),
-      teacherUid: s(teacher.uid), teacherName: s(teacher.name), isActive: { booleanValue: true }, createdAt: s(now) });
-    await patch(`moduleRequests/${r.id}`, { status: s('ready'), testId: s(id), readyAt: s(now), teacherName: s(teacher.name) });
-    patch(`offlineAudit/publish_${id}`, { action: s('publish-custom'), testId: s(id), requestId: s(r.id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(teacher.uid), onBehalfOfName: s(teacher.name), at: s(now) }).catch(() => {});
+      teacherUid: s(teacher.uid), teacherName: s(teacher.name), isActive: { booleanValue: true }, createdAt: s(now) } },
+      { path: `moduleRequests/${r.id}`, currentDocument: { updateTime: request.updateTime }, mask: ['status', 'testId', 'readyAt', 'teacherName'], fields: { status: s('ready'), testId: s(id), readyAt: s(now), teacherName: s(teacher.name) } },
+      { path: `offlineAudit/publish_${id}`, currentDocument: { exists: false }, fields: { action: s('publish-custom'), testId: s(id), requestId: s(r.id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(teacher.uid), onBehalfOfName: s(teacher.name), at: s(now) } }
+    ]);
     Object.assign(r, { status: 'ready', testId: id, readyAt: now, teacherName: teacher.name });
     recountMake();
     S.tests.unshift({ id, name, class: String(r.class), board: '', subject: window.PortalUI.subject(r.subject), chapter: 'Custom module', module: chapters, totalMarks: marks, durationMin: mins,
@@ -491,7 +515,7 @@ async function publishCustom(r) {
     toast(`Paper sent to ${r.studentName} · it's unlocked for them now`);
   } catch (e) {
     S.sending = false; btn.disabled = false;
-    say((e.message || 'Could not send.') + ' The student has not been sent anything — try again.', 'bad');
+    say((e.message || 'Could not confirm publication.') + ' You can retry safely; an already sent paper will not be duplicated.', 'bad');
   }
 }
 

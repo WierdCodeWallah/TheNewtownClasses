@@ -543,7 +543,7 @@
 <script src="/assets/js/offline-files.js?v=a934e5f6"></script>
 <script src="/assets/js/offline-records.js?v=3c2e429b"></script>
 <script src="/assets/js/online-policy.js?v=53dfcaa0"></script>
-<script src="/assets/js/offline-report.js?v=d5022985"></script>
+<script src="/assets/js/offline-report.js?v=b00794cb"></script>
 <script src="/assets/js/portal-logout.js?v=998a5961"></script>
   <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
        they load so it never flashes unstyled. The timer is a safety net. -->
@@ -807,7 +807,7 @@
         </div>
         <div class="field">
           <label>Parent Phone</label>
-          <input type="tel" id="newPhone" placeholder="e.g. 9876543210"/>
+          <input type="tel" id="newPhone" placeholder="10-digit mobile number"/>
         </div>
       </div>
 
@@ -1172,7 +1172,7 @@
       </div>
       <div class="field">
         <label>Phone</label>
-        <input type="tel" id="teacherPhone" placeholder="e.g. 9876543210"/>
+        <input type="tel" id="teacherPhone" placeholder="10-digit mobile number"/>
       </div>
     </div>
 
@@ -1557,7 +1557,7 @@
       setTimeout(() => { $('mainContent').style.opacity = '1'; }, 50);
       $('logoutBtn').style.display     = 'block';
       loadStudents();
-      import('/assets/js/admin-desk.js?v=082836f9').then(m => { if (auth.currentUser?.uid === user.uid) m.startDeskWatch(deskContext()); }).catch(() => {});
+      import('/assets/js/admin-desk.js?v=11f1967a').then(m => { if (auth.currentUser?.uid === user.uid) m.startDeskWatch(deskContext()); }).catch(() => {});
       import('/assets/js/admin-enquiries.js?v=008f658f').then(({ startAdminEnquiries }) => {
         if (auth.currentUser?.uid === user.uid) stopEnquiries = startAdminEnquiries(db, user.uid);
       }).catch(() => {
@@ -1571,11 +1571,11 @@
 
   // ── Test Desk: papers + answer scripts, with a blinking count of scripts waiting ──
   const deskContext = () => ({ token: () => auth.currentUser.getIdToken(), config: FIREBASE_CONFIG, uid: auth.currentUser.uid });
-  window.loadTestDesk = () => import('/assets/js/admin-desk.js?v=082836f9').then(m => m.loadTestDesk(deskContext()))
+  window.loadTestDesk = () => import('/assets/js/admin-desk.js?v=11f1967a').then(m => m.loadTestDesk(deskContext()))
     .catch(e => { const r = $('deskRoot'); if (r && !r.dataset.ready) r.innerHTML = '<div class="dk-empty bad"><b>Could not open the Test Desk</b><p>' + String(e.message || e) + '</p></div>'; });
 
   // ── Online Students (all-India test series): loaded when the section opens ──
-  window.loadOnlineStudents = () => import('/assets/js/admin-online.js?v=2fb6ffed')
+  window.loadOnlineStudents = () => import('/assets/js/admin-online.js?v=0d2ac3e6')
     .then(m => m.loadOnlineStudents({ token: () => auth.currentUser.getIdToken(), config: FIREBASE_CONFIG, uid: auth.currentUser.uid }))
     .catch(e => { const n = $('onaNotice'); if (n) { n.className = 'oar-msg err'; n.textContent = 'Could not open Online Students: ' + e.message; } });
 

@@ -60,6 +60,7 @@ const shots = path.join(__dirname, 'artifacts', 'logout-back'); fs.mkdirSync(sho
         const onDash = await page.locator('#sidebar [data-section]').count();
         await page.screenshot({ path: path.join(shots, role + '-' + width + '-after-back.png') });
         assert.equal(at.pathname, '/', role + ' ' + width + ': Back after sign-out goes to the homepage (was ' + at.pathname + ')');
+        assert.equal(await page.locator('#tnc-splash:visible').count(), 0, role + ': no launch screen when coming back to the homepage');
         assert.equal(onDash, 0, role + ' ' + width + ': the dashboard is not shown after Back');
         // Forward / Back again never reopen a signed-in dashboard.
         await page.goBack(); await page.waitForTimeout(500);

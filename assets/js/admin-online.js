@@ -185,6 +185,8 @@ function promosView() {
       <div class="full oar-forfield"><span class="oar-label">Only for (optional)</span><div id="onaPForBox"></div></div>
       <label>Works on<select id="onaPScope">${Object.entries(SCOPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
       <label>How many uses in total<input id="onaPMax" type="number" min="0" max="10000" value="1" inputmode="numeric"><small class="oar-help">1 = a single student. 0 = no limit.</small></label>
+      <label>Covers up to ₹ (optional)<input id="onaPMaxValue" type="number" min="0" max="100000" inputmode="numeric" placeholder="e.g. 399"><small class="oar-help">Bigger purchases are refused. Empty = any price.</small></label>
+      <label>Up to chapters (custom tests)<input id="onaPMaxCh" type="number" min="0" max="40" inputmode="numeric" placeholder="e.g. 2"><small class="oar-help">A cart with more chapters is refused. Empty = any.</small></label>
       <label>Expires on (optional)<input id="onaPExp" type="date"></label>
       <label class="full">Note (optional)<input id="onaPNote" maxlength="120" placeholder="e.g. Physics chapter 3 · paid by cash"></label>
       <label class="full" style="flex-direction:row;align-items:center;gap:8px"><input id="onaPOnce" type="checkbox" checked style="width:auto;min-height:0"> Each student can use it only once</label>
@@ -195,7 +197,7 @@ function promosView() {
       const used = (data.redemptionsBy[p.code] || []).length || Number(p.uses || 0), max = Number(p.maxUses || 0);
       const expired = p.expiresAt && Date.parse(p.expiresAt) < Date.now(), full = max > 0 && used >= max;
       const state = p.active === false ? ['Off', ''] : expired ? ['Expired', 'warn'] : full ? ['Used up', 'warn'] : ['Active', 'ok'];
-      return `<article class="oar-row"><div class="oar-who"><strong style="letter-spacing:.06em">${esc(p.code)}</strong><small>${esc(SCOPES[p.scope] || 'Any test or module')}${p.oncePerStudent === false ? '' : ' · once per student'}${p.expiresAt ? ' · until ' + esc(date(p.expiresAt)) : ''}</small>${p.forUid ? `<small class="oar-forline">For ${esc(forLine({ name: p.forName, onlineId: p.forOnlineId, class: p.forClass }))}</small>` : '<small>Anyone with the code</small>'}${p.note ? `<small>${esc(p.note)}</small>` : ''}</div>
+      return `<article class="oar-row"><div class="oar-who"><strong style="letter-spacing:.06em">${esc(p.code)}</strong><small>${esc(SCOPES[p.scope] || 'Any test or module')}${p.oncePerStudent === false ? '' : ' · once per student'}${p.expiresAt ? ' · until ' + esc(date(p.expiresAt)) : ''}</small>${Number(p.maxValueInr) || Number(p.maxChapters) ? `<small class="oar-forline">Covers ${[Number(p.maxValueInr) ? 'up to ₹' + Number(p.maxValueInr) : '', Number(p.maxChapters) ? 'up to ' + Number(p.maxChapters) + ' chapter' + (Number(p.maxChapters) === 1 ? '' : 's') : ''].filter(Boolean).join(' · ')}</small>` : ''}${p.forUid ? `<small class="oar-forline">For ${esc(forLine({ name: p.forName, onlineId: p.forOnlineId, class: p.forClass }))}</small>` : '<small>Anyone with the code</small>'}${p.note ? `<small>${esc(p.note)}</small>` : ''}</div>
         <div class="oar-meta"><span class="oar-chip ${state[1]}">${state[0]}</span><span class="oar-chip">${used} / ${max || '∞'} used</span></div>
         <div class="oar-actions">${used ? `<button type="button" class="oar-btn" data-promo-uses="${esc(p.code)}">Who used it</button>` : ''}<button type="button" class="oar-btn" data-promo-copy="${esc(p.code)}">Copy</button><button type="button" class="oar-btn" data-promo-toggle="${esc(p.code)}">${p.active === false ? 'Turn on' : 'Turn off'}</button></div></article>`;
     }).join('') : '<div class="oar-empty"><strong>No promo codes yet</strong>Create one above and send it to a student. It makes that purchase ₹0.</div>'}</div>`;
@@ -209,6 +211,10 @@ async function createPromo() {
   const code = $('onaPCode').value.trim().toUpperCase(), max = parseInt($('onaPMax').value || '0', 10), exp = $('onaPExp').value;
   if (!/^[A-Z0-9]{4,20}$/.test(code)) return say('Use 4–20 capital letters or digits, no spaces.', 'err');
   if (!(max >= 0 && max <= 10000)) return say('Uses must be between 0 and 10000.', 'err');
+  const maxValue = parseInt($('onaPMaxValue').value || '0', 10), maxCh = parseInt($('onaPMaxCh').value || '0', 10);
+  if (!(maxValue >= 0 && maxValue <= 100000)) return say('“Covers up to ₹” must be between 0 and 100000.', 'err');
+  if (!(maxCh >= 0 && maxCh <= 40)) return say('“Up to chapters” must be between 0 and 40.', 'err');
+  if (maxCh === 1) return say('Custom tests need at least 2 chapters per subject, so use 2 or more (or leave it empty).', 'err');
   if (data.promos.some(p => p.code === code)) return say('That code already exists. Pick another.', 'err');
   if ($('onaPFor') && $('onaPFor').value.trim()) return say('Tap a student in the list to lock the code to them, or clear the search.', 'err');
   const who = promoFor;
@@ -218,8 +224,9 @@ async function createPromo() {
     await rest(`promoCodes/${code}`, 'PATCH', { code: s(code), scope: s($('onaPScope').value), maxUses: { integerValue: String(max) }, uses: { integerValue: '0' },
       oncePerStudent: { booleanValue: $('onaPOnce').checked }, expiresAt: s(exp ? new Date(exp + 'T23:59:59+05:30').toISOString() : ''), note: s($('onaPNote').value.trim()),
       active: { booleanValue: true }, createdAt: s(now), createdBy: s(ctx.uid || ''),
+      maxValueInr: { integerValue: String(maxValue) }, maxChapters: { integerValue: String(maxCh) },
       ...(who ? { forUid: s(who.id), forName: s(who.name || ''), forOnlineId: s(who.onlineId || ''), forClass: s(String(who.class || '')) } : {}) }, '&currentDocument.exists=false');
-    data.promos.unshift({ code, scope: $('onaPScope').value, maxUses: max, uses: 0, oncePerStudent: $('onaPOnce').checked, expiresAt: exp ? new Date(exp + 'T23:59:59+05:30').toISOString() : '', note: $('onaPNote').value.trim(), active: true, createdAt: now,
+    data.promos.unshift({ code, scope: $('onaPScope').value, maxUses: max, uses: 0, oncePerStudent: $('onaPOnce').checked, expiresAt: exp ? new Date(exp + 'T23:59:59+05:30').toISOString() : '', note: $('onaPNote').value.trim(), active: true, createdAt: now, maxValueInr: maxValue, maxChapters: maxCh,
       ...(who ? { forUid: who.id, forName: who.name || '', forOnlineId: who.onlineId || '', forClass: String(who.class || '') } : {}) });
     promoFor = null; promosView();
     $('onaPMsg').className = 'oar-msg ok'; $('onaPMsg').textContent = who ? `Created ${code} for ${who.name || 'the student'}. Only this student can use it — copy it and send it.` : `Created ${code}. Copy it and send it to the student.`;

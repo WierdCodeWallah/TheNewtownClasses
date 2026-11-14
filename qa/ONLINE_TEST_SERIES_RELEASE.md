@@ -1,7 +1,18 @@
 # Online Test Series (all-India) — release notes
 
-Updated 2026-11-12. Code and local checks only; Razorpay setup, deployment and a
+Updated 2026-11-15. Code and local checks only; Razorpay setup, deployment and a
 signed-in pilot on real phones are still required.
+
+Reliability fixes on 15 November: logout/account changes discard old refreshes;
+checkout orders are reserved atomically per buyer/purchase; racing payment
+confirmations reconcile both payment records and flag duplicates; custom-paper
+publication is atomic and safe to retry after a failed or lost response.
+Deploy `online-series.js`, `_online.js`, `admin-desk.js`, the online client and
+their versioned HTML together. The existing rules already protect the new
+server-only `onlineOrderReservations` collection. No data migration is needed.
+See `GO_LIVE_REVIEW_2026-11-15.md` for validation and remaining live checks.
+The software-checking marketing wording remains unchanged by request; online
+papers still use manual teacher checking.
 
 ## What students get — `/test-series`
 
@@ -72,13 +83,17 @@ any count 1–52 and any price can be set).
   one purchase **₹0** and unlocks it at once — no Razorpay needed. TNC students don't see it on
   chapter-wise tests or full mocks, which are already free for them.
 - While Razorpay is not connected, the Pay button is replaced by a **contact card**: Call
-  +91 98744 61218 or WhatsApp (pre-filled with the test name, class and the student's ID).
+  +91 99034 61361 or WhatsApp (pre-filled with the test name, class and the student's ID).
   Send them a code from admin and they unlock it themselves.
 - **Admin → Online Students → Promo codes**: create a code (random suggestion or your own,
   4–20 capital letters/digits), choose what it works on (any / chapter-wise / full mocks /
   custom modules / mock packs), total uses (1 = one student, 0 = no limit), once per student, optional
   expiry and a note. Turn codes off any time; *Who used it* lists every redemption (student,
   ID, what it unlocked, date, amount saved).
+- **Limits (optional)**: *Covers up to ₹* (e.g. 399) and *Up to chapters* (custom tests, e.g. 2).
+  A bigger purchase is refused with a clear message ("This code covers up to 2 chapters. Your cart
+  has 4 — remove 2 to use it" / "covers up to ₹399. This purchase is ₹499") and nothing is used up.
+  The cart re-checks an applied code when chapters are added, and the server checks again at order time.
 - **Only for (optional)**: search a Google student by name, ID or mobile and lock the code to them
   (or open a student's details → **Give a promo code**). The list shows "For <name> · <ID>". If the
   code is shared, anyone else is told *This promo code was made for another student* and nothing is

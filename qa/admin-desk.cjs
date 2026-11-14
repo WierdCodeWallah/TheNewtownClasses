@@ -44,7 +44,7 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
         // Mock pack: mock 1 opens in 2 days (to upload now), mock 2 in 9 days (not yet).
         packages: [{ id: 'pkphy8', title: 'Physics · 8 weekly mocks', class: '10', board: '', subject: 'Physics', mocks: 8, priceInr: 3199, active: true, description: '',
           schedule: Array.from({ length: 8 }, (_, i) => new Date(Math.floor((Date.now() + 2 * 86400000) / 60000) * 60000 + i * 7 * 86400000).toISOString()) }],
-        onlineStudents: [{ id: 'riya', uid: 'riya', name: 'Riya Sharma', onlineId: 'TNC-ON-RIYA', class: '10', board: 'CBSE', phone: '9874461218', email: 'riya@example.test', enrolled: false, profileComplete: true, createdAt: '2026-11-01T10:00:00Z' },
+        onlineStudents: [{ id: 'riya', uid: 'riya', name: 'Riya Sharma', onlineId: 'TNC-ON-RIYA', class: '10', board: 'CBSE', phone: '9800012345', email: 'riya@example.test', enrolled: false, profileComplete: true, createdAt: '2026-11-01T10:00:00Z' },
           { id: 'tnc9', uid: 'tnc9', name: 'Riyaan TNC', onlineId: 'NTC-9', class: '10', enrolled: true, profileComplete: true, createdAt: '2026-11-01T10:00:00Z' }],
         packTests: [], joined: [{ id: 'pkg_pkphy8__stu1', uid: 'stu1', testId: 'pkg_pkphy8' }, { id: 'pkg_pkphy8__stu2', uid: 'stu2', testId: 'pkg_pkphy8' }, { id: 'pkg_pkphy8__stu3', uid: 'stu3', testId: 'pkg_pkphy8' }] };
       const { page, errors } = await openPortal(browser, origin, 'admin', 'admin-panel.html', width, ctx);
@@ -144,14 +144,25 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
       await page.click('#dkrSend'); assert.match(await page.textContent('#dkMsg'), /Choose the teacher/);
       await page.selectOption('#dkrTeacher', 'teacher-demo'); await page.fill('#dkrMarks', '30'); await page.fill('#dkrTime', '75'); await page.setInputFiles('#dkrFile', paperPdf);
       if (width === 390) await shot(page, 'desk-09-request-390');
+      if (width === 390) {
+        ctx.failCustomCommit = true;
+        await page.click('#dkrSend'); await page.waitForSelector('#dkMsg.bad');
+        assert.equal(ctx.patches.filter(p => /^offlineTests\/otc/.test(p.path)).length, 0, 'failed atomic publication leaves no visible paper');
+      }
+      if (width === 1440) {
+        ctx.loseCustomReply = true;
+        await page.click('#dkrSend'); await page.waitForSelector('#dkMsg.bad');
+        assert.equal(ctx.patches.filter(p => /^offlineTests\/otc/.test(p.path)).length, 1, 'commit succeeded despite lost response');
+      }
       await page.click('#dkrSend'); await page.waitForSelector('#dkSheet', { state: 'hidden' });
+      assert.equal(ctx.patches.filter(p => /^offlineTests\/otc/.test(p.path)).length, 1, 'retry never duplicates or overwrites a custom paper');
       const custom = ctx.patches.find(p => /^offlineTests\/otc/.test(p.path));
       assert.ok(custom, 'custom paper published'); assert.equal(custom.body.fields.kind.stringValue, 'custom'); assert.equal(custom.body.fields.forUid.stringValue, 'stu5');
       assert.equal(custom.body.fields.class.stringValue, '11'); assert.match(custom.body.fields.module.stringValue, /Laws of Motion; Gravitation; Oscillations/);
       const marked = ctx.patches.find(p => p.path === 'moduleRequests/order_Mod1_physics');
       assert.equal(marked.body.fields.status.stringValue, 'ready'); assert.equal(marked.body.fields.testId.stringValue, custom.path.split('/')[1]);
       assert.equal(await page.textContent('#dkN-requests'), '1'); assert.equal(await page.getAttribute(badge, 'data-count'), String(pendingTotal), 'count drops once the paper is sent');
-      assert.match(await page.textContent('#dkToast'), /Paper sent to Student 05/);
+      assert.match(await page.textContent('#dkToast'), /Paper sent to Student 05|already been sent/);
 
       // Packages: the pack, its weekly schedule, who joined; upload mock 1; create a new pack; pause it.
       await page.click('[data-dk-tab=packages]');
@@ -231,6 +242,7 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
         await page.fill('#onaPCode', 'riya chapter'); await page.click('#onaPCreate');
         assert.match(await page.textContent('#onaPMsg'), /capital letters or digits/);
         await page.fill('#onaPCode', 'tncriya1'); await page.selectOption('#onaPScope', 'chapter'); await page.fill('#onaPNote', 'Physics chapter 3');
+        await page.fill('#onaPMaxValue', '399'); await page.fill('#onaPMaxCh', '2');
         // Only for: lock the code to one Google student (TNC students are not offered).
         await page.fill('#onaPFor', 'riya');
         assert.equal(await page.locator('#onaPForList [data-pfor]').count(), 2, 'Google and TNC students are offered (TNC students pay for custom tests and packs)');
@@ -241,6 +253,8 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
         const made = ctx.patches.find(p => p.path === 'promoCodes/TNCRIYA1');
         assert.ok(await page.locator('#onaPScope option[value=package]').count(), 'mock-pack promo scope offered');
         assert.ok(made, 'code saved'); assert.equal(made.body.fields.scope.stringValue, 'chapter');
+        assert.equal(made.body.fields.maxValueInr.integerValue, '399'); assert.equal(made.body.fields.maxChapters.integerValue, '2');
+        assert.match(await page.textContent('#onaPList'), /Covers up to ₹399 · up to 2 chapters/);
         assert.equal(made.body.fields.forUid.stringValue, 'riya'); assert.equal(made.body.fields.forOnlineId.stringValue, 'TNC-ON-RIYA');
         assert.match(await page.textContent('#onaPMsg'), /for Riya Sharma\. Only this student can use it/); assert.equal(made.body.fields.maxUses.integerValue, '1'); assert.equal(made.body.fields.uses.integerValue, '0');
         assert.match(await page.textContent('#onaPList'), /TNCRIYA1[\s\S]*Chapter-wise tests[\s\S]*For Riya Sharma · TNC-ON-RIYA · Class 10[\s\S]*Active[\s\S]*0 \/ 1 used/);
