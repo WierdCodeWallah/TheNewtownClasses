@@ -15,6 +15,13 @@
 const https  = require('https');
 const crypto = require('crypto');
 
+// One kept-alive connection pool per warm function instance: repeat calls to
+// Firestore / Google / Razorpay skip a fresh TLS handshake (faster under load).
+const AGENT = new https.Agent({ keepAlive: true, maxSockets: 32 });
+// Never hang: if an upstream service stalls, fail in 8s with a clear error
+// instead of waiting for the platform to kill the function.
+const UPSTREAM_TIMEOUT_MS = 8000;
+
 // ── Tiny JSON-aware HTTPS wrapper. No external deps so cold-start stays fast. ──
 function request(hostname, path, method, headers, body) {
   return new Promise((resolve, reject) => {
@@ -23,7 +30,7 @@ function request(hostname, path, method, headers, body) {
       ? (headers['Content-Type'] === 'application/x-www-form-urlencoded' ? body : JSON.stringify(body))
       : null;
     if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
-    const req = https.request({ hostname, path, method, headers }, res => {
+    const req = https.request({ hostname, path, method, headers, agent: AGENT }, res => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
@@ -33,6 +40,7 @@ function request(hostname, path, method, headers, body) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(Object.assign(new Error('The server is busy right now. Please try again.'), { status: 503, upstream: hostname })));
     if (payload) req.write(payload);
     req.end();
   });

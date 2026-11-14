@@ -9,7 +9,7 @@ const checks = String.raw`
    if(role==='admin') {
     assert.equal(await page.locator('#newClass').evaluate(el=>getComputedStyle(el.closest('.app-input-field')).opacity),'1','disabled placeholder option does not dim enabled select');
     await page.getByRole('button',{name:'More',exact:true}).click();
-    await page.locator('#sidebar [data-section="add-student"]').click();
+    await page.locator('#sidebar [data-section="all-students"]').click();await page.getByRole('tab',{name:'Add student',exact:true}).click();
    } else if(role==='teacher') {
     await page.getByRole('tab',{name:'Create test',exact:true}).click();
    }

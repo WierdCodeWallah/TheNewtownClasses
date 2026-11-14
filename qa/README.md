@@ -140,3 +140,19 @@ teacher review desk shows queue counts, filters pending scripts and drills retur
 scripts by class/subject/chapter; teacher tests show submission counts. It also publishes a test as a chosen teacher (writes carry that teacher, plus a
 private admin audit entry) and checks/returns a script in a chosen teacher's name.
 Checked at 320, 390, 768 and 1440px with fixtures only.
+
+`admin-desk.cjs` checks Admin → Test Desk, which replaced the admin Offline Test Series
+section: blinking count of waiting scripts, To check (oldest first, paged, search, filters),
+check and send back, Checked, Students (their scripts, permanent delete with typed ID),
+Papers (close, publish). `offline-admin.cjs` now covers the teacher review desk only.
+Add Student, Bulk Import and Reset Password are tabs inside Admin → Students.
+
+`online-rules.cjs` replays the /test-series portal's reads against the real `firestore.rules`
+on a local emulator (port 8189, project `demo-online`): both kinds of student can read their
+tests, attempts, results, leaderboard and custom requests; nothing private leaks; students cannot
+write unlocks, results or requests; admins can mark a custom request ready.
+
+- `node qa/online-stress.cjs` — Online Test Series stress check on phone sizes (rapid taps, payments, Back, offline, injection, 320 px).
+- `node qa/admin-stress.cjs` — admin panel stress check: every section at 320/390/1440 px, rapid switching, double taps, phone Back on sheets, injected names from teacher data.
+- `node qa/logout-back.cjs` — student, teacher and admin portals: Sign out → login → Back lands on the homepage, never the dashboard (390 and 1440 px).
+- `node qa/online-concurrency.cjs` — hundreds of simultaneous requests on payments, promo codes, free mocks, packs and submissions: nothing granted twice.

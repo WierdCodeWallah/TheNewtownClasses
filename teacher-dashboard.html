@@ -45,9 +45,10 @@
   <script src="/assets/js/offline-policy.js?v=6a27f8b3"></script>
   <script src="/assets/js/offline-files.js?v=a934e5f6"></script>
   <script src="/assets/js/ncert-chapters.js?v=336bdcee"></script>
-  <script src="/assets/js/portal-shell.js?v=226dabc7"></script>
-  <script src="/assets/js/offline-records.js?v=48e61409"></script>
-  <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
+  <script src="/assets/js/portal-shell.js?v=6724bb1a"></script>
+  <script src="/assets/js/offline-records.js?v=3c2e429b"></script>
+  <script src="/assets/js/online-policy.js?v=53dfcaa0"></script>
+  <script src="/assets/js/portal-logout.js?v=998a5961"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
@@ -812,6 +813,20 @@
             <option value="">All boards</option>
             <option value="CBSE">CBSE only</option>
             <option value="ICSE">ICSE / ISC only</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="otSeries">Test series *</label>
+          <select id="otSeries" onchange="otSeriesChanged()">
+            <option value="offline">Offline series · enrolled students</option>
+            <option value="online">Online series · all-India students</option>
+          </select>
+        </div>
+        <div class="field" id="otKindWrap" style="display:none;">
+          <label for="otKind">Online test type</label>
+          <select id="otKind">
+            <option value="chapter">Chapter-wise test · ₹199</option>
+            <option value="mock">Full mock test · ₹499</option>
           </select>
         </div>
         <div class="field">
@@ -3900,12 +3915,24 @@
     list.innerHTML = chapters.map(t => `<option value="${otEsc(t)}"></option>`).join('');
   };
 
+  // Online series tests are teacher-checked: chapter-wise ₹199, full mock ₹499
+  // (each student also gets one free full mock on a subject they choose).
+  window.otSeriesChanged = function () {
+    const online = $('otSeries').value === 'online';
+    $('otKindWrap').style.display = online ? '' : 'none';
+    const mode = $('otGradingMode');
+    if (online) mode.value = 'teacher';
+    Array.from(mode.options).forEach(o => { if (o.value === 'ai') o.disabled = online; });
+  };
+
   window.otPublish = async function () {
     const v = id => ($(id)?.value || '').trim();
+    const series = v('otSeries') === 'online' ? 'online' : 'offline', isFree = false;
+    const kind = v('otKind') === 'mock' ? 'mock' : 'chapter';
     const cls = v('otClass'), subject = v('otSubject'), chapter = v('otChapter'), testName = v('otName');
     const totalMarks = parseFloat(v('otMarks')), durationMin = parseInt(v('otDuration'), 10);
     const qFile = $('otQuestionPdf').files[0], aFile = $('otAnswerPdf').files[0];
-    const gradingMode = v('otGradingMode') || 'teacher';
+    const gradingMode = series === 'online' ? 'teacher' : (v('otGradingMode') || 'teacher');
     if (!cls || !subject || !chapter || !testName) return showMsg('otMsg', 'error', 'Fill class, subject, chapter and test name.');
     if (!(totalMarks > 0 && totalMarks <= 500) || !(durationMin >= 5 && durationMin <= 600)) return showMsg('otMsg', 'error', 'Enter marks from 1 to 500 and a time from 5 to 600 minutes.');
     const isPdf = f => f && (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
@@ -3932,11 +3959,12 @@
         totalMarks: { doubleValue: totalMarks }, durationMin: { integerValue: String(durationMin) },
         instructions: { stringValue: v('otInstructions') },
         gradingMode: { stringValue: gradingMode },
+        series: { stringValue: series }, isFree: { booleanValue: isFree }, ...(series === 'online' ? { kind: { stringValue: kind } } : {}),
         teacherUid: { stringValue: user.uid }, teacherName: { stringValue: teacherName },
         isActive: { booleanValue: true }, createdAt: { stringValue: now }
       });
       ['otName', 'otModule', 'otInstructions', 'otQuestionPdf', 'otAnswerPdf'].forEach(i => { $(i).value = ''; });
-      showMsg('otMsg', 'success', `✅ "${testName}" is live for Class ${cls} ${subject} → ${chapter}.`);
+      showMsg('otMsg', 'success', `✅ "${testName}" is live for Class ${cls} ${subject} → ${chapter}${series === 'online' ? ` · Online ${kind === 'mock' ? 'full mock' : 'chapter-wise'} test (${isFree ? 'free' : kind === 'mock' ? '₹499' : '₹199'})` : ''}.`);
       otLoadMyTests();
     } catch (e) {
       showMsg('otMsg', 'error', 'Error: ' + e.message);
@@ -3961,20 +3989,22 @@
         board: f.board?.stringValue || '', subject: f.subject?.stringValue || '', chapter: f.chapter?.stringValue || '', module: f.module?.stringValue || 'Full chapter',
         totalMarks: parseFloat(f.totalMarks?.doubleValue || f.totalMarks?.integerValue || '0'),
         durationMin: parseInt(f.durationMin?.integerValue || '0', 10), isActive: f.isActive?.booleanValue !== false,
-        teacherUid: f.teacherUid?.stringValue || '', createdAt: f.createdAt?.stringValue || ''
+        teacherUid: f.teacherUid?.stringValue || '', createdAt: f.createdAt?.stringValue || '',
+        series: f.series?.stringValue === 'online' ? 'Online' : 'Offline', isFree: f.isFree?.booleanValue === true,
+        kind: NTCOnlinePolicy.kindOf({ kind: f.kind?.stringValue, chapter: f.chapter?.stringValue, testName: f.testName?.stringValue })
       }; }).filter(d => d.teacherUid === user.uid).map(d => ({ ...d, status: d.isActive ? 'Live' : 'Closed' }))
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       if (!docs.length) { wrap.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#90a4ae;">No offline tests yet — publish one above.</div>'; return; }
       // Class → Subject → Chapter, then Module / Part and Live / Closed filters.
       PortalUI.collection({ host: wrap, key: 'offline-tests', items: docs, title: 'Your offline tests', eyebrow: 'CLASS → SUBJECT → CHAPTER → PART',
-        drill: ['class', 'subject', 'chapter'], autoSingle: true, facets: ['class', 'board', 'subject', 'chapter', 'module', 'status'], alwaysShow: ['status'],
-        labels: { module: 'Module / Part', status: 'Status' }, plurals: { module: 'parts', status: 'statuses' }, unit: ['test', 'tests'],
+        drill: ['class', 'subject', 'chapter'], autoSingle: true, facets: ['class', 'board', 'subject', 'chapter', 'module', 'series', 'status'], alwaysShow: ['status'],
+        labels: { module: 'Module / Part', series: 'Series', status: 'Status' }, plurals: { module: 'parts', status: 'statuses' }, unit: ['test', 'tests'],
         searchLabel: 'Search test name, chapter or part', pageSize: matchMedia('(max-width:600px)').matches ? 5 : 10,
         render: visible => {
           wrap.innerHTML = '<div class="ota-list">' + visible.map(d => { const c = perTest[d.id] || { total: 0, pending: 0 }; return `<div class="ota-row">
         <div><h4>${otEsc(d.testName)}</h4>
           <p>Class ${otEsc(d.class)}${d.board ? ' · ' + otEsc(d.board) : ''} · ${otEsc(d.subject)} · ${otEsc(d.chapter)} · ${otEsc(d.module)} · ${d.totalMarks} marks · ${d.durationMin} min ·
-          <b style="color:${d.isActive ? '#059669' : '#94a3b8'}">${d.isActive ? 'Live' : 'Closed'}</b></p>
+          <b style="color:${d.isActive ? '#059669' : '#94a3b8'}">${d.isActive ? 'Live' : 'Closed'}</b>${d.series === 'Online' ? ` · <b style="color:#1a56db">Online · ${d.kind === 'mock' ? 'Full mock' : 'Chapter-wise'} · ${d.isFree ? 'Free' : '₹' + NTCOnlinePolicy.priceFor(d)}</b>` : ''}</p>
           <p><b>${c.total}</b> submitted${c.pending ? ` · <b style="color:#b45309">${c.pending} to check</b>` : ''} ·
              ${keyMap[d.id]?.q ? `<a href="${otEsc(keyMap[d.id].q)}" target="_blank" rel="noopener">Question paper ↗</a>` : 'No question paper'} ·
              ${keyMap[d.id]?.a ? `<a href="${otEsc(keyMap[d.id].a)}" target="_blank" rel="noopener">Answer key ↗</a>` : 'No answer key'}</p></div>
@@ -4058,7 +4088,7 @@
       module: r.module, test: r.testName, studentName: r.studentName, studentId: r.studentId, section: r.studentSection }));
     PortalUI.collection({ host: list, key: 'ota-' + _otaFilter, items, title: { pending: 'Scripts to check', checking: 'Scripts being checked', approved: 'Returned scripts' }[_otaFilter],
       eyebrow: _otaFilter === 'approved' ? 'CLASS → SUBJECT → CHAPTER → PART' : 'OLDEST FIRST', drill: _otaFilter === 'approved' ? ['class', 'subject', 'chapter'] : false, autoSingle: true,
-      facets: ['class', 'subject', 'chapter', 'module', 'test'], labels: { module: 'Module / Part', test: 'Test' }, plurals: { module: 'parts' }, alwaysShow: ['test'],
+      facets: ['class', 'subject', 'chapter', 'module', 'test', 'series'], labels: { module: 'Module / Part', test: 'Test', series: 'Series' }, plurals: { module: 'parts' }, alwaysShow: ['test'],
       unit: ['script', 'scripts'], searchLabel: 'Search student name, ID or test', pageSize: matchMedia('(max-width:600px)').matches ? 5 : 10,
       render: visible => otaRenderRows(list, visible.map(i => byId.get(i.id))) });
   }

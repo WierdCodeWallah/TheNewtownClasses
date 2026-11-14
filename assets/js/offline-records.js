@@ -9,7 +9,7 @@
   const FIELDS = ['uid', 'testId', 'studentName', 'studentId', 'studentClass', 'studentBoard', 'studentSection', 'board',
     'subject', 'chapter', 'module', 'testName', 'totalMarks', 'status', 'reviewMode', 'score', 'aiScore', 'aiMax',
     'finalReport', 'teacherName', 'teacherUid', 'approvedByName', 'teacherRemark', 'submittedAt', 'approvedAt',
-    'reviewDueAt', 'lateByMin', 'scriptPdfUrl', 'checkedScriptUrl'];
+    'reviewDueAt', 'lateByMin', 'scriptPdfUrl', 'checkedScriptUrl', 'series'];
   const STAGES = { pending: 'Awaiting review', checking: 'Being checked', returned: 'Returned' };
   const subjectName = value => (root && root.PortalUI && root.PortalUI.subject) ? root.PortalUI.subject(value) : String(value || 'General').trim();
   const classNumber = c => { const m = String(c || '').match(/\d+/); return m ? parseInt(m[0], 10) : 9999; };
@@ -41,7 +41,7 @@
       studentName: s('studentName') || 'Student', studentId: s('studentId'), section: s('studentSection'),
       class: s('studentClass') || 'Unassigned', board: s('studentBoard') || s('board') || '',
       subject: subjectName(s('subject')), chapter: s('chapter') || 'General', module: s('module') || 'Full chapter',
-      test: s('testName') || 'Test', totalMarks, score,
+      test: s('testName') || 'Test', totalMarks, score, series: s('series') === 'online' ? 'Online' : 'Offline',
       pct: score != null && totalMarks > 0 ? Math.round(score / totalMarks * 100) : null,
       status, stage, stageLabel: STAGES[stage], reviewMode: s('reviewMode') || 'ai',
       teacher: s('approvedByName') || s('teacherName'), assignedTeacher: s('teacherName'), assignedTeacherUid: s('teacherUid'), remark: s('teacherRemark'),
@@ -53,7 +53,7 @@
 
   // Search/filter index: only human-readable fields, never file links.
   function item(r) {
-    return { id: r.id, class: r.class, board: r.board, subject: r.subject, chapter: r.chapter, module: r.module, test: r.test,
+    return { id: r.id, class: r.class, board: r.board, subject: r.subject, chapter: r.chapter, module: r.module, test: r.test, series: r.series,
       stage: r.stageLabel, studentName: r.studentName, studentId: r.studentId, section: r.section, teacher: r.teacher };
   }
 

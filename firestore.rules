@@ -392,7 +392,9 @@ service cloud.firestore {
     }
     match /offlineAttempts/{id} {
       allow get:    if isSignedIn() && (isStaff() || resource.data.uid == request.auth.uid);
-      allow list:   if isStaff();
+      // Students may list only their own attempts (the online portal loads
+      // them in one query that must filter uid == their own).
+      allow list:   if isStaff() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow create, delete: if false;
       allow update: if isStaff() && onlyChanges(['status','approvedAt'])
                     && get(/databases/$(database)/documents/offlineReports/$(id)).data.get('reviewMode', 'ai') != 'teacher';
@@ -408,6 +410,93 @@ service cloud.firestore {
                     && resource.data.get('reviewMode', 'ai') != 'teacher'
                     && onlyChanges(['finalReport','status','approvedAt','approvedByUid','approvedByName'])
                     && request.resource.data.status in ['ai_checked','approved'];
+    }
+
+    // ─── Online Test Series (all-India portal at /test-series) ──────
+    // Online tests are offlineTests with series 'online' (same teacher
+    // workflow). Everything below is written ONLY by the online-series,
+    // offline-test and razorpay-webhook functions (service account), so a
+    // student can never unlock a test, edit marks or change their rank.
+    //
+    // onlineStudents/{uid}      onboarding form (name, phone, address,
+    //                           school, guardian…). Private: the student and
+    //                           admins only — teachers don't need contact data.
+    //   /results/{attemptId}    checked scripts returned by the teacher
+    //   /history/{attemptId}    every submission (powers "tests given")
+    // onlinePurchases/{testId}__{uid}  a paid unlock; the student may list
+    //                           their own (query must filter uid == theirs).
+    // onlineOrders/{orderId}    Razorpay orders and payment ids: admin only.
+    // onlineLeaderboard/{key}   per class + subject: count, top three short
+    //                           names, anonymous score list. Any signed-in user.
+    match /onlineStudents/{uid} {
+      allow get:   if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list:  if isAdmin();
+      allow write: if false;
+      match /results/{id} {
+        allow read:  if isSignedIn() && (request.auth.uid == uid || isStaff());
+        allow write: if false;
+      }
+      match /history/{id} {
+        allow read:  if isSignedIn() && (request.auth.uid == uid || isStaff());
+        allow write: if false;
+      }
+    }
+    match /onlinePurchases/{id} {
+      allow get:   if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list:  if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow write: if false;
+    }
+    // moduleRequests/{orderId}_{subject}: a Custom module test the team has to
+    // make a paper for. Created by the server after payment; the student may
+    // read their own; admins see all and mark one ready when the paper is up.
+    match /moduleRequests/{id} {
+      allow get:    if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
+      allow list:   if isStaff() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create, delete: if false;
+      allow update: if isAdmin() && onlyChanges(['status', 'testId', 'readyAt', 'teacherName'])
+                    && request.resource.data.status == 'ready';
+    }
+    // mockPackages/{id}: mock packs (weekly full-syllabus mocks at a fixed day
+    // and time). Students read them to buy; only admins create or change them.
+    // Joining is server-written (onlinePurchases/pkg_{id}__{uid}).
+    match /mockPackages/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    // promoCodes/{CODE}: 100%-off codes admins create for Google students (until
+    // and alongside Razorpay). Students never read them; the online-series
+    // function checks a code and counts its uses with the service account.
+    match /promoCodes/{code} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && code.matches('^[A-Z0-9]{4,20}$')
+                    && request.resource.data.code == code
+                    && request.resource.data.uses == 0
+                    && request.resource.data.scope in ['all', 'chapter', 'mock', 'custom', 'package']
+                    && request.resource.data.maxUses is int && request.resource.data.maxUses >= 0
+                    && request.resource.data.active == true;
+      allow update: if isAdmin() && onlyChanges(['active', 'note', 'maxUses', 'expiresAt']);
+      allow delete: if false;
+    }
+    // promoRedemptions/{CODE}__{uid}__{target}: one use of a code. Server-written.
+    match /promoRedemptions/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    // onlineFreeClaims/{uid}: the student's one free full mock (which test,
+    // which subject). Server-written once; the student may read their own.
+    match /onlineFreeClaims/{uid} {
+      allow get:   if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list:  if isAdmin();
+      allow write: if false;
+    }
+    match /onlineOrders/{id} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+    match /onlineLeaderboard/{id} {
+      allow read:  if isSignedIn();
+      allow write: if false;
     }
 
     // ─── ncertIndex/{class}_{subject}  (published-chapter index) ────

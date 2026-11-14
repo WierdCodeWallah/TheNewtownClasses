@@ -29,7 +29,13 @@
     @media(prefers-reduced-motion:reduce){html:not(.ntc-styled)::before{animation:none}}
     @view-transition{navigation:auto}
   </style>
-  <script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
+  <script>
+  // HTML-escape for text and attributes; _js for values inside onclick='…' strings; _url allows http(s) links only.
+  window._h = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  window._js = v => window._h(String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' '));
+  window._url = v => /^https?:\/\//i.test(String(v || '').trim()) ? window._h(String(v).trim()) : '#';
+</script>
+<script>setTimeout(function(){document.documentElement.classList.add('ntc-styled')},4000);</script>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -531,13 +537,14 @@
 <!-- Shared role / content-type access rules -->
 <script src="/assets/js/content-access.js?v=f846bf50"></script>
 <script src="/assets/js/ncert-chapters.js?v=336bdcee"></script>
-<script src="/assets/js/portal-shell.js?v=226dabc7"></script>
+<script src="/assets/js/portal-shell.js?v=6724bb1a"></script>
 <!-- Offline Test Series records: file links, downloads, record helpers, AI report viewer -->
 <script src="/assets/js/uploadcare-config.js?v=8d3c4d5d"></script>
 <script src="/assets/js/offline-files.js?v=a934e5f6"></script>
-<script src="/assets/js/offline-records.js?v=48e61409"></script>
+<script src="/assets/js/offline-records.js?v=3c2e429b"></script>
+<script src="/assets/js/online-policy.js?v=53dfcaa0"></script>
 <script src="/assets/js/offline-report.js?v=d5022985"></script>
-<script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
+<script src="/assets/js/portal-logout.js?v=998a5961"></script>
   <!-- The portal stylesheets sit at the end of <body>; keep the page hidden until
        they load so it never flashes unstyled. The timer is a safety net. -->
   <noscript><style>html body{visibility:visible}</style></noscript>
@@ -581,22 +588,19 @@
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Students</div>
-      <div class="sidebar-item" data-section="add-student" onclick="ntcCall('switchAdminTab','add-student')">
-        <span class="icon">➕</span> Add Student
-      </div>
-      <div class="sidebar-item" data-section="bulk-import" onclick="ntcCall('switchAdminTab','bulk-import')">
-        <span class="icon">📥</span> Bulk Import
-      </div>
-      <div class="sidebar-item" data-section="reset-password" onclick="ntcCall('switchAdminTab','reset-password')">
-        <span class="icon">🔑</span> Reset Password
-      </div>
       <div class="sidebar-item" data-section="all-students" onclick="ntcCall('switchAdminTab','all-students')">
-        <span class="icon">📋</span> All Students
+        <span class="icon">📋</span> Students
+      </div>
+      <div class="sidebar-item" data-section="online-students" onclick="ntcCall('switchAdminTab','online-students')">
+        <span class="icon">🌐</span> Online Students
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-heading">Content &amp; Teaching</div>
+      <div class="sidebar-item" data-section="test-desk" onclick="ntcCall('switchAdminTab','test-desk')">
+        <span class="icon">📝</span> Test Desk <b class="desk-badge" data-desk-badge hidden></b>
+      </div>
       <div class="sidebar-item" data-section="upload-material" onclick="ntcCall('switchAdminTab','upload-material')">
         <span class="icon">📄</span> Upload Material
       </div>
@@ -608,9 +612,6 @@
       </div>
       <div class="sidebar-item" data-section="tests" onclick="ntcCall('switchAdminTab','tests')">
         <span class="icon">✏️</span> Class Tests
-      </div>
-      <div class="sidebar-item" data-section="offline-series" onclick="ntcCall('switchAdminTab','offline-series')">
-        <span class="icon">📄</span> Offline Test Series
       </div>
       <div class="sidebar-item" data-section="live-classes" onclick="ntcCall('switchAdminTab','live-classes')">
         <span class="icon">🔴</span> Live Classes
@@ -638,6 +639,23 @@
     <strong id="inquiryNoticeText"></strong><button type="button" id="inquiryNoticeOpen">View inquiries →</button>
   </div>
   <div id="inquiryAnnouncement" class="inquiry-sr-only" role="status" aria-live="polite"></div>
+  <div class="desk-notice" id="deskNotice" hidden role="status">
+    <span class="desk-dot" aria-hidden="true"></span><strong id="deskNoticeText"></strong><button type="button" id="deskNoticeOpen">Check now →</button>
+  </div>
+
+  <!-- ════════════════ TEST DESK (papers + answer scripts, online & offline) ════════════════ -->
+  <div class="tab-content" id="tab-test-desk">
+    <div class="dk" id="deskRoot"></div>
+    <div class="dk-sheet-back" id="dkSheet" hidden>
+      <div class="dk-sheet" role="dialog" aria-modal="true" aria-labelledby="dkSheetTitle">
+        <div class="dk-grip" aria-hidden="true"></div>
+        <div class="dk-sheet-head"><div><span class="dk-eyebrow" id="dkSheetKicker">Test Desk</span><h3 id="dkSheetTitle">Script</h3></div>
+          <button type="button" class="dk-sheet-close" id="dkSheetClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <div id="dkSheetBody"></div>
+      </div>
+    </div>
+    <div class="dk-toast" id="dkToast" role="status" aria-live="polite"></div>
+  </div>
 
   <div class="tab-content" id="tab-enquiries">
     <div class="card">
@@ -651,6 +669,34 @@
       <p id="inquiryCount" role="status"></p>
       <div id="inquiryList"><p class="inquiry-empty">Loading inquiries…</p></div>
       <div id="inquiryPagination" hidden><button type="button" id="inquiryPrev">Previous</button><span id="inquiryPage"></span><button type="button" id="inquiryNext">Next</button></div>
+    </div>
+  </div>
+
+  <!-- ════════════════ ONLINE STUDENTS (all-India test series) ════════════════ -->
+  <div class="tab-content" id="tab-online-students">
+    <div class="card">
+      <div class="oar-head">
+        <div><span class="oar-eyebrow">Online Test Series · all-India</span><h2>Online students</h2>
+          <p>Everyone who signed up at <a href="/test-series" target="_blank" rel="noopener">/test-series</a>: their details, unlocked tests, payments and promo codes. Scripts are checked in Test Desk.</p></div>
+        <div class="oar-actions"><button type="button" class="oar-btn" id="onaExport">⬇ Export CSV</button><button type="button" class="oar-btn" id="onaRefresh">↻ Refresh</button></div>
+      </div>
+      <div id="onaNotice" class="oar-msg" role="status" aria-live="polite"></div>
+      <div class="oar-kpis" id="onaKpis" aria-live="polite"></div>
+      <div class="oar-views" role="group" aria-label="Online students views">
+        <button type="button" class="oar-view" data-ona-view="students" aria-pressed="true">Students</button>
+        <button type="button" class="oar-view" data-ona-view="payments" aria-pressed="false">Payments</button>
+        <button type="button" class="oar-view" data-ona-view="promos" aria-pressed="false">Promo codes</button>
+      </div>
+      <div id="onaStudents" class="oar-list"><div class="oar-empty">Loading online students…</div></div>
+      <div id="onaPayments" class="oar-list" hidden></div>
+      <div id="onaPromos" hidden></div>
+    </div>
+    <div class="oar-modal" id="onaModal" hidden role="dialog" aria-modal="true" aria-labelledby="onaModalTitle">
+      <div class="oar-sheet">
+        <div class="oar-sheet-head"><div><span class="oar-eyebrow" id="onaModalKicker">Online student</span><h3 id="onaModalTitle">Student</h3></div>
+          <button type="button" class="oar-close" id="onaModalClose" aria-label="Close">×</button></div>
+        <div id="onaModalBody"></div>
+      </div>
     </div>
   </div>
 
@@ -678,12 +724,14 @@
       <div class="card-title">Your daily workspace</div>
       <p class="card-sub">Start with the task you need today.</p>
       <div class="admin-shortcut-grid">
+        <button type="button" data-admin-go="test-desk"><span>Test Desk <b class="desk-badge" data-desk-badge hidden></b></span><small>Papers &amp; answer scripts</small></button>
         <button type="button" data-admin-go="all-students"><span>Students</span><small>Find an account</small></button>
         <button type="button" data-admin-go="add-student"><span>Add student</span><small>Create an account</small></button>
         <button type="button" data-admin-go="teachers"><span>Teachers</span><small>Manage your team</small></button>
         <button type="button" data-admin-go="attendance"><span>Attendance</span><small>Register & history</small></button>
         <button type="button" data-admin-go="upload-material"><span>Study material</span><small>Browse & publish</small></button>
         <button type="button" data-admin-go="live-classes"><span>Live classes</span><small>View your schedule</small></button>
+        <button type="button" data-admin-go="online-students"><span>Online students</span><small>Sign-ups &amp; payments</small></button>
       </div>
     </div>
   </div>
@@ -1313,95 +1361,6 @@
   </div><!-- /tab-tests -->
 
   <!-- ════════════════ OFFLINE TEST SERIES RECORDS ════════════════ -->
-  <div class="tab-content" id="tab-offline-series">
-    <div class="card">
-      <div class="oar-head">
-        <div><span class="oar-eyebrow">Offline Test Series</span><h2>Student records</h2>
-          <p>Every submitted answer script, kept permanently. Find any record by class, subject, chapter and part, or search a student directly.</p></div>
-        <button type="button" class="oar-btn" onclick="ntcCall('loadOfflineRecords')">↻ Refresh</button>
-      </div>
-      <div id="oadNotice" class="oar-msg" role="status" aria-live="polite"></div>
-      <div class="oar-kpis" id="oadKpis" aria-live="polite"></div>
-      <div class="oar-views" role="group" aria-label="Offline Test Series views" id="oadViews">
-        <button type="button" class="oar-view" data-oad-view="records" aria-pressed="true">Records</button>
-        <button type="button" class="oar-view" data-oad-view="students" aria-pressed="false">Students</button>
-        <button type="button" class="oar-view" data-oad-view="matrix" aria-pressed="false">Class × Subject</button>
-        <button type="button" class="oar-view" data-oad-view="tests" aria-pressed="false">Tests</button>
-      </div>
-      <div id="oadRecordsPane"><div id="oadRecords" class="oar-list"><div class="oar-empty">Loading records…</div></div></div>
-      <div id="oadStudentsPane" hidden>
-        <label class="oar-sort">Sort students
-          <select id="oadStudentSort"><option value="class">Class, then name</option><option value="tests">Most tests first</option><option value="fewest">Fewest tests first</option><option value="high">Highest average</option><option value="low">Lowest average</option><option value="recent">Most recent test</option></select>
-        </label>
-        <div id="oadStudents" class="oar-list"></div>
-      </div>
-      <div id="oadMatrixPane" hidden></div>
-      <div id="oadTestsPane" hidden>
-        <details class="oar-publish" id="oatPublishBox">
-          <summary><span>＋ Publish a test</span><small>Any class and subject, published in a teacher's name</small></summary>
-          <div class="form-grid">
-            <div class="field full">
-              <label for="oatTeacher">Publish as teacher *</label>
-              <select id="oatTeacher" required><option value="">Loading teachers…</option></select>
-              <small class="oar-help">Students see this teacher's name, and their scripts go to this teacher's review desk.</small>
-            </div>
-            <div class="field">
-              <label for="oatClass">Class *</label>
-              <select id="oatClass"><option value="">Select class</option><option value="6">Class 6</option><option value="7">Class 7</option><option value="8">Class 8</option><option value="9">Class 9</option><option value="10">Class 10</option><option value="11">Class 11</option><option value="12">Class 12</option></select>
-            </div>
-            <div class="field">
-              <label for="oatSubject">Subject *</label>
-              <select id="oatSubject"><option value="">Select subject</option><option>Physics</option><option>Chemistry</option><option>Mathematics</option><option>Biology</option><option>Science</option><option value="Computer">Computer Science</option><option>English</option></select>
-            </div>
-            <div class="field">
-              <label for="oatBoard">Board</label>
-              <select id="oatBoard"><option value="">All boards</option><option value="CBSE">CBSE only</option><option value="ICSE">ICSE / ISC only</option></select>
-            </div>
-            <div class="field">
-              <label for="oatChapter">Chapter *</label>
-              <input type="text" id="oatChapter" list="oatChapterList" placeholder="e.g. Electric Charges and Fields" autocomplete="off">
-              <datalist id="oatChapterList"></datalist>
-            </div>
-            <div class="field full">
-              <label for="oatModule">Module / Part (optional)</label>
-              <input type="text" id="oatModule" maxlength="100" placeholder="e.g. Part 1 · Electric charge">
-            </div>
-            <div class="field">
-              <label for="oatName">Test name *</label>
-              <input type="text" id="oatName" maxlength="120" placeholder="e.g. Unit Test 1">
-            </div>
-            <div class="field">
-              <label for="oatMarks">Maximum marks *</label>
-              <input type="number" id="oatMarks" min="1" max="500" placeholder="40">
-            </div>
-            <div class="field">
-              <label for="oatDuration">Time allowed (minutes) *</label>
-              <input type="number" id="oatDuration" min="5" max="600" placeholder="90">
-            </div>
-            <div class="field full">
-              <label for="oatInstructions">Instructions for students (optional)</label>
-              <input type="text" id="oatInstructions" maxlength="500" placeholder="e.g. Attempt all questions.">
-            </div>
-            <div class="field full">
-              <label for="oatQuestionPdf">Question paper (PDF) *</label>
-              <input type="file" id="oatQuestionPdf" accept="application/pdf,.pdf">
-            </div>
-          </div>
-          <div class="oar-actions" style="margin-top:12px;"><button type="button" class="oar-btn primary" id="oatPublishBtn">Publish test</button></div>
-          <div id="oatMsg" class="oar-msg" role="status" aria-live="polite"></div>
-        </details>
-        <div id="oadTests" class="oar-list"></div>
-      </div>
-    </div>
-    <div class="oar-modal" id="oadModal" hidden role="dialog" aria-modal="true" aria-labelledby="oadModalTitle">
-      <div class="oar-sheet">
-        <div class="oar-sheet-head"><div><span class="oar-eyebrow" id="oadModalKicker">Answer script</span><h3 id="oadModalTitle">Record</h3></div>
-          <button type="button" class="oar-close" id="oadModalClose" aria-label="Close">×</button></div>
-        <div id="oadModalBody"></div>
-      </div>
-    </div>
-  </div><!-- /tab-offline-series -->
-
   <!-- ════════════════ LIVE CLASSES ════════════════ -->
   <div class="tab-content" id="tab-live-classes">
   <!-- ═══════════════════════════
@@ -1485,10 +1444,16 @@
     document.querySelectorAll('.sidebar-item').forEach(item => {
       item.classList.toggle('active', item.dataset.section === tab);
     });
+    // Add / Bulk import / Reset password are tabs inside Students.
+    var pane = { 'add-student': 1, 'bulk-import': 2, 'reset-password': 3 }[tab];
+    if (pane) tab = 'all-students';
+    document.querySelectorAll('.sidebar-item').forEach(item => { item.classList.toggle('active', item.dataset.section === tab); });
+    var studentTabs = document.getElementById('tab-all-students') && document.getElementById('tab-all-students')._portalTasks;
+    if (tab === 'all-students' && studentTabs) studentTabs.select(pane || 0, true);
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     var target = document.getElementById('tab-' + tab);
     if (target) target.classList.add('active');
-    const loader = { 'upload-material':'loadPdfList', 'live-classes':'loadAdminClasses', 'tests':'loadTestList', 'teachers':'loadTeacherList', 'offline-series':'loadOfflineRecords' }[tab];
+    const loader = { 'upload-material':'loadPdfList', 'live-classes':'loadAdminClasses', 'tests':'loadTestList', 'teachers':'loadTeacherList', 'online-students':'loadOnlineStudents', 'test-desk':'loadTestDesk' }[tab];
     if (loader && typeof window[loader] === 'function' && !target.dataset.portalLoaded) { target.dataset.portalLoaded = 'true'; window[loader](); }
     // Close mobile sidebar after a tap
     var sb = document.getElementById('sidebar');
@@ -1592,16 +1557,27 @@
       setTimeout(() => { $('mainContent').style.opacity = '1'; }, 50);
       $('logoutBtn').style.display     = 'block';
       loadStudents();
+      import('/assets/js/admin-desk.js?v=082836f9').then(m => { if (auth.currentUser?.uid === user.uid) m.startDeskWatch(deskContext()); }).catch(() => {});
       import('/assets/js/admin-enquiries.js?v=008f658f').then(({ startAdminEnquiries }) => {
         if (auth.currentUser?.uid === user.uid) stopEnquiries = startAdminEnquiries(db, user.uid);
       }).catch(() => {
         $('inquiryConnection').textContent = 'Inbox unavailable';
         $('inquiryError').textContent = 'Could not load the inbox. Please refresh the page.';
       });
-    } else {
+    } else if (!window.__ntcLeaving) {   // during Sign out, portal-logout.js handles the move
       window.location.replace('/login/admin');
     }
   });
+
+  // ── Test Desk: papers + answer scripts, with a blinking count of scripts waiting ──
+  const deskContext = () => ({ token: () => auth.currentUser.getIdToken(), config: FIREBASE_CONFIG, uid: auth.currentUser.uid });
+  window.loadTestDesk = () => import('/assets/js/admin-desk.js?v=082836f9').then(m => m.loadTestDesk(deskContext()))
+    .catch(e => { const r = $('deskRoot'); if (r && !r.dataset.ready) r.innerHTML = '<div class="dk-empty bad"><b>Could not open the Test Desk</b><p>' + String(e.message || e) + '</p></div>'; });
+
+  // ── Online Students (all-India test series): loaded when the section opens ──
+  window.loadOnlineStudents = () => import('/assets/js/admin-online.js?v=2fb6ffed')
+    .then(m => m.loadOnlineStudents({ token: () => auth.currentUser.getIdToken(), config: FIREBASE_CONFIG, uid: auth.currentUser.uid }))
+    .catch(e => { const n = $('onaNotice'); if (n) { n.className = 'oar-msg err'; n.textContent = 'Could not open Online Students: ' + e.message; } });
 
   // ── Admin logout ──
   window.adminLogout = () => window.ntcLogout({ role: 'admin', to: '/login/admin', signOut: () => signOut(auth) });
@@ -2205,7 +2181,7 @@
   function renderTable(students) {
     const anchor = $('studentTableBody').closest('.table-wrap');
     anchor.id = 'adminStudentBrowserAnchor';
-    PortalUI.collection({host:$('studentTableBody'),before:anchor.id,items:sortStudentsForTable(students),title:'Find a student',searchLabel:'Search name, student ID or subject',facets:['class','board','subject'],pageSize:matchMedia('(max-width:600px)').matches?3:8,render:renderStudentRows});
+    PortalUI.collection({host:$('studentTableBody'),before:anchor.id,items:sortStudentsForTable(students),title:'Find a student',searchLabel:'Search name, student ID or subject',facets:['class','board','subject'],pageSize:8,render:renderStudentRows});
   }
   function renderStudentRows(students) {
     const tbody = $('studentTableBody');
@@ -2427,13 +2403,13 @@
         </tr></thead>
         <tbody>${visible.map(d => `
           <tr style="border-bottom:1px solid #f3f4f6;">
-            <td style="padding:.65rem 1rem;font-weight:600;">${d.chapterName}</td>
-            <td style="padding:.65rem 1rem;"><span class="tag tag-blue">${CHAPTER_CATEGORY_LABELS[d.category] || d.category}</span></td>
-            <td style="padding:.65rem 1rem;"><span class="tag tag-blue">Class ${d.class}</span></td>
-            <td style="padding:.65rem 1rem;"><span class="tag tag-sky">${d.subject}</span></td>
+            <td style="padding:.65rem 1rem;font-weight:600;">${_h(d.chapterName)}</td>
+            <td style="padding:.65rem 1rem;"><span class="tag tag-blue">${_h(CHAPTER_CATEGORY_LABELS[d.category] || d.category)}</span></td>
+            <td style="padding:.65rem 1rem;"><span class="tag tag-blue">Class ${_h(d.class)}</span></td>
+            <td style="padding:.65rem 1rem;"><span class="tag tag-sky">${_h(d.subject)}</span></td>
             <td style="padding:.65rem 1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
-              <a href="${d.pdfUrl}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;">👁 View</a>
-              <button class="btn btn-danger btn-sm" onclick="deletePdf('${d.docId}','${d.chapterName}')">🗑 Delete</button>
+              <a href="${_url(d.pdfUrl)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">👁 View</a>
+              <button class="btn btn-danger btn-sm" onclick="deletePdf('${_js(d.docId)}','${_js(d.chapterName)}')">🗑 Delete</button>
             </td>
           </tr>`).join('')}
         </tbody></table>`;
@@ -2636,422 +2612,6 @@
     }
   };
 
-  // ══════════════════════════════════════════════════════════
-  //  OFFLINE TEST SERIES — permanent records for the admin.
-  //  Records: Class → Subject → Chapter → Part drill-down + filters/search.
-  //  Students: who wrote how many tests, per subject, with averages.
-  //  Class × Subject: submission counts and averages in one grid.
-  //  Read-only: admins review and download; nothing here deletes records.
-  // ══════════════════════════════════════════════════════════
-  const _oad = { records: [], students: [], teachers: [], tests: null, view: 'records', opener: null, upload: null };
-  const OAD_BASE = () => `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
-  const oadEsc = s => PortalUI.esc(s);
-  const oadMarks = r => r.score != null ? `${NTCOfflineReport.markText(r.score)} / ${NTCOfflineReport.markText(r.totalMarks)}` : '—';
-  const oadStageChip = r => `<span class="oar-chip ${r.stage === 'returned' ? 'ok' : r.overdue ? 'bad' : r.stage === 'checking' ? 'info' : 'warn'}">${oadEsc(r.overdue ? 'Overdue · ' + r.stageLabel : r.stageLabel)}</span>`;
-  const oadAvg = list => { const s = list.filter(i => i.pct != null); return s.length ? Math.round(s.reduce((a, i) => a + i.pct, 0) / s.length) : null; };
-
-  window.loadOfflineRecords = async function () {
-    const host = $('oadRecords'); if (!host) return;
-    PortalUI.clearBrowser(host); PortalUI.clearBrowser($('oadStudents'));
-    host.innerHTML = '<div class="oar-empty">Loading records…</div>';
-    $('oadKpis').innerHTML = ''; oadMsg('oadNotice', '', '');
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const [json, teachers] = await Promise.all([
-        PortalUI.fetchList(NTCOfflineRecords.listUrl(FIREBASE_CONFIG.projectId, FIREBASE_CONFIG.apiKey), { headers: { Authorization: 'Bearer ' + token } }),
-        PortalUI.fetchList(`${OAD_BASE()}/teachers?key=${FIREBASE_CONFIG.apiKey}&pageSize=300`, { headers: { Authorization: 'Bearer ' + token } }).catch(() => ({ documents: [] }))
-      ]);
-      _oad.teachers = (teachers.documents || []).map(d => { const f = d.fields || {}; return { uid: d.name.split('/').pop(), name: f.name?.stringValue || f.email?.stringValue || 'Teacher',
-        subjects: (f.subjects?.arrayValue?.values || []).map(v => v.stringValue).concat(f.subject?.stringValue ? [f.subject.stringValue] : []) }; })
-        .sort((a, b) => a.name.localeCompare(b.name));
-      oadFillTeachers($('oatTeacher'), '');
-      _oad.tests = null;   // reloaded when the Tests view opens
-      _oad.records = (json.documents || []).map(d => NTCOfflineRecords.parse(d))
-        .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
-      _oad.students = NTCOfflineRecords.students(_oad.records);
-      oadSummary();
-      oadShow(_oad.view);
-    } catch (e) {
-      host.innerHTML = `<div class="oar-empty"><strong>Could not load records</strong>${oadEsc(e.message)}</div>`;
-    }
-  };
-
-  function oadSummary() {
-    const s = NTCOfflineRecords.summary(_oad.records);
-    $('oadKpis').innerHTML = [
-      [s.total, 'Tests submitted', ''], [s.students, 'Students', ''], [s.returned, 'Returned', 'ok'],
-      [s.pending + s.checking, 'Awaiting review', s.pending + s.checking ? 'warn' : ''], [s.overdue, 'Overdue (48 h)', s.overdue ? 'bad' : ''],
-      [s.average == null ? '—' : s.average + '%', 'Average score', '']
-    ].map(([n, label, tone]) => `<div class="oar-kpi ${tone}"><strong>${oadEsc(n)}</strong><span>${oadEsc(label)}</span></div>`).join('');
-    const v = document.querySelector('[data-oad-view="students"]'); if (v) v.innerHTML = `Students <b>${s.students}</b>`;
-    const r = document.querySelector('[data-oad-view="records"]'); if (r) r.innerHTML = `Records <b>${s.total}</b>`;
-  }
-
-  function oadShow(view) {
-    _oad.view = view;
-    document.querySelectorAll('[data-oad-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.oadView === view)));
-    $('oadRecordsPane').hidden = view !== 'records'; $('oadStudentsPane').hidden = view !== 'students'; $('oadMatrixPane').hidden = view !== 'matrix'; $('oadTestsPane').hidden = view !== 'tests';
-    if (view === 'records') oadRecordsView(); else if (view === 'students') oadStudentsView(); else if (view === 'tests') oadTestsView(); else oadMatrixView();
-  }
-  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-oad-view]'); if (b) oadShow(b.dataset.oadView); });
-
-  function oadRecordsView() {
-    const host = $('oadRecords');
-    if (!_oad.records.length) { PortalUI.clearBrowser(host); host.innerHTML = '<div class="oar-empty"><strong>No offline tests submitted yet</strong>Records appear here as soon as students upload answer scripts.</div>'; return; }
-    const byId = new Map(_oad.records.map(r => [r.id, r]));
-    PortalUI.collection({ host, key: 'oad-records', items: _oad.records.map(r => ({ ...NTCOfflineRecords.item(r), pct: r.pct })),
-      title: 'Find a record', eyebrow: 'CLASS → SUBJECT → CHAPTER → PART', drill: ['class', 'subject', 'chapter'], autoSingle: true,
-      facets: ['class', 'board', 'subject', 'chapter', 'module', 'test', 'stage'], alwaysShow: ['stage', 'test'],
-      labels: { module: 'Module / Part', test: 'Test', stage: 'Status' }, plurals: { module: 'parts', stage: 'statuses' },
-      unit: ['submission', 'submissions'], searchLabel: 'Search student name, student ID, test or chapter',
-      groupNote: (_, __, list) => { const a = oadAvg(list); return a == null ? '' : ' · ' + a + '% avg'; },
-      pageSize: matchMedia('(max-width:600px)').matches ? 6 : 12,
-      render: visible => {
-        host.innerHTML = visible.map(i => byId.get(i.id)).map(r => `<article class="oar-row${r.overdue ? ' overdue' : ''}">
-          <div class="oar-who"><strong>${oadEsc(r.studentName)}</strong><small>${oadEsc([r.studentId, 'Class ' + r.class, r.board, r.section && 'Sec ' + r.section].filter(Boolean).join(' · '))}</small></div>
-          <div class="oar-path"><span>${oadEsc(r.test)}</span><small>${oadEsc(r.subject)} › ${oadEsc(r.chapter)} › ${oadEsc(r.module)}</small>
-            <small>Submitted ${oadEsc(NTCOfflineRecords.date(r.submittedAt))}${r.stage === 'returned' && r.teacher ? ' · Checked by ' + oadEsc(r.teacher) : r.assignedTeacher ? ' · ' + oadEsc(r.assignedTeacher) : ''}</small></div>
-          <div class="oar-meta">${oadStageChip(r)}<span class="oar-marks">${oadEsc(oadMarks(r))}${r.pct != null ? ` <small>${r.pct}%</small>` : ''}</span>${r.lateByMin > 15 ? `<span class="oar-chip bad">Late ${r.lateByMin} min</span>` : ''}</div>
-          <div class="oar-actions"><button type="button" class="oar-btn primary" data-oad-review="${oadEsc(r.id)}">${r.stage === 'pending' ? 'Check &amp; return' : 'Review'}</button>${r.checkedScriptUrl ? `<button type="button" class="oar-btn" data-oad-download="${oadEsc(r.id)}" data-kind="checked">↓ Checked PDF</button>` : ''}</div>
-        </article>`).join('');
-      } });
-  }
-
-  function oadStudentsView() {
-    const host = $('oadStudents');
-    if (!_oad.students.length) { PortalUI.clearBrowser(host); host.innerHTML = '<div class="oar-empty"><strong>No students yet</strong>Students appear here after their first offline test.</div>'; return; }
-    const sort = $('oadStudentSort').value;
-    const avg = s => s.average == null ? -1 : s.average;
-    const sorters = { class: () => 0, tests: (a, b) => b.total - a.total, fewest: (a, b) => a.total - b.total, high: (a, b) => avg(b) - avg(a),
-      low: (a, b) => (a.average == null ? 101 : a.average) - (b.average == null ? 101 : b.average), recent: (a, b) => (b.last || '').localeCompare(a.last || '') };
-    const list = _oad.students.slice().sort((a, b) => sorters[sort](a, b) || NTCOfflineRecords.byClass(a.class, b.class) || a.studentName.localeCompare(b.studentName));
-    const byKey = new Map(list.map(s => [s.uid || s.studentId || s.studentName, s]));
-    PortalUI.collection({ host, key: 'oad-students', items: list.map(s => ({ id: s.uid || s.studentId || s.studentName, class: s.class, board: s.board, subjects: s.subjectNames, studentName: s.studentName, studentId: s.studentId, section: s.section })),
-      title: 'Tests per student', eyebrow: 'CLASS → STUDENT', drill: ['class'], autoSingle: true, facets: ['class', 'board', 'subject'], alwaysShow: ['subject', 'board'],
-      unit: ['student', 'students'], searchLabel: 'Search student name or ID',
-      groupNote: (_, __, items) => ' · ' + items.reduce((n, i) => n + (byKey.get(i.id)?.total || 0), 0) + ' tests',
-      pageSize: matchMedia('(max-width:600px)').matches ? 6 : 12,
-      render: visible => {
-        const subject = host._portalStates?.['oad-students']?.filters?.subject || '';
-        host.innerHTML = visible.map(i => byKey.get(i.id)).map(s => {
-          const focus = subject && s.subjects.find(x => x.subject === subject);
-          return `<article class="oar-row student">
-          <div class="oar-who"><strong>${oadEsc(s.studentName)}</strong><small>${oadEsc([s.studentId, 'Class ' + s.class, s.board, s.section && 'Sec ' + s.section].filter(Boolean).join(' · '))}</small></div>
-          <div class="oar-subjects" aria-label="Tests by subject">${s.subjects.map(x => `<span class="oar-chip${x.subject === subject ? ' info' : ''}">${oadEsc(x.subject)} · ${x.count}${x.average != null ? ' · ' + x.average + '%' : ''}</span>`).join('')}</div>
-          <div class="oar-meta"><span class="oar-marks">${focus ? focus.count : s.total} <small>${focus ? oadEsc(subject) + ' test' + (focus.count === 1 ? '' : 's') : 'test' + (s.total === 1 ? '' : 's')}</small></span>${s.pending ? `<span class="oar-chip warn">${s.pending} awaiting</span>` : ''}<span class="oar-chip ${s.average == null ? '' : 'ok'}">Avg ${s.average == null ? '—' : s.average + '%'}</span></div>
-          <div class="oar-actions"><button type="button" class="oar-btn" data-oad-student="${oadEsc(s.studentId || s.studentName)}">View tests →</button></div>
-        </article>`; }).join('');
-      } });
-  }
-  $('oadStudentSort')?.addEventListener('change', () => oadStudentsView());
-
-  function oadMatrixView() {
-    const pane = $('oadMatrixPane');
-    const s = NTCOfflineRecords.summary(_oad.records);
-    if (!s.total) { pane.innerHTML = '<div class="oar-empty"><strong>No data yet</strong>The grid fills in as students submit tests.</div>'; return; }
-    const classTotal = c => _oad.records.filter(r => r.class === c);
-    const subjectTotal = sub => _oad.records.filter(r => r.subject === sub);
-    const cell = (c, sub) => { const x = s.cell(c, sub); return x.count ? `<button type="button" class="oar-cell" data-oad-cell-class="${oadEsc(c)}" data-oad-cell-subject="${oadEsc(sub)}" aria-label="Class ${oadEsc(c)} ${oadEsc(sub)}: ${x.count} tests by ${x.students} students${x.average != null ? ', average ' + x.average + '%' : ''}">${x.count}<small>${x.students} stu${x.average != null ? ' · ' + x.average + '%' : ''}</small></button>` : '<span class="oar-cell-empty">—</span>'; };
-    pane.innerHTML = `<div class="oar-matrix-wrap"><table class="oar-matrix"><caption class="inquiry-sr-only">Offline tests submitted by class and subject</caption>
-      <thead><tr><th scope="col">Class</th>${s.subjects.map(sub => `<th scope="col">${oadEsc(sub)}</th>`).join('')}<th scope="col">Total</th></tr></thead>
-      <tbody>${s.classes.map(c => `<tr><th scope="row">Class ${oadEsc(c)}</th>${s.subjects.map(sub => `<td>${cell(c, sub)}</td>`).join('')}<td><b>${classTotal(c).length}</b></td></tr>`).join('')}</tbody>
-      <tfoot><tr><th scope="row">Total</th>${s.subjects.map(sub => `<td>${subjectTotal(sub).length}</td>`).join('')}<td>${s.total}</td></tr></tfoot></table></div>
-      <p class="oar-note">Each cell: tests submitted · students · average score. Tap a cell to open those records.</p>`;
-  }
-
-  // Jump into Records with filters/search pre-set (from Students or the grid).
-  function oadOpenRecords(filters, search) {
-    const host = $('oadRecords');
-    host._portalStates = host._portalStates || {};
-    host._portalStates['oad-records'] = { filters: filters || {}, search: (search || '').toLowerCase(), page: 0 };
-    oadShow('records');
-    host.closest('.card')?.scrollIntoView({ block: 'start' });
-  }
-
-  document.addEventListener('click', e => {
-    const t = e.target.closest && e.target.closest('[data-oad-review],[data-oad-download],[data-oad-student],[data-oad-cell-class]');
-    if (!t) return;
-    if (t.dataset.oadReview) oadReview(t.dataset.oadReview, t);
-    else if (t.dataset.oadDownload) oadDownload(t.dataset.oadDownload, t.dataset.kind, t);
-    else if (t.dataset.oadStudent) oadOpenRecords({}, t.dataset.oadStudent);
-    else oadOpenRecords({ class: t.dataset.oadCellClass, subject: t.dataset.oadCellSubject });
-  });
-
-  async function oadDownload(id, kind, btn) {
-    const r = _oad.records.find(x => x.id === id); if (!r) return;
-    const url = kind === 'checked' ? r.checkedScriptUrl : r.scriptPdfUrl; if (!url) return;
-    const label = btn.textContent; btn.disabled = true; btn.textContent = 'Downloading…';
-    try { await NTCOfflineFiles.downloadPdf(url, NTCOfflineRecords.fileName(r, kind)); }
-    catch (e) { alert(e.message + ' You can also use "Open".'); }
-    finally { btn.disabled = false; btn.textContent = label; }
-  }
-
-  async function oadReview(id, opener) {
-    const r = _oad.records.find(x => x.id === id); if (!r) return;
-    _oad.opener = opener || null;
-    const modal = $('oadModal');
-    $('oadModalKicker').textContent = `${r.subject} › ${r.chapter} › ${r.module}`;
-    $('oadModalTitle').textContent = `${r.studentName} · ${r.test}`;
-    const fact = (k, v) => `<div><dt>${oadEsc(k)}</dt><dd>${oadEsc(v || '—')}</dd></div>`;
-    $('oadModalBody').innerHTML = `<dl class="oar-facts">
-        ${fact('Student ID', r.studentId)}${fact('Class', [r.class, r.board, r.section && 'Sec ' + r.section].filter(Boolean).join(' · '))}
-        ${fact('Marks', oadMarks(r) + (r.pct != null ? ` (${r.pct}%)` : ''))}${fact('Status', r.overdue ? 'Overdue · ' + r.stageLabel : r.stageLabel)}
-        ${fact('Submitted', NTCOfflineRecords.date(r.submittedAt))}${fact('Returned', r.stage === 'returned' ? NTCOfflineRecords.date(r.approvedAt) : '')}
-        ${fact('Checked by', r.stage === 'returned' ? r.teacher : '')}${fact('Assigned teacher', r.assignedTeacher)}
-      </dl>
-      ${r.remark ? `<div class="oar-feedback"><b>Teacher's feedback</b><br>${oadEsc(r.remark)}</div>` : ''}
-      <div class="oar-actions">
-        ${r.checkedScriptUrl ? `<a class="oar-btn primary" href="${oadEsc(r.checkedScriptUrl)}" target="_blank" rel="noopener">Open checked PDF ↗</a><button type="button" class="oar-btn" data-oad-download="${oadEsc(r.id)}" data-kind="checked">↓ Download checked PDF</button>` : ''}
-        ${r.scriptPdfUrl ? `<button type="button" class="oar-btn" data-oad-download="${oadEsc(r.id)}" data-kind="script">↓ Student's answer script</button>` : ''}
-        ${!r.checkedScriptUrl && r.stage === 'returned' && r.reviewMode !== 'teacher' ? `<button type="button" class="oar-btn primary" id="oadAiReport">View AI-checked report</button>` : ''}
-      </div>
-      ${r.stage === 'checking' ? '<p class="oar-note">The AI check is still running. You can return this script once it finishes.</p>' : ''}
-      ${r.stage === 'pending' ? `<form class="oar-return" id="oarReturnForm" novalidate>
-        <h4>Check &amp; return</h4>
-        <p class="oar-help">Download the student's script, mark it, then upload the checked PDF. The student sees the teacher you choose as the checker.</p>
-        <div class="oar-form-grid">
-          <label class="full">Checked by (shown to the student) *<select id="oarTeacher" required></select></label>
-          <label class="full">Checked answer script (PDF, up to 40 MB) *<input type="file" id="oarPdf" accept="application/pdf,.pdf"></label>
-          <label>Marks out of ${oadEsc(NTCOfflineReport.markText(r.totalMarks))} *<input type="number" id="oarScore" min="0" max="${oadEsc(r.totalMarks)}" step="0.5" inputmode="decimal"></label>
-          <label class="full">Feedback (optional)<textarea id="oarRemark" maxlength="3000" rows="3"></textarea></label>
-        </div>
-        <div class="oar-actions"><button type="submit" class="oar-btn primary" id="oarReturnBtn">Upload checked PDF &amp; return to student</button></div>
-        <div id="oarMsg" class="oar-msg" role="status" aria-live="polite"></div>
-      </form>` : ''}
-      <div id="oadAiReportBody"></div>
-      ${r.stage === 'checking' ? '' : `<details class="oar-danger" id="oadDelete">
-        <summary>Delete this record permanently</summary>
-        <p>This removes <b>${oadEsc(r.studentName)}'s ${oadEsc(r.test)}</b> from the student, teacher and admin dashboards: marks, feedback, the checked PDF and the student's answer script. The uploaded files are deleted from storage. <b>This cannot be undone.</b> If the test is still open, the student will be able to take it again.</p>
-        <label for="oadDelConfirm">Type <b>${oadEsc(r.studentId || 'DELETE')}</b> to confirm</label>
-        <input id="oadDelConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <div class="oar-actions"><button type="button" class="oar-btn danger" id="oadDelBtn" disabled>Delete permanently</button></div>
-        <div id="oadDelMsg" class="oar-msg" role="status" aria-live="polite"></div>
-      </details>`}`;
-    const delInput = $('oadDelConfirm');
-    if (delInput) {
-      const expected = (r.studentId || 'DELETE').trim().toLowerCase();
-      delInput.addEventListener('input', () => { $('oadDelBtn').disabled = delInput.value.trim().toLowerCase() !== expected; });
-      $('oadDelBtn').addEventListener('click', () => oadDelete(r));
-    }
-    if (r.stage === 'pending') {
-      oadFillTeachers($('oarTeacher'), r.assignedTeacherUid);
-      _oad.upload = { id: r.id, file: null, url: '' };
-      $('oarReturnForm').addEventListener('submit', ev => { ev.preventDefault(); oadReturn(r); });
-    }
-    modal.hidden = false; document.documentElement.style.overflow = 'hidden';
-    $('oadModalClose').focus();
-    $('oadAiReport')?.addEventListener('click', async ev => {
-      const b = ev.currentTarget; b.disabled = true; b.textContent = 'Loading report…';
-      try {
-        const token = await auth.currentUser.getIdToken();
-        const res = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/offlineReports/${encodeURIComponent(r.id)}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } });
-        const f = (await res.json()).fields || {}; const sv = k => f[k]?.stringValue || '';
-        if (!res.ok) throw new Error('Could not load the report.');
-        NTCOfflineReport.render($('oadAiReportBody'), { report: JSON.parse(sv('finalReport') || sv('aiReport') || '{}'), approval: { name: sv('approvedByName'), at: sv('approvedAt') },
-          meta: { studentName: r.studentName, studentId: r.studentId, studentClass: r.class, board: r.board, school: sv('school'), subject: r.subject, chapter: r.chapter, testName: r.test,
-            durationMin: Number(f.durationMin?.integerValue || f.durationMin?.doubleValue || 0), checkedAt: sv('checkedAt'), pageUrls: (f.pageUrls?.arrayValue?.values || []).map(v => v.stringValue) } });
-        b.remove();
-      } catch (e) { b.disabled = false; b.textContent = 'View AI-checked report'; alert(e.message); }
-    });
-  }
-  // ── Acting in a teacher's name ──
-  function oadFillTeachers(select, preferred) {
-    if (!select) return;
-    if (!_oad.teachers.length) { select.innerHTML = '<option value="">No teachers found — add one under Teachers</option>'; return; }
-    select.innerHTML = '<option value="">Choose a teacher</option>' + _oad.teachers.map(t =>
-      `<option value="${oadEsc(t.uid)}">${oadEsc(t.name)}${t.subjects.length ? ' · ' + oadEsc(t.subjects.join(', ')) : ''}</option>`).join('');
-    if (preferred && _oad.teachers.some(t => t.uid === preferred)) select.value = preferred;
-  }
-  function oadMsg(id, tone, text) { const el = $(id); if (!el) return; el.className = 'oar-msg ' + (tone || ''); el.textContent = text || ''; }
-  async function oadApi(body) {
-    const token = await auth.currentUser.getIdToken();
-    const res = await fetch('/.netlify/functions/offline-test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: token, ...body }) });
-    let data = {}; try { data = await res.json(); } catch (_) {}
-    if ([404, 405].includes(res.status) && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) throw new Error('The offline-test backend is unavailable on this local server. Run Netlify Dev and open http://localhost:8888/command-center.');
-    if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
-    return data;
-  }
-  async function oadPatch(path, fields) {
-    const token = await auth.currentUser.getIdToken();
-    const mask = Object.keys(fields).map(k => 'updateMask.fieldPaths=' + encodeURIComponent(k)).join('&');
-    const res = await fetch(`${OAD_BASE()}/${path}?key=${FIREBASE_CONFIG.apiKey}&${mask}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ fields }) });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.error) throw new Error((json.error && json.error.message) || 'Save failed');
-    return json;
-  }
-
-  async function oadReturn(r) {
-    if (_oad.returning) return;
-    const teacherUid = $('oarTeacher').value, file = $('oarPdf').files[0], raw = $('oarScore').value, score = Number(raw), remark = $('oarRemark').value.trim();
-    if (!teacherUid) return oadMsg('oarMsg', 'err', 'Choose the teacher shown as the checker.');
-    if (!file) return oadMsg('oarMsg', 'err', 'Choose the checked PDF first.');
-    if (raw === '' || !Number.isFinite(score) || score < 0 || score > r.totalMarks) return oadMsg('oarMsg', 'err', `Enter marks from 0 to ${r.totalMarks}.`);
-    const btn = $('oarReturnBtn'); btn.disabled = true; _oad.returning = true;
-    try {
-      await NTCOfflineFiles.validateReadablePdf(file);
-      // Keep the uploaded file for a retry if saving the result fails.
-      if (_oad.upload.file !== file) {
-        _oad.upload.url = await NTCOfflineFiles.upload(file, p => oadMsg('oarMsg', '', `Uploading checked PDF… ${Math.round(p * 100)}%`));
-        _oad.upload.file = file;
-      }
-      oadMsg('oarMsg', '', 'Saving and returning to the student…');
-      await oadApi({ action: 'return-script', attemptId: r.id, checkedScriptUrl: _oad.upload.url, score, remark, onBehalfOf: teacherUid });
-      _oad.returning = false;
-      const teacher = _oad.teachers.find(t => t.uid === teacherUid);
-      await window.loadOfflineRecords();
-      oadReview(r.id, _oad.opener);
-      oadMsg('oarMsg', 'ok', `Returned to ${r.studentName} as checked by ${teacher ? teacher.name : 'the teacher'}.`);
-      const note = document.createElement('p'); note.className = 'oar-msg ok'; note.setAttribute('role', 'status');
-      note.textContent = `✓ Returned to ${r.studentName}. It shows as checked by ${teacher ? teacher.name : 'the chosen teacher'}.`;
-      $('oadModalBody').prepend(note);
-    } catch (e) { oadMsg('oarMsg', 'err', e.message + ' You can retry without leaving this sheet.'); }
-    finally { _oad.returning = false; if (document.contains(btn)) btn.disabled = false; }
-  }
-
-  async function oadDelete(r) {
-    if (_oad.returning) return;
-    const btn = $('oadDelBtn'), input = $('oadDelConfirm');
-    if (input.value.trim().toLowerCase() !== (r.studentId || 'DELETE').trim().toLowerCase()) return;
-    btn.disabled = true; input.disabled = true; _oad.returning = true;
-    oadMsg('oadDelMsg', '', 'Deleting…');
-    try {
-      const res = await oadApi({ action: 'delete-record', attemptId: r.id });
-      _oad.returning = false;
-      oadCloseReview();
-      await window.loadOfflineRecords();
-      const files = res.filesFailed ? ` The record is gone, but ${res.filesFailed} uploaded file${res.filesFailed === 1 ? '' : 's'} could not be removed from storage; delete ${res.filesFailed === 1 ? 'it' : 'them'} in Uploadcare if needed.` : '';
-      oadMsg('oadNotice', res.filesFailed ? 'err' : 'ok', `Deleted ${r.studentName}'s ${r.test} permanently.${files}`);
-      $('oadNotice')?.scrollIntoView({ block: 'nearest' });
-    } catch (e) {
-      _oad.returning = false;
-      // An earlier attempt may have succeeded before its response was lost.
-      if (/already been deleted/.test(e.message)) { oadCloseReview(); await window.loadOfflineRecords(); oadMsg('oadNotice', 'ok', `${r.studentName}'s ${r.test} was already deleted.`); return; }
-      oadMsg('oadDelMsg', 'err', e.message + ' Nothing was deleted; you can retry.');
-      input.disabled = false; btn.disabled = false;
-    }
-  }
-
-  // ── Tests: every teacher's offline tests, plus publishing in a teacher's name ──
-  async function oadLoadTests() {
-    const token = await auth.currentUser.getIdToken();
-    const [tests, keys] = await Promise.all([
-      PortalUI.fetchList(`${OAD_BASE()}/offlineTests?key=${FIREBASE_CONFIG.apiKey}&pageSize=300`, { headers: { Authorization: 'Bearer ' + token } }),
-      PortalUI.fetchList(`${OAD_BASE()}/offlineTestKeys?key=${FIREBASE_CONFIG.apiKey}&pageSize=300&mask.fieldPaths=questionPdfUrl`, { headers: { Authorization: 'Bearer ' + token } }).catch(() => ({ documents: [] }))
-    ]);
-    const papers = {};
-    (keys.documents || []).forEach(d => { papers[d.name.split('/').pop()] = NTCUploadcare.deliveryUrl(d.fields?.questionPdfUrl?.stringValue || ''); });
-    _oad.tests = (tests.documents || []).map(d => { const f = d.fields || {}, id = d.name.split('/').pop(); return {
-      id, testName: f.testName?.stringValue || 'Test', class: f.class?.stringValue || 'Unassigned', board: f.board?.stringValue || '',
-      subject: PortalUI.subject(f.subject?.stringValue || ''), chapter: f.chapter?.stringValue || 'General', module: f.module?.stringValue || 'Full chapter',
-      totalMarks: parseFloat(f.totalMarks?.doubleValue ?? f.totalMarks?.integerValue ?? '0') || 0, durationMin: parseInt(f.durationMin?.integerValue || '0', 10),
-      teacher: f.teacherName?.stringValue || '—', teacherUid: f.teacherUid?.stringValue || '', isActive: f.isActive?.booleanValue !== false,
-      status: f.isActive?.booleanValue !== false ? 'Live' : 'Closed', createdAt: f.createdAt?.stringValue || '', paper: papers[id] || '' }; })
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }
-  async function oadTestsView() {
-    const host = $('oadTests');
-    if (!_oad.tests) {
-      PortalUI.clearBrowser(host); host.innerHTML = '<div class="oar-empty">Loading tests…</div>';
-      try { await oadLoadTests(); } catch (e) { host.innerHTML = `<div class="oar-empty"><strong>Could not load tests</strong>${oadEsc(e.message)}</div>`; return; }
-      if (_oad.view !== 'tests') return;
-    }
-    if (!_oad.tests.length) { PortalUI.clearBrowser(host); host.innerHTML = '<div class="oar-empty"><strong>No offline tests yet</strong>Publish one above, in any teacher\'s name.</div>'; return; }
-    const counts = {};
-    _oad.records.forEach(r => { const c = counts[r.testId] ||= { total: 0, pending: 0 }; c.total++; if (r.stage !== 'returned') c.pending++; });
-    const byId = new Map(_oad.tests.map(t => [t.id, t]));
-    PortalUI.collection({ host, key: 'oad-tests', items: _oad.tests.map(t => ({ id: t.id, class: t.class, board: t.board, subject: t.subject, chapter: t.chapter, module: t.module, teacher: t.teacher, status: t.status, testName: t.testName })),
-      title: 'All offline tests', eyebrow: 'CLASS → SUBJECT → CHAPTER → PART', drill: ['class', 'subject', 'chapter'], autoSingle: true,
-      facets: ['class', 'board', 'subject', 'chapter', 'module', 'teacher', 'status'], alwaysShow: ['teacher', 'status'],
-      labels: { module: 'Module / Part', teacher: 'Teacher', status: 'Status' }, plurals: { module: 'parts', status: 'statuses' },
-      unit: ['test', 'tests'], searchLabel: 'Search test, chapter or teacher', pageSize: matchMedia('(max-width:600px)').matches ? 6 : 12,
-      render: visible => {
-        host.innerHTML = visible.map(i => byId.get(i.id)).map(t => { const c = counts[t.id] || { total: 0, pending: 0 }; return `<article class="oar-row">
-          <div class="oar-who"><strong>${oadEsc(t.testName)}</strong><small>${oadEsc(['Class ' + t.class, t.board || 'All boards', t.totalMarks + ' marks', t.durationMin + ' min'].join(' · '))}</small></div>
-          <div class="oar-path"><span>${oadEsc(t.subject)} › ${oadEsc(t.chapter)}</span><small>${oadEsc(t.module)}</small><small>By ${oadEsc(t.teacher)} · ${oadEsc(NTCOfflineRecords.date(t.createdAt))}</small></div>
-          <div class="oar-meta"><span class="oar-chip ${t.isActive ? 'ok' : ''}">${t.isActive ? 'Live' : 'Closed'}</span><span class="oar-chip">${c.total} submitted</span>${c.pending ? `<span class="oar-chip warn">${c.pending} to check</span>` : ''}</div>
-          <div class="oar-actions">${c.total ? `<button type="button" class="oar-btn primary" data-oad-test-records="${oadEsc(t.testName)}" data-class="${oadEsc(t.class)}" data-subject="${oadEsc(t.subject)}">Scripts →</button>` : ''}${t.paper ? `<a class="oar-btn" href="${oadEsc(t.paper)}" target="_blank" rel="noopener">Paper ↗</a>` : ''}<button type="button" class="oar-btn" data-oad-toggle="${oadEsc(t.id)}">${t.isActive ? 'Close' : 'Reopen'}</button></div>
-        </article>`; }).join('');
-      } });
-  }
-  document.addEventListener('click', async e => {
-    const records = e.target.closest && e.target.closest('[data-oad-test-records]');
-    if (records) return oadOpenRecords({ class: records.dataset.class, subject: records.dataset.subject }, records.dataset.oadTestRecords);
-    const toggle = e.target.closest && e.target.closest('[data-oad-toggle]');
-    if (!toggle) return;
-    const t = (_oad.tests || []).find(x => x.id === toggle.dataset.oadToggle); if (!t) return;
-    if (t.isActive && !confirm(`Close "${t.testName}"? Students who have not started it will no longer see it. Submitted scripts and results are kept.`)) return;
-    toggle.disabled = true;
-    try { await oadPatch(`offlineTests/${t.id}`, { isActive: { booleanValue: !t.isActive } }); t.isActive = !t.isActive; t.status = t.isActive ? 'Live' : 'Closed'; oadTestsView(); }
-    catch (err) { alert(err.message); toggle.disabled = false; }
-  });
-
-  function oadSuggestChapters() {
-    const list = $('oatChapterList'); if (!list) return;
-    const cls = $('oatClass').value, subj = $('oatSubject').value;
-    let chapters = [];
-    if (window.NCERT && cls && subj) {
-      const key = { Physics: 'physics', Chemistry: 'chemistry', Biology: 'biology', Mathematics: 'maths', Science: 'science' }[subj];
-      const k = (+cls <= 10 && ['physics', 'chemistry', 'biology'].includes(key)) ? 'science' : key;
-      try { chapters = k ? window.NCERT.getChapters(cls, k).map(c => c.title) : []; } catch (_) { chapters = []; }
-    }
-    list.innerHTML = chapters.map(t => `<option value="${oadEsc(t)}"></option>`).join('');
-  }
-  $('oatClass')?.addEventListener('change', oadSuggestChapters);
-  $('oatSubject')?.addEventListener('change', oadSuggestChapters);
-
-  $('oatPublishBtn')?.addEventListener('click', async () => {
-    const v = id => ($(id)?.value || '').trim();
-    const teacher = _oad.teachers.find(t => t.uid === v('oatTeacher'));
-    const cls = v('oatClass'), subject = v('oatSubject'), chapter = v('oatChapter'), testName = v('oatName');
-    const totalMarks = parseFloat(v('oatMarks')), durationMin = parseInt(v('oatDuration'), 10), qFile = $('oatQuestionPdf').files[0];
-    if (!teacher) return oadMsg('oatMsg', 'err', 'Choose the teacher this test is published as.');
-    if (!cls || !subject || !chapter || !testName) return oadMsg('oatMsg', 'err', 'Fill class, subject, chapter and test name.');
-    if (!(totalMarks > 0 && totalMarks <= 500) || !(durationMin >= 5 && durationMin <= 600)) return oadMsg('oatMsg', 'err', 'Enter marks from 1 to 500 and a time from 5 to 600 minutes.');
-    if (!qFile) return oadMsg('oatMsg', 'err', 'Choose the question paper PDF.');
-    const btn = $('oatPublishBtn'); btn.disabled = true;
-    try {
-      await NTCOfflineFiles.validateReadablePdf(qFile);
-      const questionPdfUrl = await NTCOfflineFiles.upload(qFile, p => oadMsg('oatMsg', '', `Uploading question paper… ${Math.round(p * 100)}%`));
-      const id = 'ots' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      const now = new Date().toISOString();
-      oadMsg('oatMsg', '', 'Publishing…');
-      await oadPatch(`offlineTestKeys/${id}`, { questionPdfUrl: { stringValue: questionPdfUrl }, answerPdfUrl: { stringValue: '' },
-        testName: { stringValue: testName }, teacherUid: { stringValue: teacher.uid }, createdAt: { stringValue: now } });
-      await oadPatch(`offlineTests/${id}`, {
-        testName: { stringValue: testName }, class: { stringValue: cls }, board: { stringValue: v('oatBoard') },
-        subject: { stringValue: subject }, chapter: { stringValue: chapter }, module: { stringValue: v('oatModule') || 'Full chapter' },
-        totalMarks: { doubleValue: totalMarks }, durationMin: { integerValue: String(durationMin) }, instructions: { stringValue: v('oatInstructions') },
-        gradingMode: { stringValue: 'teacher' }, teacherUid: { stringValue: teacher.uid }, teacherName: { stringValue: teacher.name },
-        isActive: { booleanValue: true }, createdAt: { stringValue: now } });
-      // Private record that an admin published this in the teacher's name.
-      oadPatch(`offlineAudit/publish_${id}`, { action: { stringValue: 'publish-test' }, testId: { stringValue: id }, byAdminUid: { stringValue: auth.currentUser.uid },
-        onBehalfOfUid: { stringValue: teacher.uid }, onBehalfOfName: { stringValue: teacher.name }, at: { stringValue: now } }).catch(err => console.warn('[offline] audit entry not saved:', err.message));
-      ['oatName', 'oatModule', 'oatInstructions', 'oatQuestionPdf'].forEach(i => { $(i).value = ''; });
-      oadMsg('oatMsg', 'ok', `✅ "${testName}" is live for Class ${cls} ${subject} → ${chapter}, published as ${teacher.name}.`);
-      _oad.tests = null; oadTestsView();
-    } catch (e) { oadMsg('oatMsg', 'err', 'Error: ' + e.message); }
-    finally { btn.disabled = false; }
-  });
-
-  function oadCloseReview() {
-    const modal = $('oadModal'); if (!modal || modal.hidden || _oad.returning) return;
-    modal.hidden = true; document.documentElement.style.overflow = '';
-    $('oadModalBody').innerHTML = '';
-    if (_oad.opener && document.contains(_oad.opener)) _oad.opener.focus();
-  }
-  $('oadModalClose')?.addEventListener('click', oadCloseReview);
-  $('oadModal')?.addEventListener('click', e => { if (e.target.id === 'oadModal') oadCloseReview(); });
-  document.addEventListener('keydown', e => {
-    const modal = $('oadModal'); if (!modal || modal.hidden) return;
-    if (e.key === 'Escape') { e.preventDefault(); oadCloseReview(); }
-    if (e.key === 'Tab') {
-      const f = [...modal.querySelectorAll('button:not([disabled]),a[href],select,input,textarea')].filter(el => el.offsetParent !== null);
-      if (!f.length) return;
-      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
-      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
-    }
-  });
-
   window.loadTestList = async function() {
     const wrap = $('testListWrap');
     PortalUI.clearBrowser(wrap);
@@ -3098,19 +2658,19 @@
       wrap.innerHTML = _groups.map(g => `
         <div style="margin-bottom:1.1rem;">
           <div style="display:flex;align-items:center;gap:.5rem;font-weight:700;color:#003087;font-size:.84rem;padding:.45rem .2rem;margin-bottom:.5rem;border-bottom:2px solid rgba(0,48,135,.12);">
-            Class ${g.class} · ${g.subject}
+            Class ${_h(g.class)} · ${_h(g.subject)}
             <span style="background:#003087;color:#fff;border-radius:999px;font-size:.68rem;padding:.05rem .5rem;">${g.items.length}</span>
           </div>
           ${g.items.map(d => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.1rem;background:#f9fbff;border-radius:12px;margin-bottom:.5rem;border:1px solid rgba(0,48,135,.08);flex-wrap:wrap;gap:.5rem;">
               <div>
-                <strong style="color:#003087;">${d.testName}</strong>
+                <strong style="color:#003087;">${_h(d.testName)}</strong>
                 <div style="font-size:.79rem;color:#546e7a;margin-top:.15rem;">${d.totalQ||'?'} Q · ${d.totalMarks||'?'} marks · ⏱ ${d.timeLimit||60} min · <span style="color:${d.isActive?'#059669':'#dc2626'}">${d.isActive?'🟢 Active':'🔴 Inactive'}</span></div>
               </div>
               <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
-                <button onclick="viewTestResults('${d.testId}')" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(0,48,135,.2);background:#fff;cursor:pointer;color:#003087;font-family:inherit;">📊 Results</button>
-                <button onclick="toggleTest('${d.testId}',${!d.isActive})" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(0,48,135,.2);background:#fff;cursor:pointer;color:#003087;font-family:inherit;">${d.isActive?'⏸ Deactivate':'▶ Activate'}</button>
-                <button onclick="deleteTest('${d.testId}')" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(239,68,68,.3);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
+                <button onclick="viewTestResults('${_js(d.testId)}')" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(0,48,135,.2);background:#fff;cursor:pointer;color:#003087;font-family:inherit;">📊 Results</button>
+                <button onclick="toggleTest('${_js(d.testId)}',${!d.isActive})" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(0,48,135,.2);background:#fff;cursor:pointer;color:#003087;font-family:inherit;">${d.isActive?'⏸ Deactivate':'▶ Activate'}</button>
+                <button onclick="deleteTest('${_js(d.testId)}')" style="font-size:.78rem;padding:.3rem .75rem;border-radius:8px;border:1px solid rgba(239,68,68,.3);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
               </div>
             </div>`).join('')}
         </div>`).join('');
@@ -3257,14 +2817,14 @@
                   .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');
                 return `<tr>
                   <td data-label="#" style="color:#90a4ae;font-size:.78rem;">${idx+1}</td>
-                  <td data-label="Student" class="student-name" style="font-weight:600;">${r.studentName || r.studentId || '—'}</td>
-                  <td data-label="Class">Class ${r.studentClass||'?'}</td>
+                  <td data-label="Student" class="student-name" style="font-weight:600;">${_h(r.studentName || r.studentId || '—')}</td>
+                  <td data-label="Class">Class ${_h(r.studentClass||'?')}</td>
                   <td data-label="Score" style="text-align:center;font-weight:700;color:${col};">${r.score}/${r.totalMarks}</td>
                   <td data-label="%" style="text-align:center;color:${col};">${pct}%</td>
                   <td data-label="Submitted" style="font-size:.78rem;color:#546e7a;">${r.submittedAt ? new Date(r.submittedAt).toLocaleString('en-IN') : '—'}</td>
                   <td data-label="Actions" style="text-align:center;white-space:nowrap;">
-                    <button onclick="reallowRetake('${testId}','${r.uid}','${nameArg}')" title="Clear this student's submission so they can take the test again. Classmates are not affected." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(14,165,233,.4);background:#fff;cursor:pointer;color:#0369a1;font-family:inherit;margin-right:.35rem;">↻ Re-allow</button>
-                    <button onclick="deleteTestResult('${r.docId}','${nameArg}','${testId}')" title="Permanently delete this student's result." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(239,68,68,.35);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
+                    <button onclick="reallowRetake('${_js(testId)}','${_js(r.uid)}','${nameArg}')" title="Clear this student's submission so they can take the test again. Classmates are not affected." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(14,165,233,.4);background:#fff;cursor:pointer;color:#0369a1;font-family:inherit;margin-right:.35rem;">↻ Re-allow</button>
+                    <button onclick="deleteTestResult('${_js(r.docId)}','${nameArg}','${_js(testId)}')" title="Permanently delete this student's result." style="font-size:.74rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(239,68,68,.35);background:#fff;cursor:pointer;color:#ef4444;font-family:inherit;">🗑 Delete</button>
                   </td>
                 </tr>`;
               }).join('')}
@@ -3448,7 +3008,7 @@
         <div class="teacher-card-item">
           <div>
             <strong style="color:#003087;">${_bulkEsc(t.name)}</strong>
-            <div style="font-size:.79rem;color:#546e7a;margin-top:.1rem;">${_bulkEsc(t.email)} · ${t.subjects.length ? _bulkEsc(t.subjects.join(', ')) : '<span style="color:#dc2626;">No subjects</span>'} · 📞 ${_bulkEsc(t.phone)}</div>
+            <div style="font-size:.79rem;color:#546e7a;margin-top:.1rem;">${[t.email ? _bulkEsc(t.email) : '', t.subjects.length ? _bulkEsc(t.subjects.join(', ')) : '<span style="color:#dc2626;">No subjects</span>', t.phone && t.phone !== '—' ? _bulkEsc(t.phone) : ''].filter(Boolean).join(' · ')}</div>
           </div>
           <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
             <button onclick="editTeacherSubjects('${t.uid}')" class="btn btn-outline btn-sm">✏️ Edit Subjects</button>
@@ -4011,26 +3571,26 @@ Share it with the teacher — it is not stored anywhere.`);
                 if (c.recordingUrl) {
                   recCell = `<div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-start;">
                     ${recordingSourceBadge(c.recordingSource || 'other')}
-                    <a href="${c.recordingUrl}" target="_blank" rel="noopener noreferrer" style="font-size:.74rem;font-weight:600;color:#1d4ed8;text-decoration:none;">▶ Watch</a>
+                    <a href="${_url(c.recordingUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:.74rem;font-weight:600;color:#1d4ed8;text-decoration:none;">▶ Watch</a>
                     <div style="display:flex;gap:.25rem;">
-                      <button onclick="adminEditRecording('${c.id}')" style="background:none;border:1px solid #cbd5e1;color:#0f172a;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-family:inherit;cursor:pointer;">✎</button>
-                      <button onclick="adminRemoveRecording('${c.id}')" style="background:none;border:1px solid #e5e7eb;color:#6b7280;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-family:inherit;cursor:pointer;">✕</button>
+                      <button onclick="adminEditRecording('${_js(c.id)}')" style="background:none;border:1px solid #cbd5e1;color:#0f172a;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-family:inherit;cursor:pointer;">✎</button>
+                      <button onclick="adminRemoveRecording('${_js(c.id)}')" style="background:none;border:1px solid #e5e7eb;color:#6b7280;padding:.18rem .55rem;border-radius:6px;font-size:.7rem;font-family:inherit;cursor:pointer;">✕</button>
                     </div>
                   </div>`;
                 } else if (isEnded) {
                   recCell = `<div style="display:flex;flex-direction:column;gap:.3rem;">
-                    ${c.zoomMeetingId ? `<button onclick="adminPullRecording('${c.id}','${c.zoomMeetingId}')" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;padding:.25rem .6rem;border-radius:6px;font-size:.72rem;font-family:inherit;font-weight:600;cursor:pointer;">📼 Get cloud</button>` : ''}
-                    <button onclick="adminAddRecording('${c.id}')" style="background:#fff;border:1px solid #cbd5e1;color:#0f172a;padding:.25rem .6rem;border-radius:6px;font-size:.72rem;font-family:inherit;cursor:pointer;">+ Paste link</button>
+                    ${c.zoomMeetingId ? `<button onclick="adminPullRecording('${_js(c.id)}','${_js(c.zoomMeetingId)}')" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;padding:.25rem .6rem;border-radius:6px;font-size:.72rem;font-family:inherit;font-weight:600;cursor:pointer;">📼 Get cloud</button>` : ''}
+                    <button onclick="adminAddRecording('${_js(c.id)}')" style="background:#fff;border:1px solid #cbd5e1;color:#0f172a;padding:.25rem .6rem;border-radius:6px;font-size:.72rem;font-family:inherit;cursor:pointer;">+ Paste link</button>
                   </div>`;
                 } else {
                   recCell = `<span style="color:#9ca3af;font-size:.78rem;">—</span>`;
                 }
 
                 return `<tr>
-                  <td style="font-weight:600;color:#1e293b;">${c.className}</td>
-                  <td>${c.teacherName || '—'}</td>
-                  <td>${c.subject}</td>
-                  <td>Class ${c.classGrade}</td>
+                  <td style="font-weight:600;color:#1e293b;">${_h(c.className)}</td>
+                  <td>${_h(c.teacherName || '—')}</td>
+                  <td>${_h(c.subject)}</td>
+                  <td>Class ${_h(c.classGrade)}</td>
                   <td style="font-size:.82rem;">${fmtClassTime(c.scheduledTs)}</td>
                   <td>${c.durationMins} min</td>
                   <td>${badge}</td>
@@ -4038,20 +3598,20 @@ Share it with the teacher — it is not stored anywhere.`);
                   <td>
                     <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
                       ${c.status === 'scheduled' ? `
-                        <button onclick="openReschedule('${c.id}','${c.date || ''}','${c.time || ''}',${c.durationMins})"
+                        <button onclick="openReschedule('${_js(c.id)}','${_js(c.date || '')}','${_js(c.time || '')}',${Number(c.durationMins) || 60})"
                           style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;">
                           📅 Reschedule
                         </button>
-                        <button onclick="adminCancelClass('${c.id}')"
+                        <button onclick="adminCancelClass('${_js(c.id)}')"
                           style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;">
                           ✕ Cancel
                         </button>` : ''}
                       ${c.status === 'cancelled' ? `
-                        <button onclick="adminRestoreClass('${c.id}')"
+                        <button onclick="adminRestoreClass('${_js(c.id)}')"
                           style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;">
                           ↩ Restore
                         </button>` : ''}
-                        <button onclick="adminDeleteClass('${c.id}','${safeName}')"
+                        <button onclick="adminDeleteClass('${_js(c.id)}','${_js(safeName)}')"
                           style="background:#fff0f0;color:#b91c1c;border:1px solid #fca5a5;padding:.3rem .7rem;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:inherit;font-weight:700;">
                           🗑 Delete
                         </button>
@@ -4595,12 +4155,15 @@ Share it with the teacher — it is not stored anywhere.`);
 <link rel="stylesheet" href="/assets/css/portal-experience.css?v=3bb993cb">
 <link rel="stylesheet" href="/assets/css/admin-workspace.css?v=2d4de7c6">
 <link rel="stylesheet" href="/assets/css/admin-enquiries.css?v=b498c69b">
-<link rel="stylesheet" href="/assets/css/offline-records.css?v=4822cad1">
+<link rel="stylesheet" href="/assets/css/admin-desk.css?v=fd53f009">
+<link rel="stylesheet" href="/assets/css/offline-records.css?v=f644c1f7">
 <script>document.documentElement.classList.add('ntc-styled');</script>
-<script src="/assets/js/admin-workspace.js?v=aecbe9ad"></script>
+<script src="/assets/js/admin-workspace.js?v=317d772a"></script>
 <link rel="stylesheet" href="/assets/css/portal-controls.css?v=d62c9c09">
 <link rel="stylesheet" href="/assets/css/brand-theme.css?v=a1c81d78">
 <script src="/assets/js/portal-controls.js?v=c7261655" defer></script>
+<link rel="stylesheet" href="/assets/css/admin-app.css?v=3ffff5e3">
+<script src="/assets/js/admin-app.js?v=72022cf2" defer></script>
 <script src="/assets/js/portal-atmosphere.js?v=ed6064d7"></script>
 </body>
 </html>

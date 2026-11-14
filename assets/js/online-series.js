@@ -1,0 +1,1502 @@
+/* ════════════════════════════════════════════════════════════════════
+   Online Test Series portal (/test-series) — app shell, phone first.
+   Sign in (Google or TNC ID) → onboarding form → Home (subjects) →
+   subject tests → unlock (Razorpay) → timed paper → upload → teacher
+   returns the checked script → Results + all-India leaderboard.
+
+   Reads use the Firestore REST API (rules allow only the student's own
+   records); every write goes through Netlify functions:
+     online-series  session, save-profile, create-order, verify-payment
+     offline-test   start (timer + paper), submit (answer script)
+   Last data is cached per student so the app opens instantly.
+   ════════════════════════════════════════════════════════════════════ */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { FIREBASE_CONFIG, initAppCheck } from './firebase-config.js?v=0970664c';
+
+const P = window.NTCOnlinePolicy;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const FS = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+const KEY = FIREBASE_CONFIG.apiKey;
+const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const WA = 'https://wa.me/919874461218';
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
+const SUBJECT_ICON = { Physics: 'physics', Chemistry: 'chemistry', Biology: 'biology', Mathematics: 'mathematics', Maths: 'mathematics', Science: 'science', Computer: 'computer', English: 'english' };
+const TINT = { Physics: ['#4f46e5', '#eef0ff'], Chemistry: ['#0e8a85', '#e2f5f4'], Biology: ['#2d8a3a', '#e7f5e9'], Mathematics: ['#c26a00', '#fff1dc'],
+  Science: ['#7c3aed', '#f1ebff'], Computer: ['#30507f', '#e8eef7'], English: ['#c03d68', '#fdebf1'] };
+const ic = (id, cls) => `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const subjIc = s => ic('s-' + (SUBJECT_ICON[s] || 'science'));
+const tint = s => { const t = TINT[s] || ['#1a56db', '#eaf1ff']; return `--tint:${t[0]};--tint-soft:${t[1]}`; };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+const fmtDate = v => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
+const fmtTime = ms => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const S = {
+  user: null, session: null, tests: [], attempts: {}, results: [], boards: {}, errors: {},
+  loading: null, offset: 0, segment: 'tests', rankSubject: '', resultSubject: '',
+  exam: null, pdfjs: null, zoom: 1, up: { photos: [], file: null, pdf: null, version: 0, uploaded: null, busy: false },
+  ob: null, view: '', modules: [], cust: null, packages: [], packSeg: 'packs'
+};
+const now = () => Date.now() + S.offset;
+const enrolled = () => !!(S.session && S.session.enrolled);
+const priceOf = t => P.priceFor(t, S.session && S.session.prices, enrolled());
+const kindOf = t => P.kindOf(t);
+// One free full mock per online student, on any subject they choose.
+const freeLeft = () => (S.session && S.session.freeMock && S.session.freeMock.left) || 0;
+const freeMocks = n => `${n} free mock${n === 1 ? '' : 's'}`;
+const freeChoices = () => visibleTests().filter(t => kindOf(t) === 'mock' && stateOf(t).key === 'locked').sort(byOrder);
+
+// ═══ Firebase ═══
+const fbApp = initializeApp(FIREBASE_CONFIG, 'ntc-online');   // its own session: never replaces a portal login
+await initAppCheck(fbApp);
+const auth = getAuth(fbApp);
+const google = new GoogleAuthProvider();
+google.setCustomParameters({ prompt: 'select_account' });
+
+// ═══ Network ═══
+async function http(url, opts, ms) {
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), ms || 20000);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  catch (_) { throw new Error(navigator.onLine === false ? "You're offline. Check your internet and try again." : 'Network problem. Please try again.'); }
+  finally { clearTimeout(timer); }
+}
+const token = () => S.user.getIdToken();
+async function fn(name, body) {
+  const res = await http('/.netlify/functions/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: await token(), ...body }) }, 30000);
+  let data = {}; try { data = await res.json(); } catch (_) {}
+  if ([404, 405].includes(res.status) && LOCAL) throw Object.assign(new Error('The test-series backend needs Netlify Dev here: run "npx netlify-cli dev" and open http://localhost:8888/test-series.'), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(data.error || `Something went wrong (${res.status}). Please try again.`), { status: res.status, data });
+  return data;
+}
+function val(v) {
+  if (!v || typeof v !== 'object') return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(val);
+  if ('mapValue' in v) return fields(v.mapValue.fields);
+  return null;
+}
+function fields(f) { const o = {}; for (const k in f || {}) o[k] = val(f[k]); return o; }
+const asDoc = d => ({ id: d.name.split('/').pop(), ...fields(d.fields) });
+// Firestore's own reason (rules, App Check or API-key restriction) goes to the
+// console so a 403 can be diagnosed; students see a plain message.
+function logFsError(what, res, json) {
+  const err = json && (Array.isArray(json) ? json[0] && json[0].error : json.error);
+  console.warn(`[test-series] Firestore ${what} → ${res.status}${err && err.message ? ': ' + err.message : ''}`);
+}
+async function fsQuery(collectionId, equals) {
+  const filters = Object.entries(equals).map(([fieldPath, v]) => ({ fieldFilter: { field: { fieldPath }, op: 'EQUAL', value: typeof v === 'boolean' ? { booleanValue: v } : { stringValue: String(v) } } }));
+  const res = await http(`${FS}:runQuery?key=${KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await token() },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId }], where: filters.length === 1 ? filters[0] : { compositeFilter: { op: 'AND', filters } } } }) });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !Array.isArray(json)) { logFsError(collectionId, res, json); throw new Error('Could not load your tests. Pull down or tap refresh.'); }
+  return json.filter(x => x.document).map(x => asDoc(x.document));
+}
+async function fsList(path) {
+  const out = []; let pageToken = '';
+  do {
+    const res = await http(`${FS}/${path}?key=${KEY}&pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`, { headers: { Authorization: 'Bearer ' + await token() } });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { logFsError(path, res, json); throw new Error('Could not load your results. Tap refresh to try again.'); }
+    out.push(...(json.documents || []).map(asDoc)); pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  return out;
+}
+
+// ═══ Cache: open instantly with the last known data ═══
+const cacheKey = () => 'ntc-online:v1:' + S.user.uid;
+function saveCache() {
+  try { localStorage.setItem(cacheKey(), JSON.stringify({ at: Date.now(), session: S.session, tests: S.tests, attempts: S.attempts, results: S.results, boards: S.boards, modules: S.modules, packages: S.packages })); } catch (_) {}
+}
+function loadCache() {
+  try { const c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); if (c && c.session && c.session.uid === S.user.uid && Date.now() - c.at < 14 * 86400000) return c; } catch (_) {}
+  return null;
+}
+
+// ═══ UI primitives ═══
+function show(screen) {
+  document.body.dataset.screen = screen;
+  ['boot', 'auth', 'onboard', 'app'].forEach(id => { $(id).hidden = id !== screen; });
+}
+let toastTimer = 0;
+function toast(msg, kind) {
+  const el = $('toast');
+  el.textContent = msg; el.className = 'tsx-toast on' + (kind ? ' ' + kind : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.className = 'tsx-toast' + (kind ? ' ' + kind : ''); }, kind === 'err' ? 5200 : 3200);
+}
+function haptic(ms) { if (!REDUCED.matches && navigator.vibrate) { try { navigator.vibrate(ms || 12); } catch (_) {} } }
+function busy(btn, label) {
+  if (!btn) return () => {};
+  const html = btn.innerHTML; btn.disabled = true; btn.classList.add('busy'); btn.innerHTML = `<span class="spin" aria-hidden="true"></span>${esc(label)}`;
+  return () => { btn.disabled = false; btn.classList.remove('busy'); btn.innerHTML = html; };
+}
+function bootMessage(text, retry) {
+  show('boot');
+  let box = $('bootMsg');
+  if (!box) { box = document.createElement('div'); box.id = 'bootMsg'; box.className = 'boot-msg'; $('boot').appendChild(box); }
+  box.innerHTML = `<p>${esc(text)}</p>` + (retry ? '<button type="button" class="btn primary">Try again</button> <button type="button" class="btn ghost" data-out>Sign out</button>' : '');
+  $('boot').classList.toggle('has-msg', !!text);
+  const b = box.querySelector('.btn.primary'); if (b) b.onclick = () => { box.innerHTML = ''; $('boot').classList.remove('has-msg'); refresh(); };
+  const o = box.querySelector('[data-out]'); if (o) o.onclick = () => signOutNow();
+}
+
+// Back button closes the top layer (sheet, upload, exam) instead of leaving.
+const layers = [];
+function pushLayer(name, close) { layers.push({ name, close }); history.pushState({ tsx: name }, ''); }
+function popLayer(name, after) {
+  const top = layers[layers.length - 1];
+  if (top && top.name === name) { top.after = after; history.back(); }
+  else if (after) after();
+}
+window.addEventListener('popstate', () => {
+  const top = layers.pop();
+  if (top) { top.close(); if (top.after) setTimeout(top.after, 0); }
+});
+
+// ═══ Sheet ═══
+let sheetOpener = null;
+function openSheet(html, bind) {
+  const back = $('sheet'), wasOpen = !back.hidden;
+  $('sheetBody').innerHTML = html;
+  if (bind) bind($('sheetBody'));
+  if (!wasOpen) {
+    sheetOpener = document.activeElement;
+    back.hidden = false;
+    requestAnimationFrame(() => back.classList.add('on'));
+    pushLayer('sheet', closeSheetNow);
+  }
+  const first = $('sheetBody').querySelector('.btn:not([disabled]), a.btn');
+  setTimeout(() => (first || $('sheetClose')).focus({ preventScroll: true }), wasOpen ? 0 : 220);
+}
+function closeSheetNow() {
+  const back = $('sheet');
+  back.classList.remove('on');
+  setTimeout(() => { if (!back.classList.contains('on')) { back.hidden = true; $('sheetBody').innerHTML = ''; } }, REDUCED.matches ? 0 : 220);
+  if (sheetOpener && document.contains(sheetOpener)) sheetOpener.focus({ preventScroll: true });
+}
+const closeSheet = after => popLayer('sheet', after);
+$('sheetClose').onclick = () => closeSheet();
+$('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('exUpload').hidden && !S.up.busy) closeUpload();
+  else if (!$('sheet').hidden) closeSheet();
+});
+
+// ═══ Sign in ═══
+const inWebView = /FBAN|FBAV|Instagram|Line\/|WhatsApp|Snapchat|; wv\)/i.test(navigator.userAgent);
+$('authWebview').hidden = !inWebView;
+$('copyLink').onclick = async () => { try { await navigator.clipboard.writeText(location.origin + '/test-series'); toast('Link copied. Paste it in Chrome or Safari.'); } catch (_) { toast('Copy this address: ' + location.origin + '/test-series'); } };
+const authErr = msg => { $('authErr').textContent = msg || ''; if (msg) haptic(30); };
+$('googleBtn').disabled = false;
+$('googleBtn').onclick = async () => {
+  authErr('');
+  const done = busy($('googleBtn'), 'Opening Google…');
+  try { await signInWithPopup(auth, google); }
+  catch (e) {
+    const map = {
+      'auth/popup-closed-by-user': '', 'auth/cancelled-popup-request': '',
+      'auth/popup-blocked': 'Please allow pop-ups for this site, then try again.',
+      'auth/network-request-failed': 'Check your internet connection and try again.',
+      'auth/unauthorized-domain': 'Google sign-in is not enabled on this address yet.',
+      'auth/operation-not-allowed': 'Google sign-in is not available yet. Please WhatsApp us.',
+      'auth/account-exists-with-different-credential': 'This email uses another sign-in method. Choose another Google account.',
+      'auth/web-storage-unsupported': 'Your browser is blocking sign-in. Open this page in Chrome or Safari.'
+    };
+    authErr(e.code in map ? map[e.code] : (inWebView ? 'Open this page in Chrome or Safari to continue with Google.' : 'Google sign-in failed. Please try again.'));
+  } finally { done(); }
+};
+$('tncToggle').onclick = () => {
+  const open = $('tncForm').hidden;
+  $('tncForm').hidden = !open; $('tncToggle').setAttribute('aria-expanded', String(open));
+  document.querySelector('.tsx-auth').classList.toggle('tnc-open', open);
+  if (open) setTimeout(() => $('tncId').focus(), 60);
+};
+$('pwEye').onclick = () => { const i = $('tncPw'), s = i.type === 'password'; i.type = s ? 'text' : 'password'; $('pwEye').textContent = s ? 'Hide' : 'Show'; $('pwEye').setAttribute('aria-label', s ? 'Hide password' : 'Show password'); };
+$('tncForm').onsubmit = async e => {
+  e.preventDefault(); authErr('');
+  const id = $('tncId').value.trim(), pw = $('tncPw').value;
+  if (!id || !pw) return authErr('Enter your TNC ID and password.');
+  const done = busy($('tncSubmit'), 'Signing in…');
+  try { await signInWithEmailAndPassword(auth, id.toLowerCase().replace(/\s+/g, '') + '@ntcportal.local', pw); }
+  catch (err) {
+    authErr(['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'].includes(err.code) ? 'Wrong TNC ID or password.'
+      : err.code === 'auth/too-many-requests' ? 'Too many attempts. Please wait a few minutes.'
+      : err.code === 'auth/network-request-failed' ? 'Check your internet connection and try again.' : 'Sign-in failed. Please try again.');
+  } finally { done(); }
+};
+// After signing out, Back goes to the homepage instead of walking through old tabs
+// behind the sign-in screen (same as the student / teacher / admin portals).
+window.addEventListener('popstate', () => { if (S.leftAt && !S.user) location.replace('/'); });
+async function signOutNow(message) {
+  S.leftAt = Date.now();
+  try { history.replaceState(null, '', location.pathname); } catch (_) {}   // drop the old tab from the address bar
+  try { localStorage.removeItem(cacheKey()); } catch (_) {}
+  S.user = null; S.session = null; S.tests = []; S.attempts = {}; S.results = []; S.boards = {};
+  try { await signOut(auth); } catch (_) {}
+  show('auth'); authErr(message || '');
+}
+
+onAuthStateChanged(auth, user => {
+  if (!user) { if (document.body.dataset.screen !== 'auth') { S.user = null; show('auth'); } return; }
+  if (S.user && S.user.uid === user.uid) return;
+  S.user = user; S.leftAt = 0;
+  const cache = loadCache();
+  if (cache && cache.session.profile && cache.session.profile.profileComplete) {
+    Object.assign(S, { session: cache.session, tests: cache.tests || [], attempts: cache.attempts || {}, results: cache.results || [], boards: cache.boards || {}, modules: cache.modules || [], packages: cache.packages || [] });
+    show('app'); render();
+    refresh().catch(() => {});
+  } else {
+    show('boot'); bootMessage('');
+    refresh();
+  }
+});
+
+// ═══ Load everything for the signed-in student ═══
+function refresh() {
+  if (S.loading) return S.loading;
+  S.loading = (async () => {
+    try {
+      const session = await fn('online-series', { action: 'session' });
+      if (!S.user || session.uid !== S.user.uid) return;
+      S.session = session;
+      S.offset = session.serverNow ? Date.parse(session.serverNow) - Date.now() : 0;
+      if (!session.profile.profileComplete) { startOnboarding(false); return; }
+      const uid = S.user.uid, cls = session.profile.class;
+      const [tests, attempts, results, boards, modules, packs] = await Promise.allSettled([
+        fsQuery('offlineTests', { series: 'online', class: cls }),
+        fsQuery('offlineAttempts', { uid }),
+        fsList(`onlineStudents/${uid}/results`),
+        fsQuery('onlineLeaderboard', { class: cls }),
+        moduleEligible() ? fsQuery('moduleRequests', { uid }) : Promise.resolve([]),
+        fsQuery('mockPackages', { class: cls })
+      ]);
+      S.errors = {};
+      // A custom module paper is made for one student only.
+      if (tests.status === 'fulfilled') S.tests = tests.value.map(normaliseTest).filter(t => (!t.forUid || t.forUid === uid) && (!t.board || !session.profile.board || t.board === session.profile.board));
+      else S.errors.tests = tests.reason.message;
+      if (attempts.status === 'fulfilled') S.attempts = Object.fromEntries(attempts.value.filter(a => a.testId).map(a => [a.testId, {
+        status: a.status || '', deadline: a.deadline || '', startedAt: a.startedAt || '', submittedAt: a.submittedAt || '',
+        questionPdfUrl: NTCUploadcare.deliveryUrl(a.questionPdfUrl || ''), uploadGraceMin: a.uploadGraceMin || 15
+      }]));
+      if (results.status === 'fulfilled') S.results = results.value.map(normaliseResult).sort((a, b) => (b.approvedAt || '').localeCompare(a.approvedAt || ''));
+      else S.errors.results = results.reason.message;
+      if (boards.status === 'fulfilled') S.boards = Object.fromEntries(boards.value.map(b => [b.subject, b]));
+      if (modules.status === 'fulfilled') S.modules = modules.value;
+      if (packs.status === 'fulfilled') S.packages = packs.value.map(normalisePack).filter(p => (!p.board || !session.profile.board || p.board === session.profile.board) && (p.active || ownsPack(p.id)));
+      saveCache();
+      if (document.body.dataset.screen !== 'app') show('app');
+      render();
+      resumePendingPayment();
+    } catch (e) {
+      if (e.status === 401) return signOutNow('Please sign in again.');
+      if (e.status === 403) return signOutNow(e.message);
+      if (document.body.dataset.screen === 'app') toast(navigator.onLine === false ? "You're offline — showing your saved data." : e.message, 'err');
+      else bootMessage(e.message, true);
+    } finally { S.loading = null; }
+  })();
+  return S.loading;
+}
+function normaliseTest(d) {
+  return { id: d.id, testName: d.testName || 'Test', subject: d.subject || 'General', chapter: d.chapter || 'General', module: d.module || 'Full chapter',
+    totalMarks: Number(d.totalMarks) || 0, durationMin: Number(d.durationMin) || 60, instructions: d.instructions || '',
+    gradingMode: d.gradingMode || 'teacher', isActive: d.isActive !== false, isFree: d.isFree === true, board: d.board || '', createdAt: d.createdAt || '',
+    kind: d.kind || '', forUid: d.forUid || '', requestId: d.requestId || '', packageId: d.packageId || '', slot: Number(d.slot) || 0, releaseAt: d.releaseAt || '' };
+}
+function normalisePack(d) {
+  return { id: d.id, title: d.title || `${d.subject} mock pack`, class: String(d.class || ''), board: d.board || '', subject: d.subject || 'General', schedule: Array.isArray(d.schedule) ? d.schedule : [],
+    priceInr: Number(d.priceInr) || 0, active: d.active !== false, description: d.description || '', createdAt: d.createdAt || '' };
+}
+function normaliseResult(r) {
+  return { id: r.id, testId: r.testId || String(r.reportId || '').split('__')[0], reportId: r.reportId || r.id, testName: r.testName || 'Test',
+    subject: r.subject || 'General', chapter: r.chapter || r.topic || 'General', module: r.module || 'Full chapter', class: String(r.class || ''),
+    score: Number(r.score), totalMarks: Number(r.totalMarks) || 0, remark: r.remark || '',
+    pdf: NTCUploadcare.isFileUrl(r.answerSheetUrl || '') ? NTCUploadcare.deliveryUrl(r.answerSheetUrl) : '',
+    submittedAt: r.submittedAt || '', approvedAt: r.approvedAt || r.savedAt || '' };
+}
+
+// ═══ Derived data ═══
+const visibleTests = () => S.tests.filter(t => t.isActive || S.attempts[t.id]);
+const resultFor = t => S.results.find(r => r.testId === t.id);
+function stateOf(t) {
+  const a = S.attempts[t.id];
+  if (!a && kindOf(t) === 'package' && t.releaseAt && Date.parse(t.releaseAt) > now()) return { key: 'scheduled', at: t.releaseAt };
+  if (a) {
+    if (a.status === 'started') { const left = Date.parse(a.deadline) - now(); return { key: 'started', left, late: left < -(a.uploadGraceMin || 15) * 60000 }; }
+    if (a.status === 'approved') return { key: 'checked', result: resultFor(t) };
+    return { key: 'review' };
+  }
+  if (!t.isActive) return { key: 'closed' };
+  if (priceOf(t) === 0) return { key: 'ready', why: 'free' };
+  if ((S.session.unlocked || []).includes(t.id)) return { key: 'ready', why: 'paid' };
+  return { key: 'locked' };
+}
+const byOrder = (a, b) => (b.isFree - a.isFree) || a.createdAt.localeCompare(b.createdAt) || a.testName.localeCompare(b.testName, undefined, { numeric: true });
+function subjects() {
+  const set = new Set([...visibleTests().map(t => t.subject), ...((S.session.profile.subjects) || [])]);
+  const order = s => { const i = P.SUBJECTS.indexOf(s); return i < 0 ? 99 : i; };
+  return [...set].sort((a, b) => order(a) - order(b) || a.localeCompare(b)).map(name => {
+    const tests = visibleTests().filter(t => t.subject === name && !['custom', 'package'].includes(kindOf(t)));
+    const done = tests.filter(t => ['review', 'checked'].includes(stateOf(t).key)).length;
+    return { name, count: tests.length, mocks: tests.filter(t => kindOf(t) === 'mock').length, done };
+  });
+}
+function standing(subject) {
+  const b = S.boards[subject], cls = String(S.session.profile.class);
+  const mine = S.results.filter(r => r.subject === subject && r.class === cls);
+  const avg = P.averageOf(mine);
+  return { board: b, avg, rank: b ? P.rankFrom(b.scores, avg) : null, of: b ? b.count : 0, tests: mine.length };
+}
+const pctOf = r => r.totalMarks > 0 && Number.isFinite(r.score) ? Math.round(r.score / r.totalMarks * 100) : null;
+const tone = pct => pct == null ? '' : pct >= 75 ? 'good' : pct >= 50 ? 'mid' : 'low';
+
+// ═══ Router ═══
+function route() {
+  const h = location.hash.replace(/^#\/?/, '').split('/');
+  if (h[0] === 's' && h[1]) return { name: 'subject', subject: decodeURIComponent(h[1]) };
+  if (['ranks', 'results', 'me', 'packs', 'custom'].includes(h[0])) return { name: h[0] };
+  return { name: 'home' };
+}
+window.addEventListener('hashchange', () => { if (S.session && document.body.dataset.screen === 'app') render(true); });
+// More: the pages that are not on the phone tab bar, plus help.
+function openMore() {
+  const r = route(), rank = (() => { try { return subjects().map(x => ({ ...standing(x.name), subject: x.name })).filter(x => x.rank).sort((a, b) => a.rank - b.rank)[0]; } catch (_) { return null; } })();
+  const item = (hash, icon, label, sub, cur) => `<a href="${hash}" data-more-go${cur ? ' aria-current="page"' : ''}>${ic(icon)}<span><b>${label}</b><small>${sub}</small></span>${ic('i-chev', 'chev')}</a>`;
+  openSheet(`<div class="sh-head"><h2 id="sheetTitle">More</h2></div>
+    <div class="menu more-menu">
+      ${item('#/ranks', 'i-trophy', 'Leaderboard', rank ? `Your best: #${rank.rank} in ${esc(rank.subject || '')}` : 'All-India ranks by subject', r.name === 'ranks')}
+      ${moduleEligible() ? item('#/custom', 'i-layers', 'Custom test', 'Pick chapters — we make your paper', r.name === 'custom') : ''}
+      ${item('#/me', 'i-user', 'Profile', esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
+      <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span><b>Help on WhatsApp</b><small>Payments, papers, anything else</small></span>${ic('i-chev', 'chev')}</a>
+      <a href="tel:${CONTACT.tel}">${ic('i-phone')}<span><b>Call us</b><small>${esc(CONTACT.show)}</small></span>${ic('i-chev', 'chev')}</a>
+    </div>`, root => root.querySelectorAll('[data-more-go]').forEach(a => a.onclick = e => {
+      e.preventDefault(); const h = a.getAttribute('href');
+      closeSheet(() => { if (location.hash !== h) location.hash = h; });
+    }));
+}
+$('navMore').onclick = () => openMore();
+$('topBack').onclick = () => { if (history.length > 1 && S.cameFromApp) history.back(); else location.hash = '#/'; };
+
+function render(navigated) {
+  if (!S.session) return;
+  const r = route(), p = S.session.profile;
+  const titles = { home: 'Test Series', subject: r.subject, ranks: 'Leaderboard', results: 'Results', me: 'Profile', packs: 'Mock packs', custom: 'Custom test' };
+  $('navCustom').hidden = !moduleEligible();
+  $('topTitle').textContent = titles[r.name];
+  $('topBack').hidden = r.name !== 'subject';
+  $('topMark').hidden = r.name === 'subject';
+  $('topAvatar').textContent = initials(p.name);
+  $('topAvatar').hidden = r.name === 'me';
+  // Phone bar: Home · Packs · Results · More (Ranks, Custom, Profile live in More).
+  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'custom', 'me'].includes(tab);
+  document.querySelectorAll('#nav [data-tab]').forEach(a => {
+    const on = a.dataset.tab === tab || (a.dataset.tab === 'more' && inMore);
+    a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  const seen = (() => { try { return localStorage.getItem('ntc-online:seen:' + S.user.uid) || ''; } catch (_) { return ''; } })();
+  $('resultsDot').hidden = !S.results.some(x => (x.approvedAt || '') > seen) || r.name === 'results';
+  if (r.name === 'results' && S.results[0]) { try { localStorage.setItem('ntc-online:seen:' + S.user.uid, S.results[0].approvedAt || ''); } catch (_) {} }
+  if (r.name === 'subject' && S.view !== 'subject' + r.subject) {
+    const hasMock = visibleTests().some(t => t.subject === r.subject && kindOf(t) === 'mock');
+    const hasChapter = visibleTests().some(t => t.subject === r.subject && kindOf(t) === 'chapter');
+    S.segment = S.forceSegment || ((hasMock && (freeLeft() || !hasChapter)) ? 'mock' : 'chapter');
+    S.forceSegment = null;
+  }
+  const html = r.name === 'subject' ? viewSubject(r.subject) : r.name === 'ranks' ? viewRanks() : r.name === 'results' ? viewResults() : r.name === 'me' ? viewProfile() : r.name === 'packs' ? viewPacks() : r.name === 'custom' ? viewCustom() : viewHome();
+  const main = $('view'), key = r.name + (r.subject || '');
+  main.innerHTML = html;
+  if (navigated || S.view !== key) {
+    if (navigated) S.cameFromApp = true;
+    main.scrollTop = 0;
+    if (!REDUCED.matches) { main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter'); }
+  }
+  S.view = key;
+  bindView(main);
+}
+const initials = name => (String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('') || '··').toUpperCase();
+const firstName = () => String(S.session.profile.name || 'there').trim().split(/\s+/)[0];
+function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
+
+function bindView(root) {
+  root.querySelectorAll('[data-test]').forEach(b => b.onclick = () => {
+    const t = S.tests.find(x => x.id === b.dataset.test);
+    openTest(b.dataset.test, t && S.justUnlocked === t.id && stateOf(t).key === 'ready' ? 'confirm' : undefined);
+  });
+  root.querySelectorAll('[data-result]').forEach(b => b.onclick = () => openResult(b.dataset.result));
+  root.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { S.segment = b.dataset.seg; render(); });
+  root.querySelectorAll('[data-rank]').forEach(b => b.onclick = () => { S.rankSubject = b.dataset.rank; render(); });
+  root.querySelectorAll('[data-rfilter]').forEach(b => b.onclick = () => { S.resultSubject = b.dataset.rfilter; render(); });
+  root.querySelectorAll('[data-resume]').forEach(b => b.onclick = () => { const t = S.tests.find(x => x.id === b.dataset.resume); if (t) openExam(t, S.attempts[t.id], 0); });
+  root.querySelectorAll('[data-free-pick]').forEach(b => b.onclick = openFreePicker);
+  bindCustom(root);
+  root.querySelectorAll('[data-refresh]').forEach(b => b.onclick = async () => { const done = busy(b, 'Refreshing'); await refresh(); done(); });
+  const act = { edit: () => startOnboarding(true), signout: confirmSignOut };
+  root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act[b.dataset.act] && act[b.dataset.act]());
+  root.querySelectorAll('.chips-scroll .on').forEach(el => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
+}
+
+// ═══ Views ═══
+function pill(t, st) {
+  switch (st.key) {
+    case 'locked': return `<span class="pill lock">${ic('i-lock')}₹${priceOf(t)}</span>`;
+    case 'ready': return st.why === 'free' && !['custom', 'package'].includes(kindOf(t)) ? '<span class="pill free">Free</span>' : `<span class="pill go">${ic('i-play')}Start</span>`;
+    case 'started': return `<span class="pill warn">${ic('i-clock')}${st.left > 0 ? Math.ceil(st.left / 60000) + 'm left' : 'Upload'}</span>`;
+    case 'review': return '<span class="pill wait">In review</span>';
+    case 'scheduled': return `<span class="pill off">${ic('i-clock')}${esc(fmtShort(st.at))}</span>`;
+    case 'checked': { const r = st.result; return r ? `<span class="pill done ${tone(pctOf(r))}">${r.score}/${r.totalMarks}</span>` : `<span class="pill done">${ic('i-check')}Checked</span>`; }
+    default: return '<span class="pill off">Closed</span>';
+  }
+}
+function emptyBlock(iconId, title, text, extra) {
+  return `<div class="empty">${ic(iconId)}<b>${esc(title)}</b><p>${esc(text)}</p>${extra || ''}</div>`;
+}
+
+function viewHome() {
+  const p = S.session.profile, ids = new Set(S.tests.map(t => t.id));
+  const mine = Object.entries(S.attempts).filter(([id]) => ids.has(id)).map(([, a]) => a);
+  const given = mine.filter(a => a.status !== 'started').length;
+  const review = mine.filter(a => a.status && !['started', 'approved'].includes(a.status)).length;
+  const list = subjects();
+  const best = list.map(s => standing(s.name)).filter(s => s.rank).sort((a, b) => a.rank - b.rank)[0];
+  const live = visibleTests().map(t => [t, stateOf(t)]).find(([, s]) => s.key === 'started');
+  return `<section class="v v-home">
+    <div class="hello">
+      <div><p class="eyebrow">Class ${esc(p.class)}${p.board ? ' · ' + esc(p.board) : ''}</p><h2>${greeting()}, ${esc(firstName())}</h2></div>
+      ${freeLeft() ? `<button type="button" class="plan" data-free-pick>${ic('i-gift')}${freeMocks(freeLeft())}</button>` : enrolled() ? `<span class="plan pro">${ic('i-shield')}TNC student</span>` : ''}
+    </div>
+    <div class="stats" role="list">
+      <div role="listitem"><strong>${given}</strong><span>Tests given</span></div>
+      <div role="listitem"><strong>${review}</strong><span>In review</span></div>
+      <div role="listitem"><strong>${best ? '#' + best.rank : '—'}</strong><span>Best rank</span></div>
+    </div>
+    ${live ? `<button type="button" class="resume" data-resume="${esc(live[0].id)}"><span class="resume-ic">${ic('i-clock')}</span><span><b>${esc(live[0].testName)}</b><small>${live[1].left > 0 ? fmtTime(live[1].left).replace(/:\d\d$/, '') + ' left · tap to continue' : 'Time is up · upload your answers'}</small></span>${ic('i-chev', 'chev')}</button>` : ''}
+    <div class="sec"><h3>Subjects</h3>${S.errors.tests ? '<button type="button" class="link" data-refresh>' + ic('i-refresh') + 'Retry</button>' : `<span>${list.length}</span>`}</div>
+    ${list.length ? `<div class="subj-grid">${list.map(s => `<a class="subj" href="#/s/${encodeURIComponent(s.name)}" style="${tint(s.name)}">
+        <span class="subj-ic">${subjIc(s.name)}</span>
+        <span class="subj-txt"><b>${esc(s.name)}</b><small>${s.count ? (s.count - s.mocks ? plural(s.count - s.mocks, 'test') : '') + (s.count - s.mocks && s.mocks ? ' · ' : '') + (s.mocks ? plural(s.mocks, 'mock') : '') : 'Coming soon'}</small></span>
+        <span class="subj-meter" aria-label="${s.done} of ${s.count} done"><i style="width:${s.count ? Math.round(s.done / s.count * 100) : 0}%"></i></span>
+      </a>`).join('')}</div>` : emptyBlock('i-doc', 'Tests are on the way', 'TNC faculty are preparing papers for your class. Check back soon.')}
+    ${nextMock() ? nextMockCard(nextMock()) : !ownedPacks().length && S.packages.some(p => p.active) && !S.results[0] ? `<a class="free-card pack-offer" href="#/packs" data-pseg-link="packs"><span class="free-ic">${ic('i-layers')}</span><span><b>Weekly mock packs</b><small>A full-syllabus mock every week · from ₹${Math.min(...S.packages.filter(p => p.active).map(p => p.priceInr))}</small></span>${ic('i-chev', 'chev')}</a>`
+      : freeLeft() && freeChoices().length && !S.results[0] ? `<button type="button" class="free-card" data-free-pick><span class="free-ic">${ic('i-gift')}</span><span><b>Your ${freeLeft() > 1 ? freeLeft() + ' free mock tests' : 'free mock test'}</b><small>Pick any subject — full mock${freeLeft() > 1 ? 's' : ''} on us</small></span>${ic('i-chev', 'chev')}</button>`
+      : S.results[0] ? `<div class="sec"><h3>Latest result</h3><a class="link" href="#/results">See all</a></div>${resultRows(S.results.slice(0, 1))}`
+      : `<div class="how-card"><span class="eyebrow">How it works</span><ol class="how"><li>${ic('i-download')}<b>Download</b><small>Timer starts</small></li><li>${ic('i-pen')}<b>Write</b><small>On paper</small></li><li>${ic('i-camera')}<b>Upload</b><small>Checked in 48 h</small></li></ol></div>`}
+  </section>`;
+}
+
+function viewSubject(subject) {
+  const tests = visibleTests().filter(t => t.subject === subject).sort(byOrder);
+  const results = S.results.filter(r => r.subject === subject);
+  const st = standing(subject), p = S.session.profile;
+  const seg = ['chapter', 'mock', 'results'].includes(S.segment) ? S.segment : 'chapter';
+  const chapters = tests.filter(t => kindOf(t) === 'chapter'), mocks = tests.filter(t => kindOf(t) === 'mock');
+  const shown = seg === 'mock' ? mocks : chapters;
+  const hint = seg === 'results' ? ''
+    : enrolled() ? 'Chapter-wise tests and full mocks are free for TNC students'
+    : seg === 'mock' ? `₹${priceOf({ kind: 'mock' })} per full mock${freeLeft() ? ` · ${freeMocks(freeLeft())} left — use on any subject` : ''}`
+    : `₹${priceOf({ kind: 'chapter' })} per chapter test`;
+  const rows = seg !== 'results'
+    ? (shown.length ? `<ul class="rows">${shown.map((t, i) => { const s = stateOf(t), fresh = t.id === S.justUnlocked && s.key === 'ready'; return `<li><button type="button" class="row${fresh ? ' fresh' : ''}" data-test="${esc(t.id)}">
+        <span class="row-ix">${fresh ? ic('i-unlock') : String(i + 1).padStart(2, '0')}</span>
+        <span class="row-main"><b>${esc(t.testName)}</b><small>${fresh ? '<em>Unlocked · tap to start</em> · ' : ''}${esc(t.chapter)}${t.module && t.module !== 'Full chapter' ? ' · ' + esc(t.module) : ''} · ${t.totalMarks || '?'} marks · ${t.durationMin} min</small></span>
+        ${pill(t, s)}</button></li>`; }).join('')}</ul>`
+      : emptyBlock('i-doc', seg === 'mock' ? 'No full mocks yet' : 'No chapter tests yet', `${subject} ${seg === 'mock' ? 'full mock tests' : 'chapter-wise tests'} for Class ${p.class} will appear here.`))
+    : (results.length ? resultRows(results) : emptyBlock('i-results', 'No checked scripts yet', 'Checked results arrive within 48 hours of submitting.'));
+  return `<section class="v v-subject" style="${tint(subject)}">
+    <div class="subj-head">
+      <span class="subj-ic lg">${subjIc(subject)}</span>
+      <div><h2>${esc(subject)}</h2><p>Class ${esc(p.class)} · ${plural(tests.length, 'test')}</p></div>
+      <a class="rank-chip" href="#/ranks" data-rank-link="${esc(subject)}">${st.rank ? `<b>#${st.rank}</b><small>of ${st.of}</small>` : `${ic('i-trophy')}<small>Not ranked</small>`}</a>
+    </div>
+    <div class="seg three" role="tablist"><button type="button" role="tab" data-seg="chapter" aria-selected="${seg === 'chapter'}">Chapter-wise <i>${chapters.length}</i></button><button type="button" role="tab" data-seg="mock" aria-selected="${seg === 'mock'}">Full mocks <i>${mocks.length}</i></button><button type="button" role="tab" data-seg="results" aria-selected="${seg === 'results'}">Results <i>${results.length}</i></button></div>
+    ${hint ? `<p class="seg-hint">${esc(hint)}</p>` : ''}
+    ${rows}
+  </section>`;
+}
+document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-rank-link]'); if (a) S.rankSubject = a.dataset.rankLink; });
+
+function resultRows(list) {
+  return `<ul class="rows">${list.map(r => { const pct = pctOf(r); return `<li><button type="button" class="row" data-result="${esc(r.id)}">
+    <span class="row-score ${tone(pct)}">${pct == null ? '—' : pct + '%'}</span>
+    <span class="row-main"><b>${esc(r.testName)}</b><small>${esc(r.subject)} · ${esc(r.chapter)}${r.approvedAt ? ' · ' + fmtDate(r.approvedAt) : ''}</small></span>
+    <span class="pill done ${tone(pct)}">${Number.isFinite(r.score) ? r.score : '—'}/${r.totalMarks}</span></button></li>`; }).join('')}</ul>`;
+}
+
+function viewRanks() {
+  const names = [...new Set([...subjects().filter(s => s.count).map(s => s.name), ...Object.keys(S.boards)])];
+  if (!names.length) return `<section class="v">${emptyBlock('i-trophy', 'Leaderboard opens soon', 'Take a test — once it is checked you join the all-India ranking for your class.')}</section>`;
+  if (!names.includes(S.rankSubject)) S.rankSubject = names.find(n => S.boards[n]) || names[0];
+  const subject = S.rankSubject, st = standing(subject), b = st.board, cls = S.session.profile.class;
+  const top = (b && b.top) || [];
+  const slot = (n, cls2) => { const x = top.find(t => t.rank === n) || top[n - 1]; return `<li class="pod ${cls2}"><span class="medal">${n}</span><b>${x ? esc(x.name) : '—'}</b><small>${x && (x.city || x.state) ? esc(x.city || x.state) : x ? 'India' : 'Open spot'}</small><i></i></li>`; };
+  return `<section class="v v-ranks" style="${tint(subject)}">
+    <div class="chips-scroll" role="tablist">${names.map(n => `<button type="button" role="tab" class="chip-btn${n === subject ? ' on' : ''}" data-rank="${esc(n)}" aria-selected="${n === subject}">${subjIc(n)}${esc(n)}</button>`).join('')}</div>
+    <div class="rank-card">
+      <div class="rank-me">
+        <span class="eyebrow">Your rank · Class ${esc(cls)}</span>
+        <strong>${st.rank ? '#' + st.rank : '—'}</strong>
+        <small>${b && b.count ? `of ${plural(b.count, 'student')} across India` : 'No one ranked yet'}</small>
+        <span class="rank-avg">${st.avg != null ? `Your average <b>${Math.round(st.avg)}%</b> · ${plural(st.tests, 'test')}` : `Take a ${esc(subject)} test to get ranked`}</span>
+      </div>
+      <ol class="podium" aria-label="Top three in ${esc(subject)}">${slot(2, 'p2')}${slot(1, 'p1')}${slot(3, 'p3')}</ol>
+    </div>
+    <p class="fine center">Ranked by average marks across checked tests in ${esc(subject)}${b && b.updatedAt ? ' · updated ' + fmtDate(b.updatedAt) : ''}.</p>
+  </section>`;
+}
+
+function viewResults() {
+  const pending = visibleTests().filter(t => stateOf(t).key === 'review');
+  const subs = [...new Set(S.results.map(r => r.subject))];
+  if (S.resultSubject && !subs.includes(S.resultSubject)) S.resultSubject = '';
+  const list = S.results.filter(r => !S.resultSubject || r.subject === S.resultSubject);
+  return `<section class="v v-results">
+    ${S.errors.results ? `<div class="banner err">${esc(S.errors.results)} <button type="button" class="link" data-refresh>Retry</button></div>` : ''}
+    ${pending.length ? `<div class="sec"><h3>Being checked</h3><span>${pending.length}</span></div><ul class="rows">${pending.map(t => `<li><button type="button" class="row" data-test="${esc(t.id)}"><span class="row-score wait">${ic('i-clock')}</span><span class="row-main"><b>${esc(t.testName)}</b><small>${esc(t.subject)} · results within 48 hours</small></span><span class="pill wait">In review</span></button></li>`).join('')}</ul>` : ''}
+    <div class="sec"><h3>Checked</h3><span>${S.results.length}</span></div>
+    ${subs.length > 1 ? `<div class="chips-scroll"><button type="button" class="chip-btn${!S.resultSubject ? ' on' : ''}" data-rfilter="">All</button>${subs.map(s => `<button type="button" class="chip-btn${s === S.resultSubject ? ' on' : ''}" data-rfilter="${esc(s)}">${esc(s)}</button>`).join('')}</div>` : ''}
+    ${list.length ? resultRows(list) : emptyBlock('i-results', 'No checked scripts yet', 'Submit a test and your checked answer script appears here within 48 hours.')}
+  </section>`;
+}
+
+function viewProfile() {
+  const p = S.session.profile;
+  const row = (k, v) => v ? `<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>` : '';
+  const groups = [
+    ['Personal', [['Date of birth', p.dob ? new Date(p.dob + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''], ['Gender', p.gender], ['Mobile', p.phone], ['Email', p.email]]],
+    ['Studies', [['Class', p.class ? 'Class ' + p.class : ''], ['Board', p.board], ['School', p.school], ['Subjects', (p.subjects || []).join(', ')], ['Preparing for', p.target]]],
+    ['Address', [['Address', p.address], ['City', p.city], ['State', p.state], ['PIN code', p.pincode]]],
+    ['Parent / guardian', [['Name', p.guardianName], ['Relation', p.guardianRelation], ['Mobile', p.guardianPhone]]]
+  ].map(([title, rows]) => [title, rows.map(([k, v]) => row(k, v)).join('')]).filter(([, html]) => html);
+  const missing = enrolled() && !p.guardianPhone;
+  return `<section class="v v-me">
+    <div class="me-card">
+      <span class="avatar lg">${esc(initials(p.name))}</span>
+      <div><h2>${esc(p.name || 'Student')}</h2><p>${esc(p.onlineId || p.studentId || '')}</p></div>
+      <span class="plan${enrolled() ? ' pro' : ''}">${enrolled() ? ic('i-shield') + 'TNC student' : ic('i-spark') + 'Online'}</span>
+    </div>
+    ${missing ? `<button type="button" class="banner info" data-act="edit">${ic('i-edit')}<span>Add your address and guardian details</span>${ic('i-chev', 'chev')}</button>` : ''}
+    <div class="groups">${groups.map(([title, html], i) => `<details class="group"${i === 0 ? ' open' : ''}><summary>${esc(title)}${ic('i-down', 'chev')}</summary><div class="kvs">${html}</div></details>`).join('')}</div>
+    <div class="menu">
+      <button type="button" data-act="edit">${ic('i-edit')}<span>Edit details</span>${ic('i-chev', 'chev')}</button>
+      <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span>Help on WhatsApp</span>${ic('i-chev', 'chev')}</a>
+      <button type="button" class="danger" data-act="signout">${ic('i-out')}<span>Sign out</span></button>
+    </div>
+    <p class="fine center">${esc(p.email || '')}</p>
+  </section>`;
+}
+function confirmSignOut() {
+  openSheet(`<div class="sh-head"><h2 id="sheetTitle">Sign out?</h2><p>Your tests, results and rank stay saved.</p></div>
+    <div class="sh-actions"><button type="button" class="btn ghost" data-x>Cancel</button><button type="button" class="btn danger" data-out>Sign out</button></div>`,
+  root => { root.querySelector('[data-x]').onclick = () => closeSheet(); root.querySelector('[data-out]').onclick = () => closeSheet(() => signOutNow()); });
+}
+
+// ═══ Test sheet: details, unlock, start ═══
+function testHead(t) {
+  return `<div class="sh-head" style="${tint(t.subject)}"><span class="sh-kicker">${subjIc(t.subject)}${esc(t.subject)} · ${esc(t.chapter)}</span><h2 id="sheetTitle">${esc(t.testName)}</h2>
+    <div class="facts"><span class="kind">${kindOf(t) === 'mock' ? 'Full mock' : kindOf(t) === 'custom' ? 'Custom module' : kindOf(t) === 'package' ? 'Pack mock' + (/^Mock [0-9]/.test(t.module) ? ' · ' + esc(t.module.slice(5)) : '') : 'Chapter-wise'}</span><span>${ic('i-doc')}${t.totalMarks || '?'} marks</span><span>${ic('i-clock')}${t.durationMin} min</span>${t.module && t.module !== 'Full chapter' && kindOf(t) !== 'custom' ? `<span>${esc(t.module)}</span>` : ''}${t.isFree ? '<span class="free">Free test</span>' : ''}</div></div>`;
+}
+function openTest(id, mode) {
+  const t = S.tests.find(x => x.id === id);
+  if (!t) return;
+  if (S.promo && S.promo.target !== id) S.promo = null;
+  const st = stateOf(t);
+  let body = '';
+  if (mode === 'free-confirm') body = `<div class="free-confirm">${ic('i-gift')}<p><b>Use a free mock on ${esc(t.subject)}?</b> You have ${freeMocks(freeLeft())} left. Once used it can't be moved to another test or subject.</p></div>
+    <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="claim">Use free mock</button></div>`;
+  else if (mode === 'unlocked') body = `<div class="celebrate">${ic('i-unlock')}<b>Test unlocked</b><p>It's yours. Start whenever you're ready — the timer begins only when you open the paper.</p></div>
+    <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button>`;
+  else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>`}<small>One-time · this test</small></div>
+      <ul><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
+    ${promoBox(t.id, !S.session.paymentsReady)}
+    ${S.promo && S.promo.target === t.id ? `<button type="button" class="btn primary block" data-go="promo-redeem">${ic('i-unlock')}Unlock for ₹0</button>`
+      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-go="pay">${ic('i-lock')}Unlock for ₹${priceOf(t)}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+      : contactCard(`"${t.testName}" (${t.subject})`)}`;
+  else if (st.key === 'ready' && mode === 'confirm') body = `<div class="warn-box">${ic('i-clock')}<p><b>Your ${t.durationMin}-minute timer starts as soon as the paper opens.</b> It can't be paused. Keep pen, paper and your phone camera ready.</p></div>
+    <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="start">Start now</button></div>`;
+  else if (st.key === 'ready') body = `${kindOf(t) === 'custom' && t.module ? `<p class="instr"><b>Chapters:</b> ${esc(t.module)}</p>` : ''}${t.instructions ? `<p class="instr">${esc(t.instructions)}</p>` : ''}<ol class="how"><li>${ic('i-download')}<b>Download</b><small>Timer starts</small></li><li>${ic('i-pen')}<b>Write</b><small>On paper</small></li><li>${ic('i-camera')}<b>Upload</b><small>PDF or photos</small></li></ol>
+    <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button><p class="fine center">Checked by TNC faculty · results within 48 hours</p>`;
+  else if (st.key === 'started') body = `<div class="warn-box">${ic('i-clock')}<p>${st.left > 0 ? `<b>${fmtTime(st.left).replace(/:\d\d$/, '')} left.</b> Your timer kept running while you were away.` : `<b>Time's up.</b> Upload your answers now${st.late ? ' — it will be marked late' : ''}.`}</p></div>
+    <button type="button" class="btn primary block" data-go="resume">${st.left > 0 ? 'Continue test' : 'Upload answers'}</button>`;
+  else if (st.key === 'scheduled') body = `<div class="warn-box">${ic('i-clock')}<p><b>This mock opens on ${esc(fmtWhen(st.at))}.</b> Come back then — the paper and your timer start only when you open it.</p></div>`;
+  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>With TNC faculty</b><small>Checking your script</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>`; }
+  else if (st.key === 'checked') { const r = st.result; body = r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>'; }
+  else body = '<p class="instr">This test is closed.</p>';
+  openSheet(testHead(t) + body, root => {
+    const go = root.querySelectorAll('[data-go]');
+    go.forEach(b => b.onclick = () => {
+      const a = b.dataset.go;
+      if (a === 'confirm') openTest(t.id, 'confirm');
+      else if (a === 'back') openTest(t.id);
+      else if (a === 'start') startTest(t, b);
+      else if (a === 'resume') closeSheet(() => openExam(t, S.attempts[t.id], 0));
+      else if (a === 'pay') unlock(t, b);
+      else if (a === 'free-confirm') openTest(t.id, 'free-confirm');
+      else if (a === 'claim') claimFree(t, b);
+      else if (a === 'promo-redeem') redeemPromo(t, b);
+    });
+    if (st.key === 'locked') { bindPromo(root, t.id, { testId: t.id }, () => openTest(t.id)); if (S.session.paymentsReady) loadRazorpay().catch(() => {}); }
+  });
+}
+function resultBody(r) {
+  const pct = pctOf(r);
+  return `<div class="score ${tone(pct)}"><div class="ring" style="--p:${pct || 0}"><b>${Number.isFinite(r.score) ? r.score : '—'}</b><small>of ${r.totalMarks}</small></div>
+    <div><b>${pct == null ? '' : pct + '%'}</b><small>Checked by TNC faculty${r.approvedAt ? ' · ' + fmtDate(r.approvedAt) : ''}</small></div></div>
+    ${r.remark && !/^Offline Test Series|^Checked by TNC faculty$/.test(r.remark) ? `<div class="feedback"><span class="eyebrow">Feedback from TNC faculty</span><p>${esc(r.remark)}</p></div>` : ''}
+    ${r.pdf ? `<a class="btn primary block" href="${esc(r.pdf)}" target="_blank" rel="noopener noreferrer" download>${ic('i-download')}Checked answer script</a>` : ''}
+    <p class="fine center">Saved permanently in your results.</p>`;
+}
+function openResult(id) {
+  const r = S.results.find(x => x.id === id);
+  if (!r) return;
+  openSheet(`<div class="sh-head" style="${tint(r.subject)}"><span class="sh-kicker">${subjIc(r.subject)}${esc(r.subject)} · ${esc(r.chapter)}</span><h2 id="sheetTitle">${esc(r.testName)}</h2></div>` + resultBody(r));
+}
+
+// ═══ Free mock: pick a subject ═══
+function openFreePicker() {
+  const list = freeChoices(), seen = new Set();
+  const order = s => { const i = P.SUBJECTS.indexOf(s); return i < 0 ? 99 : i; };
+  const firstPerSubject = list.filter(t => !seen.has(t.subject) && seen.add(t.subject)).sort((a, b) => order(a.subject) - order(b.subject));
+  openSheet(`<div class="sh-head"><span class="sh-kicker">${ic('i-gift')}${freeMocks(freeLeft())} left</span><h2 id="sheetTitle">Choose a subject</h2><p>Pick the subject for your free full mock test. Each free mock can be used once.</p></div>
+    ${firstPerSubject.length ? `<ul class="rows">${firstPerSubject.map(t => `<li><button type="button" class="row" data-pick="${esc(t.id)}" style="${tint(t.subject)}"><span class="subj-ic">${subjIc(t.subject)}</span><span class="row-main"><b>${esc(t.subject)}</b><small>${esc(t.testName)} · ${t.totalMarks || '?'} marks · ${t.durationMin} min</small></span>${ic('i-chev', 'chev')}</button></li>`).join('')}</ul>`
+      : emptyBlock('i-doc', 'No full mocks yet', 'Full mock tests for your class are on the way. Your free mock will be waiting.')}`,
+  root => root.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => openTest(b.dataset.pick, 'free-confirm')));
+}
+async function claimFree(t, btn) {
+  const done = busy(btn, 'Unlocking…');
+  try {
+    const r = await fn('online-series', { action: 'claim-free', testId: t.id });
+    S.session.unlocked = [...new Set([...(S.session.unlocked || []), t.id])];
+    S.session.freeMock = r.freeMock;
+    saveCache(); haptic(30);
+    returnToTest(t, 'Free mock unlocked');
+  } catch (e) {
+    done();
+    if (e.data && (e.data.freeUsed || e.data.unlocked)) { await refresh(); openTest(t.id); }
+    toast(e.message, 'err');
+  }
+}
+
+// ── Promo codes (100% off one purchase) and the contact card shown until
+// online payment is switched on. S.promo = { target, code } for the open sheet.
+const CONTACT = { tel: '+919874461218', show: '+91 98744 61218' };
+function promoBox(target, open) {
+  const applied = S.promo && S.promo.target === target ? S.promo.code : '';
+  if (applied) return `<div class="promo ok">${ic('i-check')}<span><b>${esc(applied)}</b> applied · this costs ₹0</span><button type="button" class="link" data-promo-remove>Remove</button></div>`;
+  return `<details class="promo-box"${open ? ' open' : ''}><summary>${ic('i-spark')}Have a promo code?</summary>
+    <div class="promo-row"><input id="promoInput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" placeholder="Enter code" aria-label="Promo code"><button type="button" class="btn ghost" data-promo-apply>Apply</button></div>
+    <p class="promo-msg" id="promoMsg" role="status"></p></details>`;
+}
+function contactCard(what) {
+  const p = S.session.profile, text = `Hi, I'd like to buy ${what} on the Online Test Series (Class ${p.class}). My ID: ${p.onlineId || ''}`;
+  return `<div class="contact-card"><b>Online payment opens soon</b><span>To buy now, call or WhatsApp us — we'll send you a code that unlocks it.</span>
+    <div class="contact-act"><a class="btn ghost" href="tel:${CONTACT.tel}">${ic('i-phone')}${CONTACT.show}</a><a class="btn primary" href="${WA}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${ic('i-chat')}WhatsApp</a></div></div>`;
+}
+// Apply / remove a code in an open sheet; `check` is the server request body.
+function bindPromo(root, target, check, rerender) {
+  const apply = root.querySelector('[data-promo-apply]'), input = root.querySelector('#promoInput');
+  if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply.click(); } });
+  if (apply) apply.onclick = async () => {
+    const code = input.value.trim().toUpperCase(), msg = root.querySelector('#promoMsg');
+    if (!code) { msg.className = 'promo-msg bad'; msg.textContent = 'Enter your promo code.'; return input.focus(); }
+    const done = busy(apply, 'Checking');
+    try {
+      const r = await fn('online-series', { action: 'check-promo', code, ...check });
+      S.promo = { target, code: r.code }; haptic(20); rerender();
+    } catch (e) { done(); msg.className = 'promo-msg bad'; msg.textContent = e.message; }
+  };
+  const remove = root.querySelector('[data-promo-remove]');
+  if (remove) remove.onclick = () => { S.promo = null; rerender(); };
+}
+async function redeemPromo(t, btn) {
+  const done = busy(btn, 'Unlocking…');
+  try {
+    await fn('online-series', { action: 'redeem-promo', code: S.promo.code, testId: t.id });
+    S.promo = null; markUnlocked(t); haptic(30);
+    returnToTest(t, 'Promo applied — test unlocked');
+  } catch (e) {
+    done();
+    if (e.data && e.data.unlocked) { S.promo = null; markUnlocked(t); return returnToTest(t, 'This test is already unlocked.'); }
+    toast(e.message, 'err');
+  }
+}
+
+// Shown above every Pay button: a successful payment is not refunded.
+const noRefund = () => `<p class="no-refund">${ic('i-shield')}<span><b>Non-refundable.</b> Once paid, the amount is not refunded or exchanged.</span></p>`;
+
+// ═══ Payments (Razorpay Checkout) ═══
+let razorpayLoader = null;
+function loadRazorpay() {
+  return razorpayLoader || (razorpayLoader = new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js'; s.async = true;
+    s.onload = resolve; s.onerror = () => { razorpayLoader = null; reject(new Error('Could not open the payment window. Check your internet and try again.')); };
+    document.head.appendChild(s);
+  }));
+}
+async function unlock(t, btn) {
+  const done = busy(btn, 'Opening payment…');
+  try {
+    const [order] = await Promise.all([fn('online-series', { action: 'create-order', testId: t.id }), loadRazorpay()]);
+    const rz = new window.Razorpay({
+      key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,
+      name: 'The NewTown Classes', description: (order.testName || t.testName) + ' · Non-refundable', prefill: order.prefill || {},
+      notes: { testId: t.id }, theme: { color: '#003087' }, retry: { enabled: true, max_count: 3 },
+      modal: { ondismiss: () => { S.checkoutOpen = false; clearPending(); done(); }, escape: true, backdropclose: false },
+      handler: resp => { S.checkoutOpen = false; confirmPayment(t, resp); }
+    });
+    rz.on('payment.failed', r => toast((r && r.error && r.error.description) || 'Payment failed. No money was taken — please try again.', 'err'));
+    // If the phone reloads the page during a UPI payment, this brings the
+    // student back to the same test once the server confirms it.
+    setPending({ orderId: order.orderId, testId: t.id });
+    S.checkoutOpen = true;
+    rz.open();
+  } catch (e) {
+    done();
+    if (e.data && e.data.unlocked) { markUnlocked(t); return returnToTest(t, 'This test is already unlocked.'); }
+    toast(e.message, 'err');
+  }
+}
+const markUnlocked = t => { S.session.unlocked = [...new Set([...(S.session.unlocked || []), t.id])]; saveCache(); };
+const pendKey = () => 'ntc-online:pending-pay:' + S.user.uid;
+function setPending(p) { try { localStorage.setItem(pendKey(), JSON.stringify({ ...p, at: Date.now() })); } catch (_) {} }
+function getPending() { try { return JSON.parse(localStorage.getItem(pendKey()) || 'null'); } catch (_) { return null; } }
+function clearPending() { try { localStorage.removeItem(pendKey()); } catch (_) {} }
+
+// Back to the subject's list with the unlocked test highlighted; tapping it
+// shows the timer warning and "Start now" opens the exam.
+function returnToTest(t, message) {
+  S.justUnlocked = t.id;
+  const go = () => {
+    if (S.exam) return;
+    const hash = '#/s/' + encodeURIComponent(t.subject);
+    S.forceSegment = kindOf(t);
+    if (location.hash === hash) { S.view = ''; render(); } else location.hash = hash;
+    if (message) toast(message);
+    setTimeout(() => { const row = document.querySelector(`.row.fresh`); if (row) row.scrollIntoView({ block: 'center', behavior: REDUCED.matches ? 'auto' : 'smooth' }); }, 150);
+    clearTimeout(S.freshTimer);
+    S.freshTimer = setTimeout(() => { S.justUnlocked = ''; if (route().name === 'subject' && $('sheet').hidden && !S.exam) render(); }, 60000);
+  };
+  if (!$('sheet').hidden) closeSheet(go); else go();
+}
+
+// After a reload: finish a payment that was in progress.
+let pendingBusy = false;
+async function resumePendingPayment() {
+  const p = getPending();
+  if (!p || pendingBusy || S.checkoutOpen || !S.session || S.exam) return;
+  if (p.module) return resumeModulePayment(p);
+  if (p.packageId) return resumePackPayment(p);
+  const t = S.tests.find(x => x.id === p.testId);
+  if (t && (S.session.unlocked || []).includes(p.testId)) { clearPending(); return returnToTest(t, 'Payment successful — test unlocked'); }
+  if (!t || Date.now() - p.at > 15 * 60000) return clearPending();
+  pendingBusy = true;
+  toast('Confirming your payment…');
+  try {
+    for (let i = 0; i < 4; i++) {
+      await sleep(2500);
+      try {
+        const s = await fn('online-series', { action: 'session' });
+        S.session.unlocked = s.unlocked;
+        if (s.unlocked.includes(t.id)) { clearPending(); saveCache(); return returnToTest(t, 'Payment successful — test unlocked'); }
+      } catch (_) {}
+    }
+    toast('Payment not confirmed yet. If money was deducted, the test unlocks automatically within a few minutes.', 'err');
+  } finally { pendingBusy = false; }
+}
+async function confirmPayment(t, resp) {
+  openSheet(testHead(t) + '<div class="celebrate wait"><span class="spin lg" aria-hidden="true"></span><b>Confirming your payment…</b><p>Please keep this screen open.</p></div>');
+  let unlocked = false;
+  try {
+    await fn('online-series', { action: 'verify-payment', orderId: resp.razorpay_order_id, paymentId: resp.razorpay_payment_id, signature: resp.razorpay_signature });
+    unlocked = true;
+  } catch (_) {
+    // Razorpay also tells our server directly (webhook); give it a moment.
+    for (let i = 0; i < 5 && !unlocked; i++) {
+      await sleep(2500);
+      try { const s = await fn('online-series', { action: 'session' }); S.session.unlocked = s.unlocked; unlocked = s.unlocked.includes(t.id); } catch (_) {}
+    }
+  }
+  if (unlocked) {
+    clearPending(); markUnlocked(t); haptic(30);
+    returnToTest(t, 'Payment successful — test unlocked');
+  } else {
+    openSheet(testHead(t) + `<div class="celebrate err">${ic('i-shield')}<b>We're still confirming your payment</b><p>If money was deducted, the test unlocks automatically within a few minutes. If the payment did not go through, your bank returns any amount it held. Payment ID: <code>${esc(resp.razorpay_payment_id)}</code></p></div>
+      <div class="sh-actions"><a class="btn ghost" href="${WA}?text=${encodeURIComponent('Payment help: ' + resp.razorpay_payment_id)}" target="_blank" rel="noopener">WhatsApp us</a><button type="button" class="btn primary" data-check>Check again</button></div>`,
+    root => { root.querySelector('[data-check]').onclick = async () => { await refresh(); if ((S.session.unlocked || []).includes(t.id)) { clearPending(); returnToTest(t, 'Payment successful — test unlocked'); } else toast('Not confirmed yet. Please try again in a minute.'); }; });
+  }
+}
+
+// ═══ Custom module test (Classes 9–12) ═══
+// Pick chapters (CBSE or ICSE / ISC) → cart → pay → one paper per subject,
+// made by the team within a day → appears under My tests to start.
+const moduleEligible = () => !!(S.session && P.MODULE.classes.includes(String(S.session.profile.class)));
+const cartKey = () => 'ntc-online:cart:' + S.user.uid;
+const fmtWhen = v => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); };
+function cust() {
+  if (!S.cust) {
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem(cartKey()) || '{}'); } catch (_) {}
+    S.cust = { board: NTCSyllabus.boardFor(S.session.profile.board), subject: '', seg: 'build', carts: { CBSE: saved.CBSE || {}, CISCE: saved.CISCE || {} } };
+  }
+  return S.cust;
+}
+function saveCart() { try { localStorage.setItem(cartKey(), JSON.stringify(S.cust.carts)); } catch (_) {} }
+function cartItems(board) {
+  const picked = S.cust.carts[board] || {};
+  return NTCSyllabus.subjects(board, S.session.profile.class)
+    .map(s => ({ subject: s.subject, chapters: s.chapters.filter(c => (picked[s.subject] || []).includes(c)) })).filter(i => i.chapters.length);
+}
+const cartCount = board => cartItems(board).reduce((n, i) => n + i.chapters.length, 0);
+// Subjects in the cart with too few chapters for a paper (minimum 2 each).
+const cartShort = board => cartItems(board).filter(i => i.chapters.length < P.MODULE.minPerPaper);
+const shortMsg = list => `Add ${list.map(i => `${P.MODULE.minPerPaper - i.chapters.length} more ${i.subject}`).join(', ')} chapter${list.length === 1 && P.MODULE.minPerPaper - list[0].chapters.length === 1 ? '' : 's'} · min ${P.MODULE.minPerPaper} per paper`;
+function bill(n) {
+  const M = P.MODULE, first = Math.min(n, M.firstCount), rest = n - first, total = P.modulePrice(n);
+  return { first, rest, total, save: n * M.first - total };
+}
+
+// ═══ Test packs: weekly mock packs + custom tests + what the student owns ═══
+const fmtShort = v => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); };
+const fmtDay = v => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
+const ownsPack = id => (S.session && (S.session.unlocked || []).includes('pkg_' + id));
+const ownedPacks = () => S.packages.filter(p => ownsPack(p.id));
+const packWhen = (p, short) => { const d = new Date(p.schedule[0] || ''); return Number.isNaN(d.getTime()) ? '' : `Every ${d.toLocaleDateString('en-IN', { weekday: short ? 'short' : 'long' })} · ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`; };
+function packSlots(p) {
+  const tests = S.tests.filter(t => kindOf(t) === 'package' && t.packageId === p.id);
+  return p.schedule.map((at, i) => {
+    const t = tests.find(x => x.slot === i + 1), opensAt = (t && t.releaseAt) || at, open = Date.parse(opensAt) <= now();
+    const st = t ? stateOf(t) : null;
+    return { n: i + 1, at: opensAt, t, st, key: t && open ? 'open' : !t && open ? 'prep' : 'soon', done: !!(st && ['review', 'checked'].includes(st.key)) };
+  });
+}
+function nextMock() {
+  let best = null;
+  ownedPacks().forEach(p => packSlots(p).forEach(s => {
+    if (s.done) return;
+    const startable = s.key === 'open' && ['ready', 'started'].includes(s.st && s.st.key);
+    if (!startable && s.key !== 'soon') return;
+    const score = startable ? 0 : Date.parse(s.at);
+    if (!best || score < best.score) best = { p, s, score };
+  }));
+  return best;
+}
+function nextMockCard(nm) {
+  const { p, s } = nm, open = s.key === 'open';
+  return `<button type="button" class="free-card next-mock" data-pack="${esc(p.id)}" style="${tint(p.subject)}"><span class="free-ic">${ic(open ? 'i-play' : 'i-clock')}</span>
+    <span><b>${open ? 'Mock ready' : 'Next mock'} · ${esc(p.subject)} ${s.n}/${p.schedule.length}</b><small>${open ? 'Open now — start any time' : 'Opens ' + esc(fmtShort(s.at))}</small></span>${ic('i-chev', 'chev')}</button>`;
+}
+function packPill(s) {
+  if (s.key === 'open') return pill(s.t, s.st);
+  if (s.key === 'prep') return '<span class="pill wait">Being prepared</span>';
+  return `<span class="pill off">${ic('i-lock')}${esc(fmtDay(s.at))}</span>`;
+}
+function packCard(p) {
+  const own = ownsPack(p.id), slots = own ? packSlots(p) : [], done = slots.filter(s => s.done).length, n = p.schedule.length;
+  return `<button type="button" class="pack-card" data-pack="${esc(p.id)}" style="${tint(p.subject)}">
+    <span class="subj-ic">${subjIc(p.subject)}</span>
+    <span class="pk-main"><b>${esc(p.title)}</b><small>${plural(n, 'mock')} · ${esc(packWhen(p, true))}</small>
+      ${own ? `<span class="pk-meter" aria-label="${done} of ${n} done"><i style="width:${n ? Math.round(done / n * 100) : 0}%"></i></span><small>${done} of ${n} done</small>` : `<small>Starts ${esc(fmtDay(p.schedule[0]))}</small>`}</span>
+    ${own ? `<span class="pill done">${ic('i-check')}Joined</span>` : `<span class="pk-price"><b>₹${p.priceInr}</b><small>${'₹' + Math.round(p.priceInr / Math.max(1, n)) + '/mock'}</small></span>`}</button>`;
+}
+
+function viewPacks() {
+  const owned = ownedPacks();
+  if (!['packs', 'mine'].includes(S.packSeg)) S.packSeg = 'packs';
+  const seg = S.packSeg;
+  const head = `<div class="cm-hero"><span class="cm-ic">${ic('i-calendar')}</span><div><h2>Mock packs</h2><p>A full-syllabus mock every week, at a fixed time</p></div></div>
+    <div class="seg" role="tablist"><button type="button" role="tab" data-pseg="packs" aria-selected="${seg === 'packs'}">All packs</button><button type="button" role="tab" data-pseg="mine" aria-selected="${seg === 'mine'}">My packs <i>${owned.length}</i></button></div>`;
+  let body = '';
+  if (seg === 'mine') {
+    body = owned.length ? `<div class="pack-list">${owned.map(packCard).join('')}</div>`
+      : emptyBlock('i-calendar', 'No packs yet', 'Join a mock pack — your weekly mocks and their dates show up here.', '<button type="button" class="btn primary" data-pseg="packs">See all packs</button>');
+  } else {
+    const sale = S.packages.filter(p => p.active);
+    body = `<div class="cm-price">${ic('i-spark')}Opens at the set time · take it any time after · checked by TNC faculty</div>`
+      + (sale.length ? `<div class="pack-list">${sale.map(packCard).join('')}</div>` : emptyBlock('i-layers', 'Mock packs are on the way', `Weekly mock packs for Class ${S.session.profile.class} will appear here soon.`));
+  }
+  return `<section class="v v-custom v-packs">${head}${body}</section>`;
+}
+
+// Custom module test tab (Classes 9–12): Build a test | My tests.
+function viewCustom() {
+  if (!moduleEligible()) return `<section class="v">${emptyBlock('i-layers', 'For Classes 9 to 12', 'Custom module tests are available from Class 9. Your chapter tests and full mocks are on Home.')}</section>`;
+  const c = cust(), mods = S.modules.slice().sort((x, y) => (y.createdAt || '').localeCompare(x.createdAt || ''));
+  const head = `<div class="cm-hero"><span class="cm-ic">${ic('i-layers')}</span><div><h2>Custom module test</h2><p>Pick any chapters — we make your paper</p></div></div>
+    <div class="seg" role="tablist"><button type="button" role="tab" data-cseg="build" aria-selected="${c.seg !== 'mine'}">Build a test</button><button type="button" role="tab" data-cseg="mine" aria-selected="${c.seg === 'mine'}">My tests <i>${mods.length}</i></button></div>`;
+  const body = c.seg === 'mine'
+    ? (mods.length ? customMineRows(mods) : emptyBlock('i-layers', 'No custom tests yet', 'Build one from any chapters. Your paper is ready within a day.', '<button type="button" class="btn primary" data-cseg="build">Build a test</button>'))
+    : customBuild();
+  return `<section class="v v-custom">${head}${body}</section>`;
+}
+
+function customMineRows(mods) {
+  return `<ul class="rows">${mods.map(m => {
+    const t = m.testId && S.tests.find(x => x.id === m.testId), st = t && stateOf(t);
+    return `<li><button type="button" class="row" data-cmod="${esc(m.id)}" style="${tint(m.subject)}"><span class="subj-ic">${subjIc(m.subject)}</span>
+      <span class="row-main"><b>${esc(m.subject)} · ${plural(m.chapterCount, 'chapter')}</b><small>${t ? esc((m.chapters || []).slice(0, 2).join(', ')) + (m.chapterCount > 2 ? ` +${m.chapterCount - 2}` : '') : 'Ready by ' + esc(fmtWhen(m.dueAt))}</small></span>
+      ${t ? pill(t, st) : '<span class="pill wait">Preparing</span>'}</button></li>`; }).join('')}</ul>`;
+}
+
+function customBuild() {
+  if (!moduleEligible()) return emptyBlock('i-layers', 'For Classes 9 to 12', 'Custom module tests are available from Class 9.');
+  const c = cust(), cls = String(S.session.profile.class), subs = NTCSyllabus.subjects(c.board, cls), M = P.MODULE;
+  if (!subs.some(s => s.subject === c.subject)) c.subject = subs[0].subject;
+  const n = cartCount(c.board), b = bill(n), picked = (c.carts[c.board][c.subject]) || [];
+  const chapters = NTCSyllabus.chapters(c.board, cls, c.subject);
+  const boardTabs = ['CBSE', 'CISCE'].map(bd => `<button type="button" role="tab" data-cboard="${bd}" aria-selected="${c.board === bd}">${NTCSyllabus.boardLabel(bd, cls)}${cartCount(bd) ? ` <i>${cartCount(bd)}</i>` : ''}</button>`).join('');
+  return `<div class="cm-price">${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · at least ${M.minPerPaper} chapters per subject</div>
+    <div class="cm-pick">
+      <div class="seg small" role="tablist" aria-label="Board">${boardTabs}</div>
+      <div class="chips-scroll" role="tablist" aria-label="Subject">${subs.map(s => { const k = ((c.carts[c.board][s.subject]) || []).length; return `<button type="button" role="tab" class="chip-btn${s.subject === c.subject ? ' on' : ''}" data-csub="${esc(s.subject)}" aria-selected="${s.subject === c.subject}">${subjIc(s.subject)}${esc(s.subject)}${k ? `<i>${k}</i>` : ''}</button>`; }).join('')}</div>
+    </div>
+    <div class="sec"><h3>${esc(c.subject)} · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</h3><button type="button" class="link" data-call>${picked.length === chapters.length ? 'Clear' : 'Select all'}</button></div>
+    <ul class="rows picks" style="${tint(c.subject)}">${chapters.map((ch, i) => { const on = picked.includes(ch); return `<li><button type="button" class="row pick" data-ch="${i}" aria-pressed="${on}">
+      <span class="row-ix">${String(i + 1).padStart(2, '0')}</span><span class="row-main"><b>${esc(ch)}</b></span><span class="tick" aria-hidden="true">${ic(on ? 'i-check' : 'i-plus')}</span></button></li>`; }).join('')}</ul>
+    ${n ? (() => { const short = cartShort(c.board); return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${plural(n, 'chapter')} · ₹${b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save ? `You save ₹${b.save}` : `${cartItems(c.board).length} paper${cartItems(c.board).length === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`; })() : ''}`;
+}
+
+// ── One mock pack: details, schedule, join / pay; or progress if joined ──
+function openPackage(id) {
+  const p = S.packages.find(x => x.id === id); if (!p) return;
+  if (S.promo && S.promo.target !== 'pkg:' + id) S.promo = null;
+  const own = ownsPack(id), n = p.schedule.length, slots = packSlots(p), promo = S.promo && S.promo.target === 'pkg:' + id ? S.promo.code : '';
+  const head = `<div class="sh-head" style="${tint(p.subject)}"><span class="sh-kicker">${subjIc(p.subject)}${esc(p.subject)} · Class ${esc(p.class)}${p.board ? ' · ' + esc(p.board) : ''}</span><h2 id="sheetTitle">${esc(p.title)}</h2>
+    <div class="facts"><span class="kind">${plural(n, 'mock')}</span><span>${ic('i-clock')}${esc(packWhen(p))}</span><span>From ${esc(fmtDay(p.schedule[0]))}</span></div></div>`;
+  const schedule = `<div class="sec"><h3>Schedule</h3><span>${n}</span></div><ul class="rows sched" style="${tint(p.subject)}">${slots.map(s => `<li><button type="button" class="row"${own && s.t ? ` data-slot-test="${esc(s.t.id)}"` : ' disabled'}>
+      <span class="row-ix">${String(s.n).padStart(2, '0')}</span><span class="row-main"><b>Mock ${s.n}</b><small>${esc(fmtShort(s.at))}</small></span>${own ? packPill(s) : ''}</button></li>`).join('')}</ul>`;
+  let body;
+  if (own) {
+    const done = slots.filter(s => s.done).length, nm = slots.find(s => !s.done && (s.key === 'soon' || (s.key === 'open' && ['ready', 'started'].includes(s.st && s.st.key))));
+    body = `<div class="pk-progress"><div><b>${done} of ${n} done</b><small>${nm ? (nm.key === 'open' ? `Mock ${nm.n} is open — start any time` : `Mock ${nm.n} opens ${esc(fmtShort(nm.at))}`) : 'All mocks taken — great work'}</small></div><span class="pk-meter"><i style="width:${n ? Math.round(done / n * 100) : 0}%"></i></span></div>${schedule}`;
+  } else {
+    const per = Math.round(p.priceInr / Math.max(1, n));
+    body = `<div class="price"><div class="price-top">${promo ? `<b>₹0</b><s>₹${p.priceInr}</s>` : `<b>₹${p.priceInr}</b>`}<small>${plural(n, 'mock')} · ₹${per} a mock</small></div>
+        <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Script &amp; marks checked by TNC facultys within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
+      ${p.description ? `<p class="instr">${esc(p.description)}</p>` : ''}
+      ${`${promoBox('pkg:' + id, !S.session.paymentsReady)}${promo ? `<button type="button" class="btn primary block" data-pjoin>${ic('i-unlock')}Join for ₹0</button>`
+          : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+          : contactCard(`the "${p.title}" (${plural(n, 'mock')})`)}`}
+      ${schedule}`;
+  }
+  openSheet(head + body, root => {
+    root.querySelectorAll('[data-slot-test]').forEach(b => b.onclick = () => openTest(b.dataset.slotTest));
+    const join = root.querySelector('[data-pjoin]'); if (join) join.onclick = () => joinPack(p, join);
+    const pay = root.querySelector('[data-ppay]'); if (pay) pay.onclick = () => payPack(p, pay);
+    if (!own) { bindPromo(root, 'pkg:' + id, { packageId: id }, () => openPackage(id)); if (S.session.paymentsReady && !promo) loadRazorpay().catch(() => {}); }
+  });
+}
+function packJoined(p, message) {
+  S.session.unlocked = [...new Set([...(S.session.unlocked || []), 'pkg_' + p.id])];
+  S.promo = null; S.packSeg = 'mine'; saveCache(); render(); haptic(30); toast(message);
+  openPackage(p.id);
+}
+async function joinPack(p, btn) {
+  const done = busy(btn, 'Joining…');
+  try {
+    const promoCode = S.promo && S.promo.target === 'pkg:' + p.id ? S.promo.code : '';
+    const r = await fn('online-series', { action: 'package-order', packageId: p.id, ...(promoCode ? { promoCode } : {}) });
+    packJoined(p, r.promo ? 'Promo applied — you have joined the pack' : 'You have joined the pack');
+  } catch (e) {
+    done();
+    if (e.data && e.data.unlocked) return packJoined(p, 'You are already in this pack.');
+    toast(e.message, 'err');
+  }
+}
+async function payPack(p, btn) {
+  const done = busy(btn, 'Opening payment…');
+  try {
+    const [order] = await Promise.all([fn('online-series', { action: 'package-order', packageId: p.id }), loadRazorpay()]);
+    const rz = new window.Razorpay({
+      key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,
+      name: 'The NewTown Classes', description: order.testName + ' · Non-refundable', prefill: order.prefill || {}, theme: { color: '#003087' }, retry: { enabled: true, max_count: 3 },
+      modal: { ondismiss: () => { S.checkoutOpen = false; clearPending(); done(); }, escape: true, backdropclose: false },
+      handler: async resp => {
+        S.checkoutOpen = false;
+        openSheet('<div class="celebrate wait"><span class="spin lg" aria-hidden="true"></span><b>Confirming your payment…</b><p>Please keep this screen open.</p></div>');
+        let ok = false;
+        try { await fn('online-series', { action: 'verify-payment', orderId: resp.razorpay_order_id, paymentId: resp.razorpay_payment_id, signature: resp.razorpay_signature }); ok = true; }
+        catch (_) { for (let i = 0; i < 5 && !ok; i++) { await sleep(2500); try { ok = (await fn('online-series', { action: 'session' })).unlocked.includes('pkg_' + p.id); } catch (_) {} } }
+        if (ok) { clearPending(); return packJoined(p, 'Payment successful — you have joined the pack'); }
+        openSheet(`<div class="celebrate err">${ic('i-shield')}<b>We're still confirming your payment</b><p>If money was deducted, you join the pack automatically within a few minutes. If the payment did not go through, your bank returns any amount it held. Payment ID: <code>${esc(resp.razorpay_payment_id)}</code></p></div>`);
+      }
+    });
+    rz.on('payment.failed', r => toast((r && r.error && r.error.description) || 'Payment failed. No money was taken — please try again.', 'err'));
+    setPending({ orderId: order.orderId, packageId: p.id });
+    S.checkoutOpen = true; rz.open();
+  } catch (e) { done(); if (e.data && e.data.unlocked) return packJoined(p, 'You are already in this pack.'); toast(e.message, 'err'); }
+}
+async function resumePackPayment(p) {
+  const pack = S.packages.find(x => x.id === p.packageId);
+  if (pack && ownsPack(pack.id)) { clearPending(); return packJoined(pack, 'Payment successful — you have joined the pack'); }
+  if (!pack || Date.now() - p.at > 15 * 60000) return clearPending();
+  pendingBusy = true; toast('Confirming your payment…');
+  try {
+    for (let i = 0; i < 4; i++) {
+      await sleep(2500);
+      try { const s = await fn('online-series', { action: 'session' }); S.session.unlocked = s.unlocked; if (ownsPack(pack.id)) { clearPending(); return packJoined(pack, 'Payment successful — you have joined the pack'); } } catch (_) {}
+    }
+    toast('Payment not confirmed yet. If money was deducted, you join the pack automatically within a few minutes.', 'err');
+  } finally { pendingBusy = false; }
+}
+
+function bindCustom(root) {
+  root.querySelectorAll('[data-cseg]').forEach(b => b.onclick = () => { cust().seg = b.dataset.cseg; render(); });
+  root.querySelectorAll('[data-pseg]').forEach(b => b.onclick = () => { S.packSeg = b.dataset.pseg; render(); });
+  root.querySelectorAll('[data-pseg-link]').forEach(b => b.addEventListener('click', () => { S.packSeg = b.dataset.psegLink; }));
+  root.querySelectorAll('[data-pack]').forEach(b => b.onclick = () => openPackage(b.dataset.pack));
+  root.querySelectorAll('[data-cboard]').forEach(b => b.onclick = () => { cust().board = b.dataset.cboard; render(); });
+  root.querySelectorAll('[data-csub]').forEach(b => b.onclick = () => { cust().subject = b.dataset.csub; render(); });
+  root.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => {
+    const c = cust(), list = NTCSyllabus.chapters(c.board, S.session.profile.class, c.subject), ch = list[+b.dataset.ch];
+    const cart = c.carts[c.board], cur = new Set(cart[c.subject] || []);
+    if (cur.has(ch)) cur.delete(ch);
+    else { if (cartCount(c.board) >= P.MODULE.maxChapters) return toast(`Up to ${P.MODULE.maxChapters} chapters at a time.`); cur.add(ch); haptic(8); }
+    cart[c.subject] = list.filter(x => cur.has(x)); saveCart();
+    const keep = $('view').scrollTop; render(); $('view').scrollTop = keep;
+  });
+  root.querySelectorAll('[data-call]').forEach(b => b.onclick = () => {
+    const c = cust(), list = NTCSyllabus.chapters(c.board, S.session.profile.class, c.subject), cart = c.carts[c.board];
+    const all = (cart[c.subject] || []).length === list.length;
+    const others = cartCount(c.board) - (cart[c.subject] || []).length;
+    if (!all && others + list.length > P.MODULE.maxChapters) return toast(`Up to ${P.MODULE.maxChapters} chapters at a time.`);
+    cart[c.subject] = all ? [] : list.slice(); saveCart();
+    const keep = $('view').scrollTop; render(); $('view').scrollTop = keep;
+  });
+  root.querySelectorAll('[data-cart]').forEach(b => b.onclick = openCart);
+  root.querySelectorAll('[data-cmod]').forEach(b => b.onclick = () => {
+    const m = S.modules.find(x => x.id === b.dataset.cmod); if (!m) return;
+    const t = m.testId && S.tests.find(x => x.id === m.testId);
+    if (t) openTest(t.id); else openModuleSheet(m);
+  });
+}
+
+function openCart() {
+  if (S.promo && S.cust && S.promo.target !== 'cart:' + S.cust.board) S.promo = null;
+  const c = cust(), cls = String(S.session.profile.class), items = cartItems(c.board), n = cartCount(c.board), b = bill(n), M = P.MODULE, short = cartShort(c.board);
+  if (!n) return closeSheet();
+  openSheet(`<div class="sh-head"><span class="sh-kicker">${ic('i-cart')}Your cart · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</span><h2 id="sheetTitle">Custom module test</h2></div>
+    <div class="cart-list">${items.map(it => `<div class="cg" style="${tint(it.subject)}"><div class="cg-h"><span class="subj-ic">${subjIc(it.subject)}</span>${esc(it.subject)}<small>${plural(it.chapters.length, 'chapter')} · 1 paper</small></div>
+      <ul>${it.chapters.map(ch => `<li><span>${esc(ch)}</span><button type="button" data-rm="${esc(it.subject)}" data-rmch="${esc(ch)}" aria-label="Remove ${esc(ch)}">${ic('i-x')}</button></li>`).join('')}</ul></div>`).join('')}</div>
+    <div class="bill">${`<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
+      ${cartPromo() ? `<div class="save"><span>Promo ${esc(cartPromo())}</span><span>−₹${b.total}</span></div>` : ''}
+      <div class="total"><span>Total</span><span>${cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
+    ${promoBox('cart:' + c.board, !S.session.paymentsReady)}
+    ${n < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - n} more chapter${M.firstCount + 1 - n === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
+    <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Timer, upload, checked by TNC faculty</small></li></ol>
+    ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
+      : cartPromo() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Confirm order · ₹0</button>`
+      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+      : contactCard(`a custom module test (${plural(n, 'chapter')}: ${items.map(i => i.subject).join(', ')})`)}`,
+  root => {
+    root.querySelectorAll('[data-rm]').forEach(btn => btn.onclick = () => {
+      const cart = cust().carts[cust().board]; cart[btn.dataset.rm] = (cart[btn.dataset.rm] || []).filter(x => x !== btn.dataset.rmch); saveCart();
+      render(); if (cartCount(cust().board)) openCart(); else closeSheet();
+    });
+    const buy = root.querySelector('[data-buy]'); if (buy && !buy.disabled) buy.onclick = () => buyModules(buy);
+    bindPromo(root, 'cart:' + c.board, { kind: 'custom' }, openCart);
+  });
+}
+const cartPromo = () => S.promo && S.cust && S.promo.target === 'cart:' + S.cust.board ? S.promo.code : '';
+
+function openModuleSheet(m) {
+  openSheet(`<div class="sh-head" style="${tint(m.subject)}"><span class="sh-kicker">${subjIc(m.subject)}${esc(m.subject)} · Class ${esc(m.class)} ${esc(m.boardLabel || '')}</span><h2 id="sheetTitle">Custom module test</h2>
+      <div class="facts"><span class="kind">${plural(m.chapterCount, 'chapter')}</span><span>${ic('i-clock')}Ready by ${esc(fmtWhen(m.dueAt))}</span></div></div>
+    <ol class="track"><li class="done">${ic('i-check')}<b>Ordered</b><small>${esc(fmtWhen(m.createdAt))}</small></li><li class="now">${ic('i-pen')}<b>Making your paper</b><small>TNC faculty are setting it</small></li><li>${ic('i-play')}<b>Ready to start</b><small>You'll see it here</small></li></ol>
+    <div class="cg"><div class="cg-h">Chapters</div><ul>${(m.chapters || []).map(ch => `<li><span>${esc(ch)}</span></li>`).join('')}</ul></div>`);
+}
+
+function finishModules(message) {
+  const c = cust(); c.carts[c.board] = {}; saveCart(); c.seg = 'mine'; saveCache();
+  closeSheet(() => { if (location.hash !== '#/custom') location.hash = '#/custom'; else { S.view = ''; render(); } toast(message); haptic(30); });
+}
+async function loadModules() {
+  try { S.modules = await fsQuery('moduleRequests', { uid: S.user.uid }); saveCache(); } catch (_) {}
+  return S.modules;
+}
+async function buyModules(btn) {
+  const c = cust(), items = cartItems(c.board);
+  const done = busy(btn, cartPromo() ? 'Confirming…' : 'Opening payment…');
+  try {
+    const promoCode = cartPromo();
+    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, ...(promoCode ? { promoCode } : {}) }), promoCode ? null : loadRazorpay()]);
+    if (order.free) { S.promo = null; S.modules = [...(order.requests || []), ...S.modules]; return finishModules(order.promo ? `Promo applied · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours` : `Requested · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours`); }
+    const rz = new window.Razorpay({
+      key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,
+      name: 'The NewTown Classes', description: order.testName + ' · Non-refundable', prefill: order.prefill || {}, theme: { color: '#003087' }, retry: { enabled: true, max_count: 3 },
+      modal: { ondismiss: () => { S.checkoutOpen = false; clearPending(); done(); }, escape: true, backdropclose: false },
+      handler: resp => { S.checkoutOpen = false; confirmModulePayment(order, resp); }
+    });
+    rz.on('payment.failed', r => toast((r && r.error && r.error.description) || 'Payment failed. No money was taken — please try again.', 'err'));
+    setPending({ orderId: order.orderId, module: true });
+    S.checkoutOpen = true;
+    rz.open();
+  } catch (e) { done(); toast(e.message, 'err'); }
+}
+async function confirmModulePayment(order, resp) {
+  openSheet('<div class="celebrate wait"><span class="spin lg" aria-hidden="true"></span><b>Confirming your payment…</b><p>Please keep this screen open.</p></div>');
+  let ok = false;
+  try {
+    await fn('online-series', { action: 'verify-payment', orderId: resp.razorpay_order_id, paymentId: resp.razorpay_payment_id, signature: resp.razorpay_signature });
+    ok = true;
+  } catch (_) {
+    for (let i = 0; i < 5 && !ok; i++) { await sleep(2500); ok = (await loadModules()).some(m => m.orderId === order.orderId); }
+  }
+  if (ok) { clearPending(); await loadModules(); return finishModules(`Payment successful · your paper${S.modules.filter(m => m.orderId === order.orderId).length === 1 ? ' is' : 's are'} being made`); }
+  openSheet(`<div class="celebrate err">${ic('i-shield')}<b>We're still confirming your payment</b><p>If money was deducted, your order is confirmed automatically within a few minutes. If the payment did not go through, your bank returns any amount it held. Payment ID: <code>${esc(resp.razorpay_payment_id)}</code></p></div>
+    <div class="sh-actions"><a class="btn ghost" href="${WA}?text=${encodeURIComponent('Payment help: ' + resp.razorpay_payment_id)}" target="_blank" rel="noopener">WhatsApp us</a><button type="button" class="btn primary" data-check>Check again</button></div>`,
+  root => { root.querySelector('[data-check]').onclick = async () => { if ((await loadModules()).some(m => m.orderId === order.orderId)) { clearPending(); finishModules('Payment successful · your papers are being made'); } else toast('Not confirmed yet. Please try again in a minute.'); }; });
+}
+async function resumeModulePayment(p) {
+  if (S.modules.some(m => m.orderId === p.orderId)) { clearPending(); return finishModules('Payment successful · your papers are being made'); }
+  if (Date.now() - p.at > 15 * 60000) return clearPending();
+  pendingBusy = true; toast('Confirming your payment…');
+  try {
+    for (let i = 0; i < 4; i++) { await sleep(2500); if ((await loadModules()).some(m => m.orderId === p.orderId)) { clearPending(); return finishModules('Payment successful · your papers are being made'); } }
+    toast('Payment not confirmed yet. If money was deducted, your order is confirmed automatically within a few minutes.', 'err');
+  } finally { pendingBusy = false; }
+}
+
+// ═══ Timed test ═══
+async function startTest(t, btn) {
+  const done = busy(btn, 'Opening paper…');
+  const fresh = !S.attempts[t.id];
+  try {
+    const a = await fn('offline-test', { action: 'start', testId: t.id });
+    if (a.status && a.status !== 'started') { done(); await refresh(); return openTest(t.id); }
+    S.attempts[t.id] = { status: 'started', deadline: a.deadline, startedAt: a.startedAt, questionPdfUrl: NTCUploadcare.deliveryUrl(a.questionPdfUrl), uploadGraceMin: a.uploadGraceMin || 15 };
+    saveCache();
+    const offset = a.serverNow ? Date.parse(a.serverNow) - Date.now() : 0;
+    closeSheet(() => {
+      openExam(t, S.attempts[t.id], offset);
+      if (fresh) NTCOfflineFiles.downloadPdf(S.attempts[t.id].questionPdfUrl, t.testName + '_question_paper.pdf').catch(() => toast('Your paper is open here. Tap the download button to save a copy.'));
+    });
+  } catch (e) {
+    done();
+    if (e.status === 402) { await refresh(); openTest(t.id); }
+    toast(e.message, 'err');
+  }
+}
+function loadPdfJs() {
+  if (S.pdfjs) return Promise.resolve(S.pdfjs);
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; S.pdfjs = window.pdfjsLib; return resolve(S.pdfjs); }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; S.pdfjs = window.pdfjsLib; resolve(S.pdfjs); };
+    s.onerror = () => reject(new Error('Could not load the PDF viewer. Check your internet connection.'));
+    document.head.appendChild(s);
+  });
+}
+function openExam(t, a, offset) {
+  if (!a) return;
+  if (offset) S.offset = offset;
+  S.exam = { test: t, attempt: a, timer: 0, warned: false, timeUp: false };
+  $('exTitle').textContent = t.testName;
+  $('exSub').textContent = `${t.subject} · ${t.totalMarks || '?'} marks`;
+  $('exPaperLink').href = a.questionPdfUrl;
+  $('exam').hidden = false;
+  document.documentElement.classList.add('locked');
+  resetUpload();
+  tick(); S.exam.timer = setInterval(tick, 1000);
+  pushLayer('exam', closeExamNow);
+  renderPaper(a.questionPdfUrl);
+  if (Date.parse(a.deadline) - now() <= 0) openUpload();
+}
+function closeExamNow() {
+  if (S.exam) clearInterval(S.exam.timer);
+  S.exam = null;
+  $('exam').hidden = true; $('exUpload').hidden = true;
+  document.documentElement.classList.remove('locked');
+  render();
+}
+$('exMin').onclick = () => { if (!S.up.busy) { if (!$('exUpload').hidden) closeUpload(() => popLayer('exam')); else popLayer('exam'); } };
+function tick() {
+  const ex = S.exam; if (!ex) return;
+  const left = Date.parse(ex.attempt.deadline) - now(), total = Date.parse(ex.attempt.deadline) - Date.parse(ex.attempt.startedAt);
+  $('exProgress').style.transform = `scaleX(${Math.max(0, Math.min(1, left / Math.max(1, total)))})`;
+  const el = $('exTimer'), grace = (ex.attempt.uploadGraceMin || 15) * 60000 + left;
+  if (left > 0) {
+    el.textContent = fmtTime(left); el.className = 'ex-timer' + (left < 5 * 60000 ? ' warn' : '');
+    if (left < 5 * 60000 && !ex.warned) { ex.warned = true; haptic(250); toast('5 minutes left. Start wrapping up.'); }
+  } else {
+    el.textContent = grace > 0 ? 'Upload ' + fmtTime(grace) : 'Late'; el.className = 'ex-timer over';
+    if (!ex.timeUp) { ex.timeUp = true; haptic(300); openUpload(); }
+  }
+  if (!$('exUpload').hidden) {
+    const up = $('exUpTime');
+    if (left > 0) { up.textContent = `${fmtTime(left)} of writing time left. You can submit early.`; up.className = 'ex-up-time'; }
+    else { up.textContent = grace > 0 ? `Time's up — pens down. Upload within ${fmtTime(grace)}.` : 'The upload window has ended. Upload now — it will be marked late.'; up.className = 'ex-up-time late'; }
+  }
+}
+function setZoom(dir) {
+  S.zoom = Math.max(0.6, Math.min(3, Math.round((S.zoom + dir * 0.25) * 100) / 100));
+  $('exZoom').textContent = Math.round(S.zoom * 100) + '%';
+  document.querySelectorAll('#exPaper canvas').forEach(c => { c.style.width = (c.dataset.baseW * S.zoom) + 'px'; });
+}
+$('exZoomIn').onclick = () => setZoom(1);
+$('exZoomOut').onclick = () => setZoom(-1);
+async function renderPaper(url) {
+  const wrap = $('exPaper');
+  wrap.innerHTML = '<div class="ex-loading"><span class="spin lg" aria-hidden="true"></span>Loading question paper…</div>';
+  try {
+    const pdfjs = await loadPdfJs();
+    const pdf = await pdfjs.getDocument({ url }).promise;
+    wrap.innerHTML = '';
+    const avail = Math.min(wrap.clientWidth - 20, 900), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (!S.exam) return;
+      const page = await pdf.getPage(i), base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: (avail / base.width) * dpr * 1.4 });
+      const c = document.createElement('canvas');
+      c.width = vp.width; c.height = vp.height; c.dataset.baseW = avail; c.style.width = (avail * S.zoom) + 'px';
+      c.setAttribute('role', 'img'); c.setAttribute('aria-label', 'Question paper page ' + i);
+      wrap.appendChild(c);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    }
+  } catch (_) {
+    wrap.innerHTML = `<div class="ex-loading">Couldn't show the paper here.<a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">Open question paper</a></div>`;
+  }
+}
+
+// ── Answer upload ──
+function resetUpload() {
+  Object.assign(S.up, { photos: [], file: null, pdf: null, uploaded: null, version: S.up.version + 1 });
+  $('exFile').value = ''; $('exCamera').value = ''; $('exOrder').innerHTML = ''; $('exThumbs').innerHTML = '';
+  $('exFile').disabled = false; $('exCamera').disabled = false;
+  const m = $('exMsg'); m.textContent = ''; m.className = 'up-msg';
+  const b = $('exUpSubmit'); b.disabled = true; b.textContent = 'Submit for checking';
+  $('exUpBack').disabled = false;
+}
+function openUpload() { if (!$('exUpload').hidden) return; $('exUpload').hidden = false; pushLayer('upload', closeUploadNow); tick(); }
+function closeUploadNow() { $('exUpload').hidden = true; }
+function closeUpload(after) { if (!S.up.busy) popLayer('upload', after); }
+$('exSubmitOpen').onclick = openUpload;
+$('exUpBack').onclick = () => closeUpload();
+$('exUpload').addEventListener('click', e => { if (e.target.id === 'exUpload') closeUpload(); });
+$('exFile').onchange = e => pickFiles(e.target.files);
+$('exCamera').onchange = e => { pickFiles(e.target.files, true); e.target.value = ''; };
+function photoOrder() {
+  const wrap = $('exOrder');
+  wrap.innerHTML = S.up.photos.map((f, i) => `<div class="po"><span>Page ${i + 1}</span><small>${esc(f.name)}</small>
+    <button type="button" data-mv="${i}" data-dir="-1" aria-label="Move page ${i + 1} up" ${i === 0 ? 'disabled' : ''}>${ic('i-up')}</button>
+    <button type="button" data-mv="${i}" data-dir="1" aria-label="Move page ${i + 1} down" ${i === S.up.photos.length - 1 ? 'disabled' : ''}>${ic('i-dn')}</button>
+    <button type="button" data-rm="${i}" aria-label="Remove page ${i + 1}">${ic('i-x')}</button></div>`).join('');
+  wrap.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { if (S.up.busy) return; const i = +b.dataset.mv, j = i + +b.dataset.dir; [S.up.photos[i], S.up.photos[j]] = [S.up.photos[j], S.up.photos[i]]; pickFiles(S.up.photos.slice()); });
+  wrap.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (S.up.busy) return; S.up.photos.splice(+b.dataset.rm, 1); pickFiles(S.up.photos.slice()); });
+}
+async function pickFiles(files, append) {
+  if (S.up.busy) return;
+  const selected = Array.from(files || []), version = ++S.up.version, msg = $('exMsg');
+  S.up.file = null; S.up.pdf = null; $('exUpSubmit').disabled = true; $('exThumbs').innerHTML = '';
+  try {
+    if (!selected.length) { S.up.photos = []; photoOrder(); msg.className = 'up-msg'; msg.textContent = 'Choose a PDF or photos of your pages.'; return; }
+    if (selected.length === 1 && NTCOfflineFiles.isPdf(selected[0]) && !append) { S.up.photos = []; photoOrder(); return await pickPdf(selected[0], version); }
+    const photos = append ? S.up.photos.concat(selected) : selected;
+    if (photos.some(f => !NTCOfflineFiles.isPhoto(f))) throw new Error('Choose one PDF, or JPG / PNG / WebP photos — not both.');
+    if (photos.length > 25 || photos.reduce((n, f) => n + f.size, 0) > 40 * 1024 * 1024) throw new Error('Up to 25 photos, 40 MB in total.');
+    S.up.photos = photos; photoOrder();
+    msg.className = 'up-msg';
+    const pdf = await NTCOfflineFiles.photosToPdf(photos, (i, n) => { if (version === S.up.version) msg.textContent = `Preparing page ${i} of ${n}…`; });
+    if (version !== S.up.version) return;
+    await pickPdf(pdf, version);
+  } catch (e) {
+    if (version !== S.up.version) return;
+    msg.className = 'up-msg err'; msg.textContent = e.message;
+  }
+}
+async function pickPdf(file, version) {
+  const msg = $('exMsg'), thumbs = $('exThumbs');
+  msg.className = 'up-msg'; msg.textContent = 'Reading your pages…';
+  try {
+    await NTCOfflineFiles.validatePdf(file);
+    const pdfjs = await loadPdfJs();
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    if (version !== S.up.version) return;
+    if (pdf.numPages > 25) throw new Error(`Your PDF has ${pdf.numPages} pages — the limit is 25.`);
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (version !== S.up.version) return;
+      const page = await pdf.getPage(i), vp = page.getViewport({ scale: 96 / page.getViewport({ scale: 1 }).width });
+      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; c.setAttribute('aria-label', 'Page ' + i);
+      thumbs.appendChild(c);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    }
+    if (version !== S.up.version) return;
+    S.up.file = file; S.up.pdf = pdf;
+    msg.textContent = `${plural(pdf.numPages, 'page')} ready. Check every page is clear and in order.`;
+    $('exUpSubmit').disabled = false;
+  } catch (e) {
+    if (version !== S.up.version) return;
+    msg.className = 'up-msg err';
+    msg.textContent = /password/i.test(e.message || '') ? 'This PDF is password-protected. Export it again without a password.' : (e.message || 'Could not read this PDF.');
+  }
+}
+async function pageJpeg(pdf, n) {
+  const page = await pdf.getPage(n), base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: Math.min(1600 / base.width, 2200 / base.height, 3) });
+  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return new Promise(res => c.toBlob(b => res(b), 'image/jpeg', 0.82));
+}
+$('exUpSubmit').onclick = async () => {
+  const ex = S.exam;
+  if (!ex || !S.up.file || !S.up.pdf || S.up.busy || (S.attempts[ex.test.id] || {}).status !== 'started') return;
+  S.up.busy = true;
+  $('exFile').disabled = true; $('exCamera').disabled = true; $('exUpBack').disabled = true;
+  const msg = $('exMsg'), btn = $('exUpSubmit');
+  btn.disabled = true; msg.className = 'up-msg';
+  try {
+    if (!S.up.uploaded || S.up.uploaded.file !== S.up.file) S.up.uploaded = { file: S.up.file, pdfUrl: '', pages: [] };
+    const up = S.up.uploaded;
+    btn.textContent = 'Uploading…';
+    if (!up.pdfUrl) up.pdfUrl = await NTCOfflineFiles.upload(new File([S.up.file], 'answer-script.pdf', { type: 'application/pdf' }), p => { msg.textContent = `Uploading your answers… ${Math.round(p * 100)}%`; });
+    for (let i = up.pages.length + 1; ex.test.gradingMode === 'ai' && i <= S.up.pdf.numPages; i++) {
+      msg.textContent = `Preparing page ${i} of ${S.up.pdf.numPages} — keep this screen open.`;
+      up.pages.push(await NTCOfflineFiles.upload(new File([await pageJpeg(S.up.pdf, i)], `page-${i}.jpg`, { type: 'image/jpeg' })));
+    }
+    btn.textContent = 'Submitting…';
+    const r = await fn('offline-test', { action: 'submit', testId: ex.test.id, scriptPdfUrl: up.pdfUrl, pageUrls: up.pages });
+    S.attempts[ex.test.id] = { ...S.attempts[ex.test.id], status: r.status || 'submitted', submittedAt: new Date().toISOString() };
+    saveCache(); haptic(40);
+    msg.className = 'up-msg ok';
+    msg.textContent = 'Submitted! Your checked script will be back within 48 hours.' + (r.lateByMin > 15 ? ' (Marked as late.)' : '');
+    btn.textContent = 'Submitted';
+    clearInterval(ex.timer);
+    setTimeout(() => { S.up.busy = false; closeUpload(() => { popLayer('exam', () => { toast('Submitted. Results within 48 hours.'); refresh(); }); }); }, 1600);
+    return;
+  } catch (e) {
+    msg.className = 'up-msg err';
+    msg.textContent = (e.message || 'Upload failed') + ' Check your internet and tap Try again.';
+    btn.disabled = false; btn.textContent = 'Try again';
+    $('exUpBack').disabled = false;
+  }
+  S.up.busy = false;
+  $('exFile').disabled = false; $('exCamera').disabled = false;
+};
+window.addEventListener('beforeunload', e => {
+  if (S.exam && (S.attempts[S.exam.test.id] || {}).status === 'started') { e.preventDefault(); e.returnValue = ''; }
+});
+
+// ═══ Onboarding form ═══
+const OB_STEPS = [
+  { title: 'About you', sub: 'So TNC faculty know whose script it is.', fields: ['name', 'dob', 'gender', 'phone'] },
+  { title: 'Your studies', sub: 'We show papers for your class and board.', fields: ['class', 'board', 'school', 'subjects', 'target'] },
+  { title: 'Address & guardian', sub: 'For results, certificates and important updates.', fields: ['address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianPhone'] }
+];
+const draftKey = () => 'ntc-online:draft:' + S.user.uid;
+function startOnboarding(editing) {
+  const p = S.session.profile || {};
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(draftKey()) || 'null'); } catch (_) {}
+  const base = { name: p.name || (S.user.displayName || ''), dob: p.dob || '', gender: p.gender || '', phone: p.phone || '', class: p.class || '', board: p.board || '',
+    school: p.school || '', subjects: p.subjects || [], target: p.target || '', address: p.address || '', city: p.city || '', state: p.state || '', pincode: p.pincode || '',
+    guardianName: p.guardianName || '', guardianRelation: p.guardianRelation || '', guardianPhone: p.guardianPhone || '' };
+  S.ob = { step: 0, editing, data: !editing && draft ? { ...base, ...draft } : base, errors: {} };
+  show('onboard'); renderOb();
+}
+function chips(name, options, multi, labels) {
+  const cur = S.ob.data[name];
+  return `<div class="chips" role="${multi ? 'group' : 'radiogroup'}">${options.map(o => `<label class="chip"><input type="${multi ? 'checkbox' : 'radio'}" name="${name}" value="${esc(o)}"${(multi ? cur.includes(o) : cur === o) ? ' checked' : ''} /><span>${esc(labels ? labels(o) : o)}</span></label>`).join('')}</div>`;
+}
+function field(name) {
+  const d = S.ob.data, locked = enrolled() && ['name', 'class', 'board'].includes(name);
+  const err = `<small class="fe" data-err="${name}">${esc(S.ob.errors[name] || '')}</small>`;
+  const text = (label, attrs) => `<label class="fl${S.ob.errors[name] ? ' bad' : ''}"><span>${label}</span><input name="${name}" value="${esc(d[name])}" ${attrs || ''}${locked ? ' readonly' : ''} /></label>${err}`;
+  const group = (label, html, optional) => `<fieldset class="fl${S.ob.errors[name] ? ' bad' : ''}"><legend>${label}${optional ? ' <i>optional</i>' : ''}</legend>${html}</fieldset>${err}`;
+  const maxDob = new Date(Date.now() - 8 * 365.25 * 86400000).toISOString().slice(0, 10);
+  switch (name) {
+    case 'name': return text('Full name', 'autocomplete="name" autocapitalize="words" maxlength="80" placeholder="As on school records"');
+    case 'dob': return text('Date of birth', `type="date" max="${maxDob}" min="1995-01-01"`);
+    case 'gender': return group('Gender', chips('gender', P.GENDERS), true);
+    case 'phone': return text('Your mobile number', 'type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="10-digit number"');
+    case 'class': return locked ? `<div class="locked-row">${ic('i-shield')}Class ${esc(d.class)} · ${esc(d.board || '')} <small>from your TNC record</small></div>` : group('Class', chips('class', P.CLASSES, false, c => 'Class ' + c));
+    case 'board': return locked ? '' : group('Board', chips('board', P.BOARDS));
+    case 'school': return text('School name', 'autocomplete="organization" maxlength="120" placeholder="e.g. Delhi Public School, Newtown"');
+    case 'subjects': return group('Subjects', chips('subjects', P.SUBJECTS, true, s => s === 'Computer' ? 'Computer Science' : s));
+    case 'target': return group('Preparing for', chips('target', P.TARGETS), true);
+    case 'address': return text('Address', 'autocomplete="street-address" maxlength="200" placeholder="House / flat, street, area"');
+    case 'city': return `<div class="fl-pair"><div>${text('City / town', 'autocomplete="address-level2" maxlength="60"')}</div><div>${(() => { const e = `<small class="fe" data-err="pincode">${esc(S.ob.errors.pincode || '')}</small>`; return `<label class="fl${S.ob.errors.pincode ? ' bad' : ''}"><span>PIN code</span><input name="pincode" value="${esc(d.pincode)}" inputmode="numeric" autocomplete="postal-code" /></label>${e}`; })()}</div></div>`;
+    case 'pincode': return '';
+    case 'state': return `<label class="fl${S.ob.errors.state ? ' bad' : ''}"><span>State / UT</span><select name="state" autocomplete="address-level1"><option value="">Choose</option>${P.STATES.map(s => `<option${d.state === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></label>${err}`;
+    case 'guardianName': return text("Parent / guardian's name", 'autocomplete="off" autocapitalize="words" maxlength="80"');
+    case 'guardianRelation': return group('Relation', chips('guardianRelation', P.RELATIONS));
+    case 'guardianPhone': return text("Parent / guardian's mobile", 'type="tel" inputmode="numeric" placeholder="10-digit number"');
+    default: return '';
+  }
+}
+function renderOb() {
+  const step = OB_STEPS[S.ob.step], n = S.ob.step + 1;
+  $('obTitle').textContent = step.title; $('obSub').textContent = step.sub;
+  $('obStep').textContent = `${n}/${OB_STEPS.length}`;
+  $('obBar').style.transform = `scaleX(${n / OB_STEPS.length})`;
+  $('obBody').innerHTML = step.fields.map(field).join('');
+  $('obNext').textContent = n === OB_STEPS.length ? (S.ob.editing ? 'Save details' : 'Finish') : 'Continue';
+  $('obBack').setAttribute('aria-label', S.ob.step === 0 && !S.ob.editing ? 'Use a different account' : 'Back');
+  $('obErr').textContent = '';
+  $('obBody').scrollTop = 0;
+}
+function readOb() {
+  const d = S.ob.data, form = $('obForm');
+  OB_STEPS[S.ob.step].fields.concat(S.ob.step === 2 ? ['pincode'] : []).forEach(name => {
+    const els = form.querySelectorAll(`[name="${name}"]`);
+    if (!els.length) return;
+    if (name === 'subjects') d.subjects = [...els].filter(e => e.checked).map(e => e.value);
+    else if (els[0].type === 'radio') { const c = [...els].find(e => e.checked); d[name] = c ? c.value : ''; }
+    else d[name] = els[0].value;
+  });
+  try { if (!S.ob.editing) localStorage.setItem(draftKey(), JSON.stringify(d)); } catch (_) {}
+}
+$('obForm').addEventListener('change', () => { readOb(); });
+$('obForm').addEventListener('input', e => {
+  // Digits only; a pasted "+91 98765 43210" or "098765 43210" keeps its 10 digits.
+  if (e.target.name === 'phone' || e.target.name === 'guardianPhone') { let d = e.target.value.replace(/\D/g, ''); if (d.length > 10) d = d.replace(/^(91|0)/, ''); e.target.value = d.slice(0, 10); }
+  if (e.target.name === 'pincode') e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  const box = e.target.closest('.fl'); if (box && box.classList.contains('bad')) { box.classList.remove('bad'); const fe = $('obBody').querySelector(`[data-err="${e.target.name}"]`); if (fe) fe.textContent = ''; }
+});
+$('obBack').onclick = () => {
+  readOb();
+  if (S.ob.step > 0) { S.ob.step--; renderOb(); return; }
+  if (S.ob.editing) { show('app'); render(); return; }
+  signOutNow();
+};
+$('obForm').onsubmit = async e => {
+  e.preventDefault(); readOb();
+  const check = P.validateProfile(S.ob.data, { enrolled: enrolled() });
+  const stepFields = OB_STEPS[S.ob.step].fields.concat(S.ob.step === 2 ? ['pincode'] : []);
+  S.ob.errors = Object.fromEntries(Object.entries(check.errors).filter(([k]) => stepFields.includes(k)));
+  if (Object.keys(S.ob.errors).length) {
+    renderOb(); haptic(30);
+    const first = $('obBody').querySelector('.bad input, .bad select, .bad'); if (first && first.focus) first.focus();
+    return;
+  }
+  if (S.ob.step < OB_STEPS.length - 1) { S.ob.step++; S.ob.errors = {}; renderOb(); return; }
+  if (!check.ok) { const k = Object.keys(check.errors)[0]; S.ob.step = OB_STEPS.findIndex(s => s.fields.includes(k) || (k === 'pincode' && s.fields.includes('city'))); S.ob.errors = check.errors; renderOb(); return; }
+  const done = busy($('obNext'), 'Saving…');
+  try {
+    const res = await fn('online-series', { action: 'save-profile', profile: S.ob.data });
+    try { localStorage.removeItem(draftKey()); } catch (_) {}
+    const editing = S.ob.editing, classChanged = S.session.profile.class !== res.profile.class;
+    S.session.profile = res.profile; S.ob = null;
+    if (editing && !classChanged) { saveCache(); show('app'); render(); toast('Details saved.'); }
+    else { show('boot'); bootMessage(''); await refresh(); toast(editing ? 'Details saved.' : `Welcome, ${firstName()}! Pick a subject for your free mock test.`); }
+  } catch (err) {
+    $('obErr').textContent = err.message;
+    if (err.data && err.data.fields) { S.ob.errors = err.data.fields; }
+  } finally { done(); }
+};
+
+// ═══ Connection status and periodic refresh ═══
+function net() { $('netBadge').hidden = navigator.onLine !== false; }
+window.addEventListener('online', () => { net(); if (S.session) refresh(); });
+window.addEventListener('offline', net);
+net();
+setInterval(() => {   // keep "minutes left" pills honest without a full reload
+  if (S.session && !S.exam && $('sheet').hidden && document.body.dataset.screen === 'app' && Object.values(S.attempts).some(a => a.status === 'started')) render();
+}, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.session && !S.exam && Date.now() - (S.lastRefresh || 0) > 60000) { S.lastRefresh = Date.now(); refresh(); }
+});

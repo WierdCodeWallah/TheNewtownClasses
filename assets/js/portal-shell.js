@@ -130,10 +130,14 @@
         state.page = Math.max(0, Math.min(state.page, Math.ceil(total/size)-1));
         options.render(filtered.slice(state.page*size,(state.page+1)*size));
         host.querySelectorAll('.test-card[onclick]').forEach(card=>{card.tabIndex=0;card.setAttribute('role','button');card.onkeydown=event=>{if(event.target===card&&(event.key==='Enter'||event.key===' ')){event.preventDefault();card.click();}};});
-        if (!total) choices.innerHTML = '<div class="portal-empty"><strong>No matches yet</strong><p>Try another subject or chapter, a shorter search, or reset your filters.</p></div>';
+        const none = !(options.items||[]).length && !state.search && !Object.values(state.filters).some(Boolean);
+        box.classList.toggle('portal-none', none);
+        if (!total) choices.innerHTML = none
+          ? '<div class="portal-empty"><strong>Nothing here yet</strong><p>New '+esc((options.unit||['item','items'])[1])+' will appear here.</p></div>'
+          : '<div class="portal-empty"><strong>No matches</strong><p>Try a shorter search or reset the filters.</p></div>';
       }
       const pages = Math.max(1, Math.ceil(total/size));
-      box.querySelector('[role="status"]').textContent = total ? total+' '+(stage === 'class' ? 'classes' : stage ? ((options.plurals&&options.plurals[stage])||stage+'s') : (options.unit||['item','items'])[1])+' · Page '+(state.page+1)+' of '+pages : '0 items';
+      box.querySelector('[role="status"]').textContent = total ? total+' '+(stage === 'class' ? 'classes' : stage ? ((options.plurals&&options.plurals[stage])||stage+'s') : (options.unit||['item','items'])[total===1?0:1])+' · Page '+(state.page+1)+' of '+pages : '0 items';
       box.querySelector('[data-page="-1"]').disabled = state.page === 0;
       box.querySelector('[data-page="1"]').disabled = state.page >= pages-1;
       document.dispatchEvent(new CustomEvent('portal:collection-rendered',{detail:box}));
@@ -252,7 +256,9 @@
       back.disabled=index===0;
       back.title=index?'Previous menu':'You are at the first menu';
       const item=sidebar.querySelector('.sidebar-item.active');
-      bar.querySelector('.portal-back-context').textContent=item?.textContent.trim()||'';
+      let label='';
+      if(item){const copy=item.cloneNode(true);copy.querySelectorAll('[hidden],.inquiry-badge,.desk-badge,[class*="badge"],.icon').forEach(n=>n.remove());label=copy.textContent.replace(/\s+/g,' ').trim();}
+      bar.querySelector('.portal-back-context').textContent=label;
     }
     function capture() {
       if(applying)return;
@@ -285,6 +291,11 @@
       if(picker?.open){picker.dispatchEvent(new Event('cancel',{cancelable:true}));return true;}
       if(sidebar.classList.contains('open')){$('sidebarOverlay')?.click();return true;}
       if($('pdfViewer')?.classList.contains('open')){window.closePdfViewer?.();return true;}
+      // Phone Back closes an open Test Desk sheet / Online Students details first.
+      const desk=$('dkSheet');
+      if(desk&&!desk.hidden){$('dkSheetClose')?.click();return true;}
+      const ona=$('onaModal');
+      if(ona&&!ona.hidden){$('onaModalClose')?.click();return true;}
       const profile=document.querySelector('.ntc-pf-backdrop.open');
       if(profile){profile.querySelector('.ntc-pf-close')?.click();return true;}
       return false;
@@ -294,6 +305,7 @@
     // Capture the old view before inline section handlers replace its DOM.
     sidebar.addEventListener('click',event=>{if(event.target.closest('[data-section]'))capture();},true);
     window.addEventListener('popstate',event=>{
+      if(window.__ntcLeaving)return;   // signing out: portal-logout.js is rewinding history
       const entry=event.state?.[key];
       if(!entry||entry.session!==session)return;
       if(!allowed()||closeSurface()){history.pushState(state(),'');return;}
@@ -314,7 +326,7 @@
   function init() {
     const role=document.body.dataset.portal; if(!role)return;
     const sidebar=$('sidebar');if(!sidebar)return;
-    const config={student:[['chapterwise','Learn','book'],['onlinetest','Tests','check'],['liveclasses','Classes','video'],['chatbot','Ask AI','spark']],teacher:[['tests','Tests','book'],['liveclasses','Classes','video'],['attendance','Attendance','check'],['offline-results','Marks','chart']],admin:[['overview','Home','home'],['all-students','Students','users'],['upload-material','Content','book'],['attendance','Attendance','check']]};
+    const config={student:[['chapterwise','Learn','book'],['onlinetest','Tests','check'],['liveclasses','Classes','video'],['chatbot','Ask AI','spark']],teacher:[['tests','Tests','book'],['liveclasses','Classes','video'],['attendance','Attendance','check'],['offline-results','Marks','chart']],admin:[['overview','Home','home'],['all-students','Students','users'],['test-desk','Tests','check'],['upload-material','Content','book']]};
     const paths={book:'M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-2H4z M13 7a3 3 0 0 1 3-3h5v15h-4a4 4 0 0 0-4 2',check:'M8 3h8v4H8z M7 5H4v16h16V5h-3 M8 13l3 3 5-6',video:'M3 5h12v14H3z M15 10l6-4v12l-6-4',spark:'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z',chart:'M4 20V10 M11 20V4 M18 20v-7',home:'M3 11l9-8 9 8 M5 10v11h14V10 M10 21v-7h4v7',users:'M16 21v-3a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v3 M13 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M17 3a4 4 0 0 1 0 8 M18 14a4 4 0 0 1 4 4v3',more:'M4 6h16 M4 12h16 M4 18h16'};
     const icon=name=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+ '<path d="'+paths[name]+'"/></svg>';
     const nav=document.createElement('nav');nav.className='portal-bottom-nav';nav.setAttribute('aria-label','Primary navigation');

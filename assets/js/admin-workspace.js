@@ -8,7 +8,15 @@
     const hero=document.createElement('div');hero.className='teacher-studio-hero admin-overview-hero';
     hero.innerHTML='<div class="teacher-studio-copy"><span class="studio-kicker">OWNER WORKSPACE</span><h1>Your campus, in view.</h1><p>Students, teachers and learning. Everything starts here.</p></div>';
     overview.prepend(hero);
-    document.querySelectorAll('[data-admin-go]').forEach(button=>button.onclick=()=>document.querySelector('#sidebar [data-section="'+button.dataset.adminGo+'"]').click());
+    // One Students section: the list, adding, importing and password reset are tabs.
+    const studentsTab=$('tab-all-students'),pane=id=>{const box=document.createElement('div');box.className='admin-pane';const from=id?$(id):studentsTab;[...from.children].forEach(child=>box.append(child));if(id)from.remove();return box;};
+    const listPane=pane(),addPane=pane('tab-add-student'),importPane=pane('tab-bulk-import'),resetPane=pane('tab-reset-password');
+    studentsTab.append(listPane,addPane,importPane,resetPane);
+    PortalUI.tasks(studentsTab.id,[{label:'All',element:listPane,key:'list'},{label:'Add student',element:addPane,key:'add'},{label:'Import',element:importPane,key:'import'},{label:'Password',element:resetPane,key:'reset'}]);
+    const studentPanes={'add-student':1,'bulk-import':2,'reset-password':3};
+    document.querySelectorAll('[data-admin-go]').forEach(button=>button.onclick=()=>{const go=button.dataset.adminGo,index=studentPanes[go];
+      document.querySelector('#sidebar [data-section="'+(index?'all-students':go)+'"]').click();
+      if(index)studentsTab._portalTasks.select(index);});
     // Keep the roster visible first; opening a form never discards its values.
     const teachers=$('tab-teachers'),list=$('teacherListWrap'),form=list.closest('.card');
     const browse=document.createElement('div');browse.className='card';

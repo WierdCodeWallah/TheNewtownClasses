@@ -3,6 +3,14 @@
 Updated 2026-11-10. Code and local checks only; deployment and a signed-in
 pilot are still required.
 
+> **2026-11-12 — admin side moved.** The separate *Admin → Offline Test Series* section was
+> merged into **Admin → Test Desk** (To check · Checked · Papers · Students), which covers the
+> offline and online series together: check-and-return in a teacher's name, publish / close
+> papers, per-student totals, and permanent delete with typed confirmation. The Class × Subject
+> grid was dropped in favour of the Class / Subject filters. References below to
+> "Admin → Offline Test Series" now mean Test Desk; its browser check is `qa/admin-desk.cjs`
+> (`qa/offline-admin.cjs` now covers the teacher review desk only).
+
 ## Workflow
 
 Student opens Offline Test Series → downloads the paper (server timer starts and

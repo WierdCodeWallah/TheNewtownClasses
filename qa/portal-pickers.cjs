@@ -6,7 +6,7 @@ const marker = "   await page.waitForSelector('.portal-bottom-nav');";
 const checks = String.raw`
    if(role==='admin') {
     await page.getByRole('button',{name:'More',exact:true}).click();
-    await page.locator('#sidebar [data-section="add-student"]').click();
+    await page.locator('#sidebar [data-section="all-students"]').click();await page.getByRole('tab',{name:'Add student',exact:true}).click();
    } else if(role==='teacher') await page.getByRole('tab',{name:'Create test',exact:true}).click();
    // Student filters can be dynamically replaced; also test a long loaded select.
    if(role==='student') await page.evaluate(()=>{

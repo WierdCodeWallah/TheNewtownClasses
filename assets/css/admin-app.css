@@ -1,0 +1,198 @@
+/* Admin panel — one clean look for every section, matching the Test Desk.
+   Loaded last. Flat white cards, slim search with filter pills, forms in the
+   "New paper" style (label above a white box, two per row, dashed upload
+   tile), compact rows that open on tap. No long scrolling on phones. */
+body[data-portal="admin"] { --aa-line: #e3e9f2; --aa-ink: #0e1c36; --aa-ink2: #4a5b7a; --aa-ink3: #8291a8; --aa-brand: #003087; --aa-brand2: #1a56db; --aa-soft: #f3f6fb; }
+
+/* ── Cards and headings ── */
+body[data-portal="admin"] #mainContent .card { background: #fff !important; border: 1px solid var(--aa-line) !important; border-radius: 16px !important; box-shadow: none !important; padding: 18px !important; margin-bottom: 14px !important; }
+body[data-portal="admin"] #mainContent .card-title { font: 700 17px/1.3 'DM Sans', system-ui, sans-serif !important; letter-spacing: -.01em; color: var(--aa-ink) !important; margin-bottom: 3px !important; }
+body[data-portal="admin"] #mainContent .card-sub { font-size: 13px !important; color: var(--aa-ink3) !important; line-height: 1.45 !important; margin-bottom: 12px !important; }
+body[data-portal="admin"] #mainContent .hint { background: var(--aa-soft) !important; border: 0 !important; border-radius: 12px !important; color: var(--aa-ink2) !important; font-size: 12.5px !important; line-height: 1.45 !important; padding: 10px 12px !important; margin-bottom: 12px !important; }
+body[data-portal="admin"] #mainContent .hint strong { color: var(--aa-ink) !important; }
+body[data-portal="admin"] #mainContent hr.divider { border: 0; border-top: 1px solid #eef2f7; margin: 14px 0 !important; }
+
+/* ── Buttons ── */
+body[data-portal="admin"] #mainContent .btn { min-height: 44px; padding: 0 16px !important; border-radius: 12px !important; font: 700 14px/1 'DM Sans', system-ui, sans-serif !important; box-shadow: none !important; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+body[data-portal="admin"] #mainContent .btn-primary { background: var(--aa-brand) !important; border: 1px solid var(--aa-brand) !important; color: #fff !important; box-shadow: 0 6px 14px rgba(0, 48, 135, .16) !important; }
+body[data-portal="admin"] #mainContent .btn-outline { background: #fff !important; border: 1px solid var(--aa-line) !important; color: var(--aa-ink) !important; }
+body[data-portal="admin"] #mainContent .btn-danger { background: #fff !important; border: 1px solid #f3c9c6 !important; color: #c02b2b !important; }
+body[data-portal="admin"] #mainContent .btn-sm { min-height: 36px; padding: 0 12px !important; font-size: 12.5px !important; border-radius: 10px !important; }
+
+/* ── Section tabs (Students: All / Add / Import / Reset, Teachers, Attendance…) ── */
+body[data-portal="admin"] .portal-task-tabs { background: #e9eef6 !important; border: 0 !important; border-radius: 14px !important; padding: 4px !important; gap: 0 !important; margin-bottom: 12px !important; }
+body[data-portal="admin"] .portal-task-tabs button { min-height: 40px !important; padding: 0 10px !important; border-radius: 10px !important; font: 700 13.5px/1 'DM Sans', system-ui, sans-serif !important; color: var(--aa-ink2) !important; }
+body[data-portal="admin"] .portal-task-tabs button[aria-selected=true] { background: #fff !important; color: var(--aa-ink) !important; box-shadow: 0 1px 3px rgba(14, 28, 54, .12) !important; }
+
+/* ── Find / filter block used by every list ── */
+body[data-portal="admin"] #mainContent .portal-browser { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important; margin-bottom: 10px !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-eyebrow { display: none; }
+body[data-portal="admin"] #mainContent .portal-browser-top { align-items: center; margin-bottom: 8px; gap: 8px; }
+body[data-portal="admin"] #mainContent .portal-browser-top h2 { font: 700 15px/1.3 'DM Sans', system-ui, sans-serif !important; color: var(--aa-ink) !important; margin: 0; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-reset { min-height: 34px !important; height: 34px; padding: 0 12px !important; font: 600 12.5px/1 'DM Sans', system-ui, sans-serif !important; border-radius: 10px !important; background: #fff !important; border: 1px solid var(--aa-line) !important; color: var(--aa-ink2) !important; box-shadow: none !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-search { min-height: 44px !important; height: 44px; padding: 0 12px !important; gap: 8px !important; border-radius: 12px !important; margin-bottom: 8px !important; background: #fff !important; border: 1px solid var(--aa-line) !important; box-shadow: none !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-search:focus-within { border-color: var(--aa-brand2) !important; box-shadow: 0 0 0 4px rgba(26, 86, 219, .12) !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-search > span { width: auto !important; height: auto !important; background: none !important; border: 0 !important; box-shadow: none !important; color: var(--aa-ink3) !important; font-size: 17px !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-search input { font-size: 16px !important; min-height: 0 !important; height: 100% !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-filters { display: flex !important; flex-wrap: wrap; gap: 6px !important; margin: 0 0 8px !important; }
+/* The first option ("All classes") names each filter, so the label text is hidden visually only. */
+body[data-portal="admin"] #mainContent .portal-browser .portal-filters label { flex: none; font-size: 0 !important; margin: 0 !important; gap: 0 !important; width: auto !important; min-width: 0 !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-filters select { height: 36px !important; min-height: 0 !important; width: auto !important; max-width: 44vw; text-overflow: ellipsis; padding: 0 28px 0 11px !important; border-radius: 999px !important;
+  font-size: 13px !important; font-weight: 600 !important; margin: 0 !important; box-shadow: none !important; border: 1px solid var(--aa-line) !important; color: var(--aa-ink2) !important;
+  appearance: none; -webkit-appearance: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a5b7a' stroke-width='2.2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 14px !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-path { font-size: 12px !important; color: var(--aa-ink3); margin: 0 0 6px !important; min-height: 0 !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-path[data-aa-hint] { display: none !important; }
+body[data-portal="admin"] #mainContent .portal-browser .portal-pagination { margin-top: 6px !important; padding-top: 0 !important; font-size: 12.5px; font-weight: 600; color: var(--aa-ink3); }
+body[data-portal="admin"] #mainContent .portal-browser .portal-pagination button { width: 44px !important; height: 38px !important; min-height: 0 !important; border-radius: 11px !important; background: #fff !important; border: 1px solid var(--aa-line) !important; box-shadow: none !important; }
+body[data-portal="admin"] #mainContent .portal-choices { gap: 8px !important; }
+body[data-portal="admin"] #mainContent .portal-choice { padding: 10px 12px !important; min-height: 60px !important; border-radius: 13px !important; background: #fff !important; border: 1px solid var(--aa-line) !important; box-shadow: none !important; }
+body[data-portal="admin"] #mainContent .portal-steps { margin: 0 0 8px !important; }
+
+/* ── Forms: the "New paper" design. Label above a white box, two per row. ── */
+body[data-portal="admin"] #mainContent :is(.form-grid, .field-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; align-items: start; grid-auto-flow: row dense; }
+/* A field with a help line takes the full row, so boxes in a row stay the same height. */
+body[data-portal="admin"] #mainContent :is(.form-grid, .field-grid) > .field:has(> p, > small) { grid-column: 1 / -1 !important; }
+body[data-portal="admin"] #mainContent :is(.form-grid, .field-grid) > :is(.full, .field:has(textarea, input[type=file], .chip-group, .attn-class-grid, #newName, #teacherName, #teacherEmail)) { grid-column: 1 / -1 !important; }
+body[data-portal="admin"] #mainContent :is(.form-grid, .field-grid) > :is(.full, .field:has(textarea)) + .field:last-child { grid-column: 1 / -1 !important; }
+body[data-portal="admin"] #mainContent .app-input-field { margin-top: 21px; padding: 0 12px !important; border: 1.5px solid var(--aa-line) !important; border-radius: 12px !important; background: #fff !important; box-shadow: none !important; min-height: 0 !important; min-width: 0; translate: none !important; }
+body[data-portal="admin"] #mainContent .app-input-field:focus-within { border-color: var(--aa-brand2) !important; box-shadow: 0 0 0 4px rgba(26, 86, 219, .12) !important; }
+body[data-portal="admin"] #mainContent .app-input-field > label:not(:has(input)) { position: absolute; top: -21px; left: 1px; right: 0; pointer-events: none; display: block !important; min-height: 0 !important; margin: 0 !important; gap: 0 !important;
+  font: 600 12.5px/1.3 'DM Sans', system-ui, sans-serif !important; letter-spacing: 0 !important; color: var(--aa-ink2) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-portal="admin"] #mainContent .app-input-field .app-field-icon { display: none !important; }
+body[data-portal="admin"] #mainContent .app-input-field :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select) { min-height: 48px !important; height: 48px !important; padding: 0 !important; font-size: 16px !important; font-weight: 500 !important; color: var(--aa-ink) !important; }
+body[data-portal="admin"] #mainContent .app-input-field select:not([multiple]):not([size]):not([hidden]) { padding-right: 26px !important; text-overflow: ellipsis;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a5b7a' stroke-width='2.2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 2px center / 16px !important; }
+body[data-portal="admin"] #mainContent .app-input-field textarea { min-height: 108px !important; padding: 12px 0 !important; line-height: 1.45 !important; font-size: 16px !important; }
+body[data-portal="admin"] #mainContent .app-input-field:has(input[type=file]) { border-style: dashed !important; border-color: #c5d3ea !important; background: #f8fbff !important; }
+body[data-portal="admin"] #mainContent .app-input-field input[type=file] { font-size: 13.5px !important; padding: 13px 0 !important; min-height: 48px !important; color: var(--aa-brand2) !important; font-weight: 600; }
+body[data-portal="admin"] #mainContent .app-input-field > :is(p, small) { border-top: 1px solid #eef2f7 !important; font-size: 11.5px !important; line-height: 1.4 !important; padding: 6px 0 8px !important; margin: 0 !important; color: var(--aa-ink3) !important; }
+body[data-portal="admin"] #mainContent .field > label { font: 600 12.5px/1.3 'DM Sans', system-ui, sans-serif !important; color: var(--aa-ink2) !important; margin-bottom: 6px !important; }
+body[data-portal="admin"] #mainContent .field > p { font-size: 11.5px !important; line-height: 1.4 !important; color: var(--aa-ink3) !important; margin-top: 6px !important; }
+/* Choice chips (subjects, classes) */
+body[data-portal="admin"] #mainContent .chip-group { display: flex !important; flex-wrap: wrap; gap: 6px !important; }
+body[data-portal="admin"] #mainContent .chip-group .chip-check { padding: 0 12px !important; min-height: 40px !important; border-radius: 12px !important; font-size: 13.5px !important; font-weight: 600 !important; gap: 7px !important; flex: 0 0 auto; width: auto !important;
+  white-space: nowrap; border: 1.5px solid var(--aa-line) !important; box-shadow: none !important; }
+body[data-portal="admin"] #mainContent .chip-group .chip-check input { width: 16px !important; height: 16px !important; min-height: 0 !important; flex: none; }
+
+/* ── Top bar ── */
+body[data-portal="admin"] #logoutBtn { min-height: 34px !important; height: 34px !important; padding: 0 12px !important; border-radius: 10px !important; font: 600 12.5px/1 'DM Sans', system-ui, sans-serif !important; background: #fff !important; border: 1px solid var(--aa-line) !important; color: var(--aa-ink2) !important; box-shadow: none !important; }
+
+/* ── Home shortcuts: small icon + label ── */
+body[data-portal="admin"] .admin-shortcut-grid button { display: grid !important; grid-template-columns: 34px minmax(0, 1fr); column-gap: 10px; align-items: center; text-align: left; background: #fff !important; border: 1px solid var(--aa-line) !important; box-shadow: none !important; border-radius: 13px !important; padding: 11px 12px !important; }
+body[data-portal="admin"] .admin-shortcut-grid .aa-ic { grid-row: 1 / span 2; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #eaf1ff; color: var(--aa-brand2); }
+body[data-portal="admin"] .admin-shortcut-grid .aa-ic svg { width: 18px; height: 18px; }
+body[data-portal="admin"] .admin-shortcut-grid button > span:not(.aa-ic) { font: 600 14px/1.3 'DM Sans', system-ui, sans-serif !important; color: var(--aa-ink) !important; display: flex; align-items: center; gap: 6px; min-width: 0; }
+body[data-portal="admin"] .admin-shortcut-grid button small { font-size: 11.5px !important; color: var(--aa-ink3) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 760px) {
+  /* ── Page chrome ── */
+  body[data-portal="admin"] .page { padding-top: 10px !important; }
+  body[data-portal="admin"] #mainContent .card { padding: 14px !important; margin-bottom: 12px !important; }
+  body[data-portal="admin"] #mainContent .card-title { font-size: 16px !important; }
+  body[data-portal="admin"] #mainContent .card-sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 10px !important; }
+  body[data-portal="admin"] .portal-back-bar { margin-bottom: 8px !important; gap: 8px !important; min-height: 0 !important; }
+  body[data-portal="admin"] .portal-back-button { min-height: 34px !important; height: 34px !important; padding: 0 12px !important; font-size: 13px !important; border-radius: 10px !important; }
+  body[data-portal="admin"] .portal-back-context { font-size: 12px !important; }
+  body[data-portal="admin"] .portal-task-tabs { overflow: hidden !important; }
+  body[data-portal="admin"] .portal-task-tabs button { font-size: 12.5px !important; padding: 0 4px !important; flex: 1 1 auto !important; min-width: 0 !important; overflow: hidden; text-overflow: ellipsis; }
+  /* The search block has its own Refresh, so the extra one above it goes. */
+  body[data-portal="admin"] #mainContent :is(button[onclick="loadPdfList()"], button[onclick="loadTestList()"], #tab-all-students button[onclick="loadStudents()"]) { display: none !important; }
+  body[data-portal="admin"] #mainContent form .btn-primary, body[data-portal="admin"] #mainContent .card > .btn-primary { flex: 1 1 auto; }
+  body[data-portal="admin"] #mainContent .attendance-setup > summary { padding: 10px 12px !important; font-size: 13.5px !important; }
+
+  /* ── Home: one screen ── */
+  body[data-portal="admin"] .admin-overview-hero { min-height: 0 !important; padding: 16px !important; margin-bottom: 10px !important; border-radius: 16px !important; }
+  body[data-portal="admin"] .admin-overview-hero h1 { font-size: 19px !important; margin: 2px 0 0 !important; }
+  body[data-portal="admin"] .admin-overview-hero p { display: none; }
+  body[data-portal="admin"] #tab-overview .stats-row { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 0 !important; margin-bottom: 10px !important;
+    background: #fff; border: 1px solid var(--aa-line); border-radius: 16px; overflow: hidden; }
+  body[data-portal="admin"] #tab-overview .stat-box { padding: 10px 4px !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: none !important; min-width: 0; }
+  body[data-portal="admin"] #tab-overview .stat-box + .stat-box { border-left: 1px solid #eef2f7 !important; }
+  body[data-portal="admin"] #tab-overview .stat-box .num { font-size: 18px !important; }
+  body[data-portal="admin"] #tab-overview .stat-box .lbl { font-size: 9.5px !important; letter-spacing: .02em !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body[data-portal="admin"] .admin-shortcuts .card-sub { display: none !important; }
+  body[data-portal="admin"] .admin-shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  body[data-portal="admin"] .admin-shortcut-grid button { padding: 9px 10px !important; min-height: 0 !important; grid-template-columns: 30px minmax(0, 1fr); column-gap: 8px; }
+  body[data-portal="admin"] .admin-shortcut-grid .aa-ic { width: 30px; height: 30px; border-radius: 9px; }
+  body[data-portal="admin"] .admin-shortcut-grid .aa-ic svg { width: 16px; height: 16px; }
+  body[data-portal="admin"] .admin-shortcut-grid button > span:not(.aa-ic) { font-size: 13.5px !important; }
+
+  /* ── Students: compact rows, tap to open ── */
+  body[data-portal="admin"] #tab-all-students .table-wrap { border: 1px solid var(--aa-line); border-radius: 14px; overflow: hidden; background: #fff; }
+  body[data-portal="admin"] #tab-all-students .table-wrap > table { min-width: 0 !important; display: block; }
+  body[data-portal="admin"] #tab-all-students thead { display: none !important; }
+  body[data-portal="admin"] #studentTableBody { display: block !important; }
+  body[data-portal="admin"] #studentTableBody tr.group-header { display: block !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
+  body[data-portal="admin"] #studentTableBody tr.group-header td { display: block !important; padding: 7px 14px !important; font-size: 11px !important; border: 0 !important; border-radius: 0 !important; }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header) { display: grid !important; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; column-gap: 10px; row-gap: 0;
+    margin: 0 !important; padding: 10px 14px !important; border: 0 !important; border-top: 1px solid #eef2f7 !important; border-radius: 0 !important; box-shadow: none !important; background: #fff !important; cursor: pointer; min-height: 58px; }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header)::after { content: ''; grid-column: 3; grid-row: 1 / span 2; width: 8px; height: 8px; border-right: 2px solid #b3bfd1; border-bottom: 2px solid #b3bfd1; transform: rotate(45deg); transition: transform .2s; justify-self: center; }
+  body[data-portal="admin"] #studentTableBody tr.open::after { transform: rotate(-135deg); }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header) td { display: none !important; padding: 0 !important; border: 0 !important; background: none !important; white-space: normal !important; min-width: 0 !important; text-align: left !important; }
+  body[data-portal="admin"] #studentTableBody td::before { display: none !important; }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header) td[data-label="Name"] { display: block !important; grid-column: 1; grid-row: 1; font-size: 14.5px; font-weight: 600; color: var(--aa-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap !important; }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header) td[data-label="Student ID"] { display: block !important; grid-column: 1; grid-row: 2; font-size: 12.5px; color: var(--aa-ink3); }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header) td[data-label="Student ID"] strong { font-weight: 600; }
+  body[data-portal="admin"] #studentTableBody tr:not(.group-header) td[data-label="Class"] { display: block !important; grid-column: 2; grid-row: 1 / span 2; }
+  body[data-portal="admin"] #studentTableBody tr.open { background: #f8fafd !important; }
+  body[data-portal="admin"] #studentTableBody tr.open:not(.group-header) td:not([data-label="Name"]):not([data-label="Student ID"]):not([data-label="Class"]) { display: flex !important; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 7px 0 !important; border-top: 1px dashed #e3e9f2 !important; font-size: 13px; flex-wrap: wrap; }
+  body[data-portal="admin"] #studentTableBody tr.open:not(.group-header) td[data-label="Board"] { margin-top: 8px; }
+  body[data-portal="admin"] #studentTableBody tr.open td[data-label]::before { display: block !important; content: attr(data-label); font-size: 12px; font-weight: 600; color: var(--aa-ink3); text-transform: none; letter-spacing: 0; }
+  body[data-portal="admin"] #studentTableBody tr.open td[data-label="Name"]::before, body[data-portal="admin"] #studentTableBody tr.open td[data-label="Student ID"]::before, body[data-portal="admin"] #studentTableBody tr.open td[data-label="Class"]::before { display: none !important; }
+  body[data-portal="admin"] #studentTableBody tr.open:not(.group-header) td:last-child { justify-content: flex-end; }
+
+  /* ── Live classes: two-line rows, actions underneath ── */
+  body[data-portal="admin"] #tab-live-classes .card > div:has(> #adminLcFilter) { padding: 0 !important; background: none !important; gap: 6px !important; margin-bottom: 8px !important; flex-wrap: nowrap !important; }
+  body[data-portal="admin"] #mainContent #tab-live-classes .card > div:has(> #adminLcFilter) select { flex: 1 1 0; min-width: 0; height: 36px !important; min-height: 0 !important; padding: 0 28px 0 11px !important; border-radius: 999px !important;
+    font-size: 13px !important; font-weight: 600 !important; border: 1px solid var(--aa-line) !important; box-shadow: none !important; color: var(--aa-ink2) !important; text-overflow: ellipsis; }
+  body[data-portal="admin"] #lcAdminList :is(table, tbody) { display: block !important; width: 100% !important; min-width: 0 !important; }
+  body[data-portal="admin"] #lcAdminList thead { display: none !important; }
+  body[data-portal="admin"] #lcAdminList table { border: 1px solid var(--aa-line); border-radius: 14px; overflow: hidden; background: #fff; }
+  body[data-portal="admin"] #lcAdminList tbody tr { display: flex !important; flex-wrap: wrap; align-items: center; gap: 2px 0; margin: 0 !important; padding: 10px 12px !important; border: 0 !important; border-top: 1px solid #eef2f7 !important;
+    border-radius: 0 !important; box-shadow: none !important; background: #fff !important; }
+  body[data-portal="admin"] #lcAdminList tbody tr:first-child { border-top: 0 !important; }
+  body[data-portal="admin"] #lcAdminList tbody td { display: block !important; width: auto !important; padding: 0 !important; border: 0 !important; background: none !important; font-size: 12.5px !important; color: var(--aa-ink3); white-space: nowrap; text-align: left !important; }
+  body[data-portal="admin"] #lcAdminList tbody td::before { display: none !important; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(1) { order: 1; flex: 1 1 calc(100% - 124px); min-width: calc(100% - 124px); max-width: calc(100% - 100px); font-size: 14.5px !important; color: var(--aa-ink) !important;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap !important; word-break: normal !important; overflow-wrap: normal !important; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(7) { order: 2; flex: none; margin-left: 8px; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(n+2):nth-child(-n+6) { order: 3; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(n+2):nth-child(-n+5)::after { content: '·'; margin: 0 6px; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(8) { order: 4; flex: 1 1 100%; margin-top: 6px; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(8):has(> span:only-child) { display: none !important; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(9) { order: 5; flex: 1 1 100%; margin-top: 8px; display: flex !important; gap: 6px; flex-wrap: wrap; }
+  body[data-portal="admin"] #lcAdminList tbody td:nth-child(9) > * { flex: 1 1 auto; }
+}
+@media (max-width: 359px) {
+  body[data-portal="admin"] #tab-overview .stat-box .lbl { font-size: 8.5px !important; }
+}
+
+/* Online Students: Students · Payments · Promo codes on one row */
+body[data-portal="admin"] .oar-views:has([data-ona-view]) { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+
+/* ── Calm sections: descriptions on demand, slim reminder strip ── */
+.aa-desc { display: none !important; }
+.aa-desc.show { display: block !important; margin: 4px 0 10px; padding: 9px 12px; border-radius: 10px; background: #f3f6fb; color: #475569; font-size: 13px; line-height: 1.5; }
+.aa-info { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #94a3b8; cursor: pointer; vertical-align: middle; }
+.aa-info svg { width: 17px; height: 17px; }
+.aa-info:hover, .aa-info[aria-expanded="true"] { color: #245cda; background: #edf3ff; }
+.aa-info::after { content: ''; position: absolute; inset: -10px; }
+.aa-info { position: relative; }
+body[data-portal="admin"] .desk-notice { padding: 6px 6px 6px 12px; margin-bottom: 10px; border-radius: 12px; font-size: 13px; }
+body[data-portal="admin"] .desk-notice button { min-height: 32px; padding: 0 12px; border-radius: 9px; font-size: 12.5px; }
+/* Empty collections: no stepper / filters when there is nothing to filter */
+.portal-browser.portal-none .portal-steps, .portal-browser.portal-none .portal-path, .portal-browser.portal-none .portal-filters, .portal-browser.portal-none .portal-pagination, .portal-browser.portal-none .portal-search, .portal-browser.portal-none .portal-reset { display: none !important; }
+/* Notifications: full-width audience picker */
+#pushAudType, #pushClass, #pushSubject { width: 100%; max-width: none; }
+/* Online Students: compact header + KPI strip on phones */
+@media (max-width: 760px) {
+  .oar-head { gap: 8px; }
+  .oar-head .oar-actions .oar-btn { min-height: 36px; padding: 0 12px; font-size: 12.5px; }
+  .oar-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; }
+  .oar-kpi { padding: 8px 10px !important; }
+  .oar-kpi strong { font-size: 16px !important; }
+  .oar-kpi span { font-size: 11px !important; line-height: 1.25; }
+}
+
+#adminRefreshTeachers { min-height: 34px; padding: 0 12px; font-size: 13px; margin: 2px 0 8px; }

@@ -7,10 +7,33 @@
  * confirm a full-screen goodbye screen (same look as the login loader) stays
  * up while Firebase signs out and the login page loads. The login page then
  * shows a short "You've signed out" note (see login-boot.js).
+ *
+ * Back after signing out goes to the homepage, never the dashboard: the
+ * dashboard's own menu history is rewound to its first entry, that entry is
+ * turned into "/", and only then the login page opens. A dashboard restored
+ * from the browser's back/forward cache always reloads, so a signed-in copy
+ * is never shown after sign-out.
  */
 (function () {
   'use strict';
   var open = null;
+
+  window.addEventListener('pageshow', function (e) { if (e.persisted) window.location.reload(); });
+
+  function leave(to) {
+    var nav = history.state && history.state.ntcPortalNavigation;
+    var depth = nav && nav.index > 0 ? nav.index : 0;
+    var go = function () {
+      try { history.replaceState(null, '', '/'); } catch (_) {}
+      window.location.assign(to);   // a new entry, so Back from the login page lands on "/"
+    };
+    if (!depth) return go();
+    var done = false;
+    var finish = function () { if (done) return; done = true; window.removeEventListener('popstate', finish); go(); };
+    window.addEventListener('popstate', finish);
+    setTimeout(finish, 800);
+    history.go(-depth);
+  }
 
   function goodbye() {
     var el = document.createElement('div');
@@ -83,14 +106,16 @@
       if (busy) return;
       busy = true;
       yes.disabled = no.disabled = true;
+      window.__ntcLeaving = true;   // portals ignore their own "signed out → login" redirect and menu history now
       var screen = goodbye();
       var minimum = new Promise(function (r) { setTimeout(r, 900); }); // long enough to read, short enough not to annoy
       Promise.resolve().then(options.signOut).then(function () {
         try { sessionStorage.setItem('ntc:signed-out', '1'); } catch (_) {}
         return minimum;
       }).then(function () {
-        window.location.replace(options.to);
+        leave(options.to);
       }).catch(function (err) {
+        window.__ntcLeaving = false;
         console.warn('Sign out failed:', err);
         screen.classList.remove('on');
         setTimeout(function () { screen.remove(); }, 260);

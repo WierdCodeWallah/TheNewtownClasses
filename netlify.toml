@@ -38,6 +38,13 @@
   status = 200
   force = true
 
+# Online Test Series (all-India): one app-style page with hash routes.
+[[redirects]]
+  from = "/test-series"
+  to = "/test-series.html"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/login/teacher"
   to = "/teacher-login.html"
@@ -85,6 +92,11 @@
 [[redirects]]
   from = "/admin-panel.html"
   to = "/command-center"
+  status = 301
+
+[[redirects]]
+  from = "/test-series.html"
+  to = "/test-series"
   status = 301
 
 [[redirects]]

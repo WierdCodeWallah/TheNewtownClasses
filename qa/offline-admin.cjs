@@ -1,4 +1,4 @@
-/* Offline Test Series records at scale — admin section and teacher review desk.
+/* Offline Test Series records at scale — teacher review desk (the admin side is Test Desk: qa/admin-desk.cjs).
    A fixture of 30 students × 2–6 tests across Classes 7, 9 and 11 checks that
    records stay organised as Class → Subject → Chapter → Part, that search jumps
    straight to a student, that per-student and class × subject counts are right,
@@ -91,6 +91,21 @@ async function openPortal(browser, origin, role, file, width, ctx = { docs: repo
     if (url.hostname === '32zbpzustr.ucarecd.net') return route.fulfill({ contentType: 'application/pdf', headers: { 'Access-Control-Allow-Origin': '*' }, body: Buffer.from('%PDF-1.4\n%fixture\n%%EOF') });
     if (url.hostname === 'firestore.googleapis.com') {
       const p = decodeURIComponent(url.pathname.split('/documents/')[1] || '');
+      // The Test Desk's count of waiting scripts is a query (a read), sent as POST.
+      if (url.pathname.endsWith(':runAggregationQuery')) {
+        const coll = req.postDataJSON().structuredAggregationQuery.structuredQuery.from[0].collectionId;
+        const n = coll === 'moduleRequests' ? (ctx.requests || []).filter(r => r.status === 'requested').length : docs.filter(d => d.fields.status.stringValue === 'submitted').length;
+        return route.fulfill({ json: [{ result: { aggregateFields: { n: { integerValue: String(n) } } } }] });
+      }
+      if (p === 'moduleRequests') return route.fulfill({ json: { documents: (ctx.requests || []).map(r => docOf('moduleRequests/' + r.id, r)) } });
+      if (req.method() === 'GET' && ctx.collections && ctx.collections[p]) return route.fulfill({ json: { documents: ctx.collections[p].map(r => docOf(p + '/' + (r.id || 'doc' + Math.random().toString(36).slice(2, 8)), r)) } });
+      if (p === 'onlineStudents') return route.fulfill({ json: { documents: (ctx.onlineStudents || []).map(r => docOf('onlineStudents/' + r.id, r)) } });
+      if (p === 'mockPackages') return route.fulfill({ json: { documents: (ctx.packages || []).map(r => docOf('mockPackages/' + r.id, r)) } });
+      if (url.pathname.endsWith(':runQuery')) {
+        const coll = req.postDataJSON().structuredQuery.from[0].collectionId;
+        const rows = coll === 'offlineTests' ? (ctx.packTests || []).map(r => docOf('offlineTests/' + r.id, r)) : coll === 'onlinePurchases' ? (ctx.joined || []).map(r => docOf('onlinePurchases/' + r.id, r)) : [];
+        return route.fulfill({ json: rows.map(document => ({ document })) });
+      }
       if (req.method() !== 'GET') { writes.push(p); ctx.patches.push({ path: p, body: req.postDataJSON() }); return route.fulfill({ json: { name: p } }); }
       if (p === 'offlineReports') { listUrls.push(url); return route.fulfill({ json: { documents: docs } }); }
       if (p.startsWith('offlineReports/')) { const d = docs.find(x => x.name.endsWith('/' + p)); return d ? route.fulfill({ json: d }) : route.fulfill({ status: 404, json: {} }); }
@@ -136,223 +151,7 @@ const choice = (page, scope, text) => page.locator(scope + ' .portal-browser .po
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch({ headless: true, channel: process.env.PORTAL_BROWSER || 'chrome' });
   try {
-    for (const width of [320, 390, 768, 1440]) {
-      const { page, errors, listUrls, writes } = await openPortal(browser, origin, 'admin', 'admin-panel.html', width);
-      await page.waitForFunction(() => typeof window.loadOfflineRecords === 'function' && typeof window.switchAdminTab === 'function');
-      await page.evaluate(() => switchAdminTab('offline-series'));
-      await page.waitForSelector('#oadKpis .oar-kpi');
-      // Summary tiles match independently computed totals.
-      const kpis = await page.locator('#oadKpis').innerText();
-      assert.match(kpis, new RegExp(`${summary.total}\\s+Tests submitted`));
-      assert.match(kpis, new RegExp(`${summary.students}\\s+Students`));
-      assert.match(kpis, new RegExp(`${summary.returned}\\s+Returned`));
-      assert.match(kpis, new RegExp(`${summary.pending + summary.checking}\\s+Awaiting review`));
-      assert.match(kpis, new RegExp(`${summary.overdue}\\s+Overdue`));
-      assert(summary.overdue > 0 && summary.pending > 0, 'fixture includes pending and overdue scripts');
-      // List reads ask only for the needed fields (no large AI report text).
-      assert(listUrls.length && listUrls.every(u => u.searchParams.getAll('mask.fieldPaths').includes('studentName') && !u.searchParams.getAll('mask.fieldPaths').includes('aiReport')), 'records list uses a field mask');
-
-      // Records: Class → Subject → Chapter, then parts/tests/status filters.
-      await page.waitForSelector('#oadRecordsPane .portal-choice');
-      assert.equal(await page.locator('#oadRecordsPane .portal-browser .portal-choice').count(), 3, 'three classes at the first level');
-      assert.match(await choice(page, '#oadRecordsPane', 'Class 11').innerText(), /\d+ submissions · \d+% avg/);
-      // Class 11 Physics has a single chapter, so that level is skipped automatically.
-      await choice(page, '#oadRecordsPane', 'Class 11').click();
-      await choice(page, '#oadRecordsPane', 'Physics').click();
-      await page.waitForSelector('#oadRecords .oar-row');
-      assert.match(await page.locator('#oadRecordsPane .portal-path').innerText(), /11\s+\/\s+Physics\s+\/\s+Chapter 1/, 'single chapter auto-selected');
-      // Class 7 Mathematics spans three chapters, so the chapter step is shown.
-      await page.locator('#oadRecordsPane .portal-browser [data-reset]').first().click();
-      await choice(page, '#oadRecordsPane', 'Class 7').click();
-      await choice(page, '#oadRecordsPane', 'Mathematics').click();
-      assert.equal(await page.locator('#oadRecordsPane .portal-browser .portal-choice').count(), new Set(parsed.filter(r => r.class === '7' && r.subject === 'Mathematics').map(r => r.chapter)).size, 'one card per chapter');
-      await choice(page, '#oadRecordsPane', 'Chapter 1').click();
-      await page.waitForSelector('#oadRecords .oar-row');
-      const leaf = parsed.filter(r => r.class === '7' && r.subject === 'Mathematics' && r.chapter === 'Chapter 1');
-      assert.match(await page.locator('#oadRecordsPane .portal-browser [role="status"]').innerText(), new RegExp('^' + leaf.length + ' submission'));
-      assert.equal(await page.locator('#oadRecords .oar-row').count(), Math.min(leaf.length, width <= 600 ? 6 : 12));
-      assert.match(await page.locator('#oadRecordsPane .portal-path').innerText(), /7\s+\/\s+Mathematics\s+\/\s+Chapter 1/);
-      assert(await page.locator('#oadRecordsPane [data-facet="stage"]').isVisible(), 'status filter stays visible at the record level');
-      assert(await fits(page), 'records fit at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-records-${width}.png`), fullPage: true });
-
-      // Search jumps straight to a student from anywhere.
-      await page.locator('#oadRecordsPane .portal-browser [data-reset]').first().click();
-      const target = perStudent.find(s => s.studentId === 'TNC-004');
-      await page.fill('#oadRecordsPane .portal-search input', 'TNC-004');
-      await page.waitForFunction(n => document.querySelectorAll('#oadRecords .oar-row').length === n, Math.min(target.total, width <= 600 ? 6 : 12));
-      assert((await page.locator('#oadRecords .oar-row').allInnerTexts()).every(t => t.includes('Student 04')));
-
-      // Review sheet: facts, feedback, open + named download, Escape restores focus.
-      const reviewBtn = page.locator('#oadRecords .oar-row', { hasText: 'Student 04' }).filter({ has: page.locator('[data-kind="checked"]') }).first().locator('[data-oad-review]');
-      await reviewBtn.click();
-      await page.waitForSelector('#oadModal:not([hidden])');
-      const sheet = await page.locator('#oadModalBody').innerText();
-      assert.match(sheet, /TNC-004/); assert.match(sheet, /Neat work\. Show units\./); assert.match(sheet, /Checked by\s+Aarav Sen/);
-      assert.match(await page.locator('#oadModalBody a', { hasText: 'Open checked PDF' }).getAttribute('href'), /^https:\/\/32zbpzustr\.ucarecd\.net\//);
-      const download = page.waitForEvent('download');
-      await page.locator('#oadModalBody [data-kind="checked"]').click();
-      assert.match((await download).suggestedFilename(), /^Student_04_TNC-004_.+_checked\.pdf$/);
-      assert(await fits(page), 'review sheet fits at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-review-${width}.png`) });
-      await page.keyboard.press('Escape');
-      assert(await page.locator('#oadModal').isHidden());
-      assert.equal(await page.evaluate(() => document.activeElement?.dataset.oadReview || ''), await reviewBtn.getAttribute('data-oad-review'), 'focus returns to the Review button');
-
-      // Students: totals and per-subject counts, sort, subject focus, jump to records.
-      await page.click('[data-oad-view="students"]');
-      await page.selectOption('#oadStudentSort', 'tests');
-      await page.waitForSelector('#oadStudentsPane .portal-choice');
-      assert.equal(await page.locator('#oadStudentsPane .portal-browser .portal-choice').count(), 3, 'students grouped by class');
-      await choice(page, '#oadStudentsPane', 'Class 9').click();
-      await page.waitForSelector('#oadStudents .oar-row');
-      const class9 = perStudent.filter(s => s.class === '9').sort((a, b) => b.total - a.total || a.studentName.localeCompare(b.studentName));
-      const first = await page.locator('#oadStudents .oar-row').first().innerText();
-      assert.match(first, new RegExp(class9[0].studentName)); assert.match(first, new RegExp(class9[0].total + '\\s+tests'));
-      class9[0].subjects.forEach(x => assert(first.includes(`${x.subject} · ${x.count}`), 'subject breakdown for ' + x.subject));
-      await page.selectOption('#oadStudentsPane [data-facet="subject"]', 'English');
-      await page.waitForFunction(() => /English test/.test(document.querySelector('#oadStudents .oar-row')?.innerText || ''));
-      const english = perStudent.filter(s => s.class === '9' && s.subjectNames.includes('English'));
-      assert.match(await page.locator('#oadStudentsPane .portal-browser [role="status"]').innerText(), new RegExp('^' + english.length + ' student'));
-      assert(await fits(page), 'students fit at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-students-${width}.png`), fullPage: true });
-      await page.locator('#oadStudents [data-oad-student]').first().click();
-      await page.waitForFunction(() => !document.getElementById('oadRecordsPane').hidden && document.querySelector('#oadRecordsPane .portal-search input').value.length > 0);
-      assert.match(await page.inputValue('#oadRecordsPane .portal-search input'), /^tnc-\d{3}$/);
-
-      // Class × Subject grid: every class row, correct totals, cells open records.
-      await page.click('[data-oad-view="matrix"]');
-      await page.waitForSelector('.oar-matrix');
-      assert.equal(await page.locator('.oar-matrix tbody tr').count(), summary.classes.length);
-      assert.equal((await page.locator('.oar-matrix tfoot td').last().innerText()).trim(), String(summary.total));
-      const cell = summary.cell('11', 'Chemistry');
-      const cellBtn = page.locator('.oar-cell[data-oad-cell-class="11"][data-oad-cell-subject="Chemistry"]');
-      assert.match(await cellBtn.innerText(), new RegExp('^' + cell.count));
-      assert(await fits(page), 'grid page fits at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-matrix-${width}.png`), fullPage: true });
-      await cellBtn.click();
-      await page.waitForFunction(() => !document.getElementById('oadRecordsPane').hidden);
-      assert.match(await page.locator('#oadRecordsPane .portal-path').innerText(), /11\s+\/\s+Chemistry/);
-
-      // Legacy AI-checked record: marks come from the report; report opens in the sheet.
-      await page.locator('#oadRecordsPane .portal-browser [data-reset]').first().click();
-      await page.fill('#oadRecordsPane .portal-search input', 'AI Science');
-      await page.waitForSelector('#oadRecords .oar-row');
-      assert.match(await page.locator('#oadRecords .oar-row').first().innerText(), /15 \/ 20/);
-      await page.locator('#oadRecords [data-oad-review]').first().click();
-      await page.click('#oadAiReport');
-      await page.waitForFunction(() => document.getElementById('oadAiReportBody').children.length > 0);
-      await page.click('#oadModalClose');
-
-      assert.deepEqual(writes, [], 'admin records are read-only');
-      assert.deepEqual(errors, [], 'no page errors on admin at ' + width);
-      await page.close();
-      console.log(`✓ admin ${width}px: ${summary.total} records · drill-down · search · review + named download · student counts · class × subject grid`);
-    }
-
-    // Admin acts in a teacher's name: publish a test, then check and return a script.
-    const pdfFile = path.join(out, 'checked.pdf');
-    fs.writeFileSync(pdfFile, (() => { const b = 'BT /F1 18 Tf 60 760 Td (Checked) Tj ET'; const o = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>', `<< /Length ${b.length} >>\nstream\n${b}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
-      let p = '%PDF-1.4\n'; const f = []; o.forEach((x, i) => { f.push(p.length); p += `${i + 1} 0 obj\n${x}\nendobj\n`; }); const xr = p.length;
-      return p + 'xref\n0 6\n0000000000 65535 f \n' + f.map(n => String(n).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xr}\n%%EOF`; })());
-    for (const width of [390, 1440]) {
-      const ctx = { docs: reportDocs.map(d => JSON.parse(JSON.stringify(d))), calls: [], patches: [] };
-      const { page, errors } = await openPortal(browser, origin, 'admin', 'admin-panel.html', width, ctx);
-      await page.waitForFunction(() => typeof window.loadOfflineRecords === 'function' && typeof window.switchAdminTab === 'function');
-      await page.evaluate(() => switchAdminTab('offline-series'));
-      await page.waitForSelector('#oadKpis .oar-kpi');
-
-      // Tests view: every teacher's tests, organised, with a teacher filter.
-      await page.click('[data-oad-view="tests"]');
-      await page.waitForSelector('#oadTestsPane .portal-choice');
-      assert.equal(await page.locator('#oadTestsPane .portal-browser .portal-choice').count(), 3, 'tests drill down by class');
-      await page.click('#oatPublishBox summary');
-      assert.match(await page.locator('#oatTeacher').innerText(), /Aarav Sen[\s\S]*Neha Gupta/);
-      await page.click('#oatPublishBtn');
-      assert.match(await page.locator('#oatMsg').innerText(), /Choose the teacher/, 'publishing needs a teacher');
-      await page.selectOption('#oatTeacher', 'teacher-2');
-      await page.selectOption('#oatClass', '11');
-      await page.selectOption('#oatSubject', 'Chemistry');
-      await page.fill('#oatChapter', 'Solutions');
-      await page.fill('#oatModule', 'Part 2 · Colligative properties');
-      await page.fill('#oatName', 'Weekly Test 4');
-      await page.fill('#oatMarks', '25');
-      await page.fill('#oatDuration', '45');
-      await page.setInputFiles('#oatQuestionPdf', pdfFile);
-      assert(await fits(page), 'publish form fits at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-publish-${width}.png`), fullPage: true });
-      await page.click('#oatPublishBtn');
-      await page.waitForFunction(() => /is live/.test(document.getElementById('oatMsg').textContent), null, { timeout: 20000 });
-      assert.match(await page.locator('#oatMsg').innerText(), /published as Neha Gupta/);
-      const testWrite = ctx.patches.find(w => /^offlineTests\/ots/.test(w.path));
-      const keyWrite = ctx.patches.find(w => /^offlineTestKeys\/ots/.test(w.path));
-      assert.equal(testWrite.body.fields.teacherUid.stringValue, 'teacher-2'); assert.equal(testWrite.body.fields.teacherName.stringValue, 'Neha Gupta');
-      assert.equal(testWrite.body.fields.gradingMode.stringValue, 'teacher'); assert.equal(testWrite.body.fields.module.stringValue, 'Part 2 · Colligative properties');
-      assert.equal(keyWrite.body.fields.teacherUid.stringValue, 'teacher-2');
-      assert(!JSON.stringify(testWrite.body).includes('admin-demo'), 'student-visible test never names the admin');
-      const auditWrite = ctx.patches.find(w => /^offlineAudit\/publish_ots/.test(w.path));
-      assert.equal(auditWrite.body.fields.byAdminUid.stringValue, 'admin-demo'); assert.equal(auditWrite.body.fields.onBehalfOfUid.stringValue, 'teacher-2');
-
-      // Check & return an awaiting script as a chosen teacher.
-      await page.click('[data-oad-view="records"]');
-      await page.fill('#oadRecordsPane .portal-search input', 'TNC-000');
-      const pendingRow = page.locator('#oadRecords .oar-row', { hasText: 'Awaiting review' }).first();
-      await pendingRow.waitFor();
-      assert.equal((await pendingRow.locator('[data-oad-review]').innerText()).trim(), 'Check & return');
-      const attemptId = await pendingRow.locator('[data-oad-review]').getAttribute('data-oad-review');
-      await pendingRow.locator('[data-oad-review]').click();
-      await page.waitForSelector('#oarReturnForm');
-      assert.equal(await page.inputValue('#oarTeacher'), 'teacher-demo', 'assigned teacher is preselected');
-      await page.click('#oarReturnBtn');
-      assert.match(await page.locator('#oarMsg').innerText(), /checked PDF/i, 'return needs a PDF');
-      await page.setInputFiles('#oarPdf', pdfFile);
-      await page.fill('#oarScore', '25');
-      await page.click('#oarReturnBtn');
-      assert.match(await page.locator('#oarMsg').innerText(), /0 to 20/, 'marks above maximum refused');
-      await page.selectOption('#oarTeacher', 'teacher-2');
-      await page.fill('#oarScore', '12.5');
-      await page.fill('#oarRemark', 'Good method. Check your units.');
-      assert(await fits(page), 'return form fits at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-return-form-${width}.png`) });
-      await page.click('#oarReturnBtn');
-      await page.waitForFunction(() => /Returned to/.test(document.getElementById('oadModalBody').textContent), null, { timeout: 20000 });
-      const call = ctx.calls.find(c => c.action === 'return-script');
-      assert.equal(call.attemptId, attemptId); assert.equal(call.onBehalfOf, 'teacher-2'); assert.equal(call.score, 12.5);
-      assert.match(call.checkedScriptUrl, /^https:\/\/32zbpzustr\.ucarecd\.net\//); assert.equal(call.remark, 'Good method. Check your units.');
-      const sheet = await page.locator('#oadModalBody').innerText();
-      assert.match(sheet, /checked by Neha Gupta/i); assert.match(sheet, /Checked by\s+Neha Gupta/); assert.match(sheet, /12½ \/ 20/);
-      assert.equal(await page.locator('#oarReturnForm').count(), 0, 'form disappears once returned');
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-returned-${width}.png`) });
-      // Permanent delete: locked until the student ID is typed; record and totals update.
-      await page.click('#oadModalClose');
-      await page.fill('#oadRecordsPane .portal-search input', 'TNC-005');
-      await page.waitForFunction(() => { const rows = [...document.querySelectorAll('#oadRecords .oar-row')]; return rows.length && rows.every(r => r.textContent.includes('TNC-005')); });
-      const victim = page.locator('#oadRecords .oar-row', { hasText: 'Returned' }).first();
-      await victim.waitFor();
-      const victimId = await victim.locator('[data-oad-review]').getAttribute('data-oad-review');
-      const before = ctx.docs.length;
-      await victim.locator('[data-oad-review]').click();
-      await page.click('#oadDelete summary');
-      assert(await page.locator('#oadDelBtn').isDisabled(), 'delete is locked by default');
-      assert.match(await page.locator('#oadDelete').innerText(), /cannot be undone/);
-      await page.fill('#oadDelConfirm', 'TNC-004');
-      assert(await page.locator('#oadDelBtn').isDisabled(), 'wrong ID keeps delete locked');
-      await page.fill('#oadDelConfirm', 'tnc-005');
-      assert(await page.locator('#oadDelBtn').isEnabled(), 'typed ID (any case) unlocks delete');
-      assert(await fits(page), 'delete confirmation fits at ' + width);
-      await page.screenshot({ animations: 'disabled', path: path.join(out, `admin-delete-${width}.png`) });
-      await page.click('#oadDelBtn');
-      await page.waitForFunction(() => /Deleted .* permanently/.test(document.getElementById('oadNotice').textContent), null, { timeout: 20000 });
-      assert(await page.locator('#oadModal').isHidden(), 'sheet closes after delete');
-      assert.deepEqual(ctx.calls.filter(c => c.action === 'delete-record').map(c => c.attemptId), [victimId]);
-      assert.equal(ctx.docs.length, before - 1);
-      assert.match(await page.locator('#oadKpis').innerText(), new RegExp(`${before - 1}\\s+Tests submitted`), 'totals update after delete');
-      assert.equal(await page.locator(`#oadRecords [data-oad-review="${victimId}"]`).count(), 0, 'deleted record is gone from the list');
-      assert.deepEqual(errors, [], 'no page errors on admin actions at ' + width);
-      await page.close();
-      console.log(`✓ admin ${width}px: publishes a test as Neha Gupta (audit kept privately) · checks and returns a script in her name · permanent delete with typed confirmation`);
-    }
-
+    // The admin side of these records now lives in Test Desk: see qa/admin-desk.cjs.
     // Teacher review desk and test list stay organised at the same volume.
     for (const width of [390, 1440]) {
       const { page, errors } = await openPortal(browser, origin, 'teacher', 'teacher-dashboard.html', width);

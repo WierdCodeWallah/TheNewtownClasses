@@ -27,6 +27,12 @@
  *  never see the answer key at all. Every write here uses the SERVICE
  *  ACCOUNT, so a student cannot change their own timer or status.
  *
+ *  Online Test Series (all-India, /test-series) tests are offlineTests with
+ *  series 'online'. Google-signed-in students (onlineStudents/{uid}) may take
+ *  them once unlocked: free tests, a Razorpay purchase, or an enrolled TNC ID.
+ *  Their results go to onlineStudents/{uid}/results and every return
+ *  refreshes that class + subject leaderboard.
+ *
  *  REQUIRED ENV VARS: FIREBASE_PROJECT_ID, FIREBASE_SERVICE_ACCOUNT
  * ════════════════════════════════════════════════════
  */
@@ -35,6 +41,19 @@ const policy = require('../../assets/js/offline-policy');
 const {
   request, verifyFirebaseIdToken, getServiceAccountAccessToken, fsGet, fsPatch, fsCommit, decFields
 } = require('./_google');
+const onlineSeries = require('./_online');
+
+// Where a student's result and history live: the institute record for the
+// offline series, the online profile for the all-India online series.
+const resultPaths = (rep, attemptId) => rep.series === 'online'
+  ? { result: `onlineStudents/${rep.uid}/results/${attemptId}`, history: `onlineStudents/${rep.uid}/history/${attemptId}` }
+  : { result: `students/${rep.uid}/offlineResults/ots_${attemptId}`, history: `students/${rep.uid}/offlineHistory/${attemptId}` };
+
+async function refreshBoard(projectId, sa, rep) {
+  if (rep.series !== 'online') return;
+  try { await onlineSeries.refreshLeaderboard(projectId, sa, rep.studentClass, rep.subject); }
+  catch (e) { console.error('[offline-test] leaderboard refresh failed', e); }   // next return refreshes it again
+}
 
 const CORS = {
   'Access-Control-Allow-Origin' : '*',
@@ -142,6 +161,7 @@ exports.handler = async function (event) {
       }
       const now = new Date().toISOString();
       const name = actorName;
+      const paths = resultPaths(rep, attemptId);
       const audit = actorUid !== uid
         ? [{ path: `offlineAudit/return_${attemptId}`, data: { action: 'return-script', attemptId, byAdminUid: uid, onBehalfOfUid: actorUid, onBehalfOfName: actorName, at: now } }]
         : [];
@@ -153,18 +173,21 @@ exports.handler = async function (event) {
         { path: `offlineAttempts/${attemptId}`, currentDocument: { updateTime: attDoc.updateTime }, data: {
           ...att, status: 'approved', approvedAt: now, checkedScriptUrl
         } },
-        { path: `students/${rep.uid}/offlineResults/ots_${attemptId}`, data: {
-          resultId: 'ots_' + attemptId, source: 'offline', reportId: attemptId,
+        { path: paths.result, data: {
+          resultId: rep.series === 'online' ? attemptId : 'ots_' + attemptId, source: rep.series === 'online' ? 'online' : 'offline', reportId: attemptId,
+          testId: rep.testId || '', chapter: rep.chapter || 'General', series: rep.series || 'offline',
           testName: rep.testName, subject: rep.subject, topic: rep.chapter, module: rep.module || 'Full chapter', testType: 'subjective', class: rep.studentClass,
           score, totalMarks: rep.totalMarks, pct: Math.round(score / rep.totalMarks * 100),
-          testDate: (rep.submittedAt || now).slice(0, 10), remark: remark || 'Offline Test Series · Teacher checked',
-          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: actorUid, teacherName: name,
+          testDate: (rep.submittedAt || now).slice(0, 10), remark: remark || (rep.series === 'online' ? 'Checked by TNC faculty' : 'Offline Test Series · Teacher checked'),
+          // Online students see "TNC faculty", never the checker's name or ID (the report keeps it for admins).
+          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: rep.series === 'online' ? '' : actorUid, teacherName: rep.series === 'online' ? 'TNC faculty' : name,
           studentUid: rep.uid, studentName: rep.studentName, studentId: rep.studentId, savedAt: now,
           submittedAt: rep.submittedAt, approvedAt: now
         } }
-        ,{ path: `students/${rep.uid}/offlineHistory/${attemptId}`, data: { ...policy.history(rep), status: 'approved', score, totalMarks: rep.totalMarks } }
+        ,{ path: paths.history, data: { ...policy.history(rep), status: 'approved', score, totalMarks: rep.totalMarks } }
         , ...audit
       ]);
+      await refreshBoard(projectId, sa, rep);
       return ok({ ok: true, status: 'approved' });
     }
 
@@ -184,17 +207,19 @@ exports.handler = async function (event) {
       const studentUid = rep.uid || att.uid || attemptId.split('__').pop();
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(studentUid)) return bad(400, 'Invalid record');
       const now = new Date().toISOString();
+      const paths = resultPaths({ ...rep, uid: studentUid }, attemptId);
       await fsCommit(projectId, sa, [
         ...(repDoc ? [{ path: `offlineReports/${attemptId}`, remove: true, currentDocument: { updateTime: repDoc.updateTime } }] : []),
         ...(attDoc ? [{ path: `offlineAttempts/${attemptId}`, remove: true, currentDocument: { updateTime: attDoc.updateTime } }] : []),
-        { path: `students/${studentUid}/offlineResults/ots_${attemptId}`, remove: true },
-        { path: `students/${studentUid}/offlineHistory/${attemptId}`, remove: true },
+        { path: paths.result, remove: true },
+        { path: paths.history, remove: true },
         // Minimal admin-only accountability record; no marks or files are kept.
         { path: `offlineAudit/delete_${attemptId}`, data: { action: 'delete-record', attemptId, studentId: rep.studentId || att.studentId || '', testName: rep.testName || '', byAdminUid: uid, at: now } }
       ]);
       const ids = [...new Set([rep.scriptPdfUrl || att.scriptPdfUrl, rep.checkedScriptUrl || att.checkedScriptUrl, ...(rep.pageUrls || att.pageUrls || [])]
         .map(u => require('../../assets/js/uploadcare-config').uuid(u)).filter(Boolean))];
       const results = await Promise.all(ids.map(deleteStoredFile));
+      if (rep.status === 'approved') await refreshBoard(projectId, sa, rep);
       return ok({ ok: true, filesDeleted: results.filter(Boolean).length, filesFailed: results.filter(r => !r).length });
     }
 
@@ -222,8 +247,16 @@ exports.handler = async function (event) {
       fsGet(projectId, sa, `students/${uid}`)
     ]);
     if (!testDoc)    return bad(404, 'This test is no longer available.');
-    if (!studentDoc) return bad(403, 'Only enrolled students can take tests.');
-    const test = decFields(testDoc), student = decFields(studentDoc);
+    const test = decFields(testDoc);
+    const isOnline = test.series === 'online';
+    // Online series: students who signed up with Google take tests from their
+    // online profile; enrolled students keep their institute record.
+    const onlineDoc = isOnline && !studentDoc ? await fsGet(projectId, sa, `onlineStudents/${uid}`) : null;
+    const onlineProfile = onlineDoc ? decFields(onlineDoc) : null;
+    if (!studentDoc && !(onlineProfile && onlineProfile.profileComplete)) {
+      return bad(403, isOnline ? 'Complete your profile to take online tests.' : 'Only enrolled students can take tests.');
+    }
+    const student = studentDoc ? decFields(studentDoc) : { ...onlineProfile, studentId: onlineProfile.onlineId || '' };
     if (String(test.class) !== String(student.class || '')) return bad(403, 'This test is for a different class.');
     if (test.board && test.board !== student.board) return bad(403, 'This test is for a different board.');
     const attemptId = `${testId}__${uid}`;
@@ -233,6 +266,21 @@ exports.handler = async function (event) {
     if (action === 'start') {
       if (att) return ok({ attemptId, ...att, serverNow: new Date().toISOString() });
       if (test.isActive === false) return bad(403, 'This test is closed.');
+      if (isOnline && test.kind === 'custom' && test.forUid !== uid) return bad(403, 'This custom test was made for another student.');
+      // Mock pack: only for students in the pack, and not before its opening time.
+      if (isOnline && test.kind === 'package') {
+        // Everyone joins a pack (TNC students pay for packs too).
+        if (!(await fsGet(projectId, sa, `onlinePurchases/pkg_${test.packageId}__${uid}`))) return bad(402, 'Join this mock pack to take the test.');
+        if (test.releaseAt && Date.parse(test.releaseAt) > Date.now()) {
+          const when = new Date(test.releaseAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+          return bad(403, `This mock opens on ${when}.`);
+        }
+      }
+      // Online series: TNC students get chapter-wise tests free; everything
+      // else needs a free-mock claim or a payment (both create a purchase).
+      if (isOnline && onlineSeries.priceFor(test, !!studentDoc) > 0 && !(await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`))) {
+        return bad(402, `Unlock this test for ₹${onlineSeries.priceFor(test, !!studentDoc)} to start.`);
+      }
       const keyDoc = await fsGet(projectId, sa, `offlineTestKeys/${testId}`);
       const key = keyDoc ? decFields(keyDoc) : {};
       if (!key.questionPdfUrl) return bad(409, 'The question paper has not been uploaded yet.');
@@ -288,13 +336,15 @@ exports.handler = async function (event) {
         teacherUid: test.teacherUid || '', teacherName: test.teacherName || '',
         startedAt: att.startedAt, deadline: att.deadline, submittedAt: now.toISOString(),
         lateByMin, usedMin, scriptPdfUrl, pageUrls,
+        series: isOnline ? 'online' : 'offline', enrolled: !!studentDoc,
+        studentCity: student.city || '', studentState: student.state || '',
         status, reviewMode: manual ? 'teacher' : 'ai', aiReport: '', finalReport: '', integrity: '', error: '',
         approvedByUid: '', approvedByName: '', approvedAt: ''
       };
       await fsCommit(projectId, sa, [
         { path: `offlineAttempts/${attemptId}`, data: submitted, currentDocument: { updateTime: attDoc.updateTime } },
         { path: `offlineReports/${attemptId}`, data: report, currentDocument: { exists: false } },
-        { path: `students/${uid}/offlineHistory/${attemptId}`, data: policy.history(report) }
+        { path: resultPaths(report, attemptId).history, data: policy.history(report) }
       ]);
       try { if (!manual) await triggerGrader(attemptId); }
       catch (e) { console.error('[offline-test] trigger failed', e); }   // teacher can re-run from the approval list
@@ -306,8 +356,9 @@ exports.handler = async function (event) {
     const msg = (e && e.message) || String(e);
     if (e.conflict) return bad(409, 'This test was updated in another window. Refresh to see its current status.');
     if (/Invalid Firebase ID token|Missing idToken|expired/i.test(msg)) return bad(401, 'Please sign in again.');
-    console.error('[offline-test]', e);
-    return bad(500, msg);
+    if (e && e.status === 503) return bad(503, msg);   // an outside service timed out: friendly message
+    console.error('[offline-test]', e);                 // details stay in the server log
+    return bad(500, 'Something went wrong. Please try again.');
   }
 };
 

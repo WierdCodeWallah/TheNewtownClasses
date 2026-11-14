@@ -6,7 +6,7 @@ const http = require('node:http'), https = require('node:https');
 https.request = (options, callback) => {
   assert.equal(options.hostname, 'firestore.googleapis.com', 'no external network calls');
   assert(options.path.includes('/projects/demo-offline/'), 'isolated demo project only');
-  return http.request({ ...options, hostname: '127.0.0.1', port: 8188 }, callback);
+  return http.request({ ...options, agent: undefined, hostname: '127.0.0.1', port: 8188 }, callback);   // the real code passes a keep-alive https agent
 };
 process.env.FIREBASE_PROJECT_ID = 'demo-offline';
 process.env.FIREBASE_SERVICE_ACCOUNT = '{"localFixture":true}';

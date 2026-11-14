@@ -43,8 +43,8 @@
   <script src="/assets/js/uploadcare-config.js?v=8d3c4d5d"></script>
   <script src="/assets/js/offline-policy.js?v=6a27f8b3"></script>
   <script src="/assets/js/offline-files.js?v=a934e5f6"></script>
-  <script src="/assets/js/portal-shell.js?v=226dabc7"></script>
-  <script src="/assets/js/portal-logout.js?v=b75a2d12"></script>
+  <script src="/assets/js/portal-shell.js?v=6724bb1a"></script>
+  <script src="/assets/js/portal-logout.js?v=998a5961"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; -webkit-text-size-adjust: 100%; }
@@ -2542,9 +2542,10 @@ renderCards();
             subject: f.subject?.stringValue || 'General', chapter: f.chapter?.stringValue || 'General', module: f.module?.stringValue || 'Full chapter',
             totalMarks: n(f.totalMarks), durationMin: n(f.durationMin) || 60,
             instructions: f.instructions?.stringValue || '', teacherName: f.teacherName?.stringValue || '', gradingMode: f.gradingMode?.stringValue || 'ai',
-            isActive: f.isActive?.booleanValue !== false, createdAt: f.createdAt?.stringValue || ''
+            isActive: f.isActive?.booleanValue !== false, createdAt: f.createdAt?.stringValue || '',
+            series: f.series?.stringValue || 'offline'
           };
-        }).filter(t => t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
+        }).filter(t => t.series !== 'online' && t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
         const attempts = await Promise.all(_ots.tests.map(async t => {
           const r = await fetch(`${base}/offlineAttempts/${t.id}__${user.uid}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } }).catch(() => null);
           if (!r || !r.ok) return null;

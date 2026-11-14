@@ -125,3 +125,18 @@
 .oar-btn.danger:hover{background:#991b1b;border-color:#991b1b;color:#fff}
 .oar-btn.danger:disabled{background:#f3b4b4;border-color:#f3b4b4;color:#fff}
 #oadNotice{margin:0 0 12px}
+
+/* Promo code "Only for" student picker */
+.oar-forfield{display:grid;gap:6px}
+.oar-label{font-size:13px;font-weight:600;color:#334155}
+.oar-pick{display:grid;gap:4px}
+.oar-pick:empty{display:none}
+.oar-pick button{display:grid;gap:1px;text-align:left;padding:9px 12px;border:1px solid #dbe3ef;border-radius:12px;background:#fff;font:inherit;cursor:pointer;min-height:48px}
+.oar-pick button b{font-size:14px;color:#0f2747}
+.oar-pick button small{font-size:12px;color:#64748b}
+.oar-pick button:hover,.oar-pick button:focus-visible{border-color:#245cda;background:#f5f8ff}
+.oar-for{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px 9px 12px;border:1.5px solid #245cda;border-radius:12px;background:#f5f8ff}
+.oar-for span{display:grid;gap:1px;min-width:0}
+.oar-for b{font-size:14px;color:#0f2747}
+.oar-for small{font-size:12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oar-forline{color:#245cda!important;font-weight:600}
