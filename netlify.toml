@@ -106,6 +106,9 @@
 
 # ── Tell Netlify the Firebase API key is intentionally public ──
 [build.environment]
+  # FIREBASE_API_KEY is the public Firebase web key: it must appear in the site code
+  # (firebase-config.js etc.), so the secrets scan should not fail the build on it.
+  SECRETS_SCAN_OMIT_KEYS = "FIREBASE_API_KEY"
   SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyB-aTXaWLduMaB9lw6lxGcOWzhzKcH2B0E"
 
 # ── Caching ──
