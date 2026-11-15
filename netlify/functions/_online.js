@@ -66,7 +66,7 @@ const webhookSignatureOk = (rawBody, signature) => !!process.env.RAZORPAY_WEBHOO
 // Check a cart of chapters against the syllabus. items: [{ subject, chapters[] }].
 // Returns { ok, error, items (clean, syllabus order), count }.
 function checkModuleCart(board, cls, items) {
-  if (!policy.MODULE.classes.includes(String(cls))) return { ok: false, error: 'Custom module tests are for Classes 9 to 12.' };
+  if (!policy.MODULE.classes.includes(String(cls))) return { ok: false, error: 'Custom module tests are for Classes 7 to 12.' };
   if (!['CBSE', 'CISCE'].includes(board)) return { ok: false, error: 'Choose CBSE or ICSE / ISC.' };
   if (!Array.isArray(items) || !items.length) return { ok: false, error: 'Add at least one chapter.' };
   const clean = [], seen = new Set();

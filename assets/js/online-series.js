@@ -295,7 +295,7 @@ function refresh() {
         fsList(`onlineStudents/${uid}/results`),
         fsQuery('onlineLeaderboard', { class: cls }),
         moduleEligible() ? fsQuery('moduleRequests', { uid }) : Promise.resolve([]),
-        fsQuery('mockPackages', { class: cls })
+        packsEligible() ? fsQuery('mockPackages', { class: cls }) : Promise.resolve([])
       ]);
       if (!current()) return;
       S.errors = {};
@@ -393,7 +393,7 @@ function openMore() {
   openSheet(`<div class="sh-head"><h2 id="sheetTitle">More</h2></div>
     <div class="menu more-menu">
       ${item('#/ranks', 'i-trophy', 'Leaderboard', rank ? `Your best: #${rank.rank} in ${esc(rank.subject || '')}` : 'All-India ranks by subject', r.name === 'ranks')}
-      ${moduleEligible() ? item('#/packs', 'i-calendar', 'Mock packs', 'A full-syllabus mock every week', r.name === 'packs') : ''}
+      ${packsEligible() ? item('#/packs', 'i-calendar', 'Mock packs', 'A full-syllabus mock every week', r.name === 'packs') : ''}
       ${item('#/me', 'i-user', 'Profile', esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
       <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span><b>Help on WhatsApp</b><small>Payments, papers, anything else</small></span>${ic('i-chev', 'chev')}</a>
       <a href="tel:${CONTACT.tel}">${ic('i-phone')}<span><b>Call us</b><small>${esc(CONTACT.show)}</small></span>${ic('i-chev', 'chev')}</a>
@@ -409,17 +409,18 @@ function render(navigated) {
   if (!S.session) return;
   const r = route(), p = S.session.profile;
   const titles = { home: 'Test Series', subject: r.subject, ranks: 'Leaderboard', results: 'Results', me: 'Profile', packs: 'Mock packs', custom: 'Custom test' };
-  // Phone tab bar: Home · Custom · Results · More (Classes 9–12; Packs is in More).
+  // Phone tab bar: Home · Custom · Results · More (Classes 7–12). Packs sits in More for Classes 9–12 only.
   // Classes 7–8 have no Custom test, so Packs takes the second slot.
   $('navCustom').hidden = !moduleEligible();
   $('navPacks').classList.toggle('nav-extra', moduleEligible());
+  $('navPacks').hidden = !packsEligible();
   $('topTitle').textContent = titles[r.name];
   $('topBack').hidden = r.name !== 'subject';
   $('topMark').hidden = r.name === 'subject';
   $('topAvatar').textContent = initials(p.name);
   $('topAvatar').hidden = r.name === 'me';
   // Phone bar: Home · Custom (or Packs) · Results · More (Ranks, Packs, Profile live in More).
-  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'me', ...(moduleEligible() ? ['packs'] : [])].includes(tab);
+  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'me', ...(packsEligible() ? ['packs'] : [])].includes(tab);
   document.querySelectorAll('#nav [data-tab]').forEach(a => {
     const on = a.dataset.tab === tab || (a.dataset.tab === 'more' && inMore);
     a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
@@ -865,10 +866,12 @@ async function confirmPayment(t, resp) {
   }
 }
 
-// ═══ Custom module test (Classes 9–12) ═══
+// ═══ Custom module test (Classes 7–12) ═══
 // Pick chapters (CBSE or ICSE / ISC) → cart → pay → one paper per subject,
 // made by the team within a day → appears under My tests to start.
 const moduleEligible = () => !!(S.session && P.MODULE.classes.includes(String(S.session.profile.class)));
+// Mock packs: Classes 9–12 only (Classes 7–8 don't see them anywhere).
+const packsEligible = () => !!(S.session && P.PACK_CLASSES.includes(String(S.session.profile.class)));
 const cartKey = () => 'ntc-online:cart:' + S.user.uid;
 const fmtWhen = v => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); };
 function cust() {
@@ -938,6 +941,7 @@ function packCard(p) {
 }
 
 function viewPacks() {
+  if (!packsEligible()) return `<section class="v">${emptyBlock('i-calendar', 'For Classes 9 to 12', 'Weekly mock packs are for Classes 9 to 12. Your chapter tests, full mocks and custom tests are on Home.')}</section>`;
   const owned = ownedPacks();
   if (!['packs', 'mine'].includes(S.packSeg)) S.packSeg = 'packs';
   const seg = S.packSeg;
@@ -955,9 +959,9 @@ function viewPacks() {
   return `<section class="v v-custom v-packs">${head}${body}</section>`;
 }
 
-// Custom module test tab (Classes 9–12): Build a test | My tests.
+// Custom module test tab (Classes 7–12): Build a test | My tests.
 function viewCustom() {
-  if (!moduleEligible()) return `<section class="v">${emptyBlock('i-layers', 'For Classes 9 to 12', 'Custom module tests are available from Class 9. Your chapter tests and full mocks are on Home.')}</section>`;
+  if (!moduleEligible()) return `<section class="v">${emptyBlock('i-layers', 'For Classes 7 to 12', 'Custom module tests are for Classes 7 to 12. Your chapter tests and full mocks are on Home.')}</section>`;
   const c = cust(), mods = S.modules.slice().sort((x, y) => (y.createdAt || '').localeCompare(x.createdAt || ''));
   const head = `<div class="cm-hero"><span class="cm-ic">${ic('i-layers')}</span><div><h2>Custom module test</h2><p>Pick any chapters — we make your paper</p></div></div>
     <div class="seg" role="tablist"><button type="button" role="tab" data-cseg="build" aria-selected="${c.seg !== 'mine'}">Build a test</button><button type="button" role="tab" data-cseg="mine" aria-selected="${c.seg === 'mine'}">My tests <i>${mods.length}</i></button></div>`;
@@ -976,13 +980,13 @@ function customMineRows(mods) {
 }
 
 function customBuild() {
-  if (!moduleEligible()) return emptyBlock('i-layers', 'For Classes 9 to 12', 'Custom module tests are available from Class 9.');
+  if (!moduleEligible()) return emptyBlock('i-layers', 'For Classes 7 to 12', 'Custom module tests are for Classes 7 to 12.');
   const c = cust(), cls = String(S.session.profile.class), subs = NTCSyllabus.subjects(c.board, cls), M = P.MODULE;
   if (!subs.some(s => s.subject === c.subject)) c.subject = subs[0].subject;
   const n = cartCount(c.board), b = bill(n), picked = (c.carts[c.board][c.subject]) || [];
   const chapters = NTCSyllabus.chapters(c.board, cls, c.subject);
   const boardTabs = ['CBSE', 'CISCE'].map(bd => `<button type="button" role="tab" data-cboard="${bd}" aria-selected="${c.board === bd}">${NTCSyllabus.boardLabel(bd, cls)}${cartCount(bd) ? ` <i>${cartCount(bd)}</i>` : ''}</button>`).join('');
-  return `<div class="cm-price">${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · at least ${M.minPerPaper} chapters per subject</div>
+  return `<div class="cm-price">${enrolled() ? ic('i-shield') + 'Free for TNC students · at least ' + M.minPerPaper + ' chapters per subject' : `${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · at least ${M.minPerPaper} chapters per subject`}</div>
     <div class="cm-pick">
       <div class="seg small" role="tablist" aria-label="Board">${boardTabs}</div>
       <div class="chips-scroll" role="tablist" aria-label="Subject">${subs.map(s => { const k = ((c.carts[c.board][s.subject]) || []).length; return `<button type="button" role="tab" class="chip-btn${s.subject === c.subject ? ' on' : ''}" data-csub="${esc(s.subject)}" aria-selected="${s.subject === c.subject}">${subjIc(s.subject)}${esc(s.subject)}${k ? `<i>${k}</i>` : ''}</button>`; }).join('')}</div>
@@ -995,7 +999,7 @@ function customBuild() {
 function cartBarHtml(c) {
   const n = cartCount(c.board), b = bill(n); if (!n) return '';
   const short = cartShort(c.board);
-  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${plural(n, 'chapter')} · ₹${b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save ? `You save ₹${b.save}` : `${cartItems(c.board).length} paper${cartItems(c.board).length === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
+  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${plural(n, 'chapter')} · ${enrolled() ? 'Free' : '₹' + b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save && !enrolled() ? `You save ₹${b.save}` : `${cartItems(c.board).length} paper${cartItems(c.board).length === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
 }
 // Picking chapters updates only what changed (ticks, counts, cart bar): no full redraw, no blink.
 function syncPicks() {
@@ -1135,13 +1139,14 @@ function openCart() {
   openSheet(`<div class="sh-head"><span class="sh-kicker">${ic('i-cart')}Your cart · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</span><h2 id="sheetTitle">Custom module test</h2></div>
     <div class="cart-list">${items.map(it => `<div class="cg" style="${tint(it.subject)}"><div class="cg-h"><span class="subj-ic">${subjIc(it.subject)}</span>${esc(it.subject)}<small>${plural(it.chapters.length, 'chapter')} · 1 paper</small></div>
       <ul>${it.chapters.map(ch => `<li><span>${esc(ch)}</span><button type="button" data-rm="${esc(it.subject)}" data-rmch="${esc(ch)}" aria-label="Remove ${esc(ch)}">${ic('i-x')}</button></li>`).join('')}</ul></div>`).join('')}</div>
-    <div class="bill">${`<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
+    <div class="bill">${enrolled() ? `<div><span>${plural(n, 'chapter')}</span><b>Free · TNC student</b></div>` : `<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
       ${cartPromo() ? `<div class="save"><span>Promo ${esc(cartPromo())}</span><span>−₹${b.total}</span></div>` : ''}
-      <div class="total"><span>Total</span><span>${cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
-    ${cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
-    ${n < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - n} more chapter${M.firstCount + 1 - n === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
+      <div class="total"><span>Total</span><span>${enrolled() || cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
+    ${enrolled() ? '' : cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
+    ${!enrolled() && n < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - n} more chapter${M.firstCount + 1 - n === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
     <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>
     ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
+      : enrolled() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Request my tests · free</button>`
       : cartPromo() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Confirm order · ₹0</button>`
       : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
       : contactCard(`a custom module test (${plural(n, 'chapter')}: ${items.map(i => i.subject).join(', ')})`)}`,
@@ -1182,10 +1187,10 @@ async function loadModules() {
 }
 async function buyModules(btn) {
   const c = cust(), items = cartItems(c.board);
-  const done = busy(btn, cartPromo() ? 'Confirming…' : 'Opening payment…');
+  const done = busy(btn, enrolled() ? 'Requesting…' : cartPromo() ? 'Confirming…' : 'Opening payment…');
   try {
     const promoCode = cartPromo();
-    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, ...(promoCode ? { promoCode } : {}) }), promoCode ? null : loadRazorpay()]);
+    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, ...(promoCode ? { promoCode } : {}) }), promoCode || enrolled() ? null : loadRazorpay()]);
     if (order.free) { S.promo = null; S.modules = [...(order.requests || []), ...S.modules]; return finishModules(order.promo ? `Promo applied · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours` : `Requested · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours`); }
     const rz = new window.Razorpay({
       key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,

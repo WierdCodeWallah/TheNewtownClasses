@@ -544,7 +544,7 @@ function openNewPack(opener) {
   const next = new Date(Date.now() + 7 * DAYMS);
   openSheet('New mock pack', 'Weekly full-syllabus mocks', `<div class="dk-presets">${P().PACK_PRESETS.map(x => `<button type="button" class="dk-preset" data-preset="${x.mocks}|${x.priceInr}"><b>${x.mocks} mocks</b><span>₹${x.priceInr} · one a week</span></button>`).join('')}</div>
     <div class="dk-form">
-      <label>Class<select id="dknClass">${opt([['', 'Select'], ...['7', '8', '9', '10', '11', '12'].map(c => [c, 'Class ' + c])], '')}</select></label>
+      <label>Class<select id="dknClass">${opt([['', 'Select'], ...['9', '10', '11', '12'].map(c => [c, 'Class ' + c])], '')}</select></label>
       <label>Subject<select id="dknSubject">${opt([['', 'Select'], ['Physics', 'Physics'], ['Chemistry', 'Chemistry'], ['Mathematics', 'Mathematics'], ['Biology', 'Biology'], ['Science', 'Science'], ['Computer', 'Computer Science'], ['English', 'English']], '')}</select></label>
       <label>Board<select id="dknBoard">${opt([['', 'All boards'], ['CBSE', 'CBSE only'], ['ICSE', 'ICSE / ISC only']], '')}</select></label>
       <label>Number of mocks<input id="dknMocks" type="number" min="1" max="52" inputmode="numeric" value="8"></label>

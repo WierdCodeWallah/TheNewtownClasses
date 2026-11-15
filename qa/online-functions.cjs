@@ -201,14 +201,20 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   console.log('✓ webhook: signed, amount-checked, idempotent unlock, foreign orders ignored');
 
   // ── Custom module test: cart of chapters → paid → one paper request per subject ──
-  assert.equal(policy.modulePrice(1), 199); assert.equal(policy.modulePrice(4), 796); assert.equal(policy.modulePrice(6), 1096); assert.equal(policy.modulePrice(6, true), 1096, 'TNC students pay for custom modules too');
+  assert.equal(policy.modulePrice(1), 199); assert.equal(policy.modulePrice(4), 796); assert.equal(policy.modulePrice(6), 1096); assert.equal(policy.modulePrice(6, true), 0, 'TNC students: custom modules free');
   const sy = require('../assets/js/syllabus.js');
   const sci = sy.chapters('CBSE', '10', 'Science'), mat = sy.chapters('CBSE', '10', 'Mathematics');
   assert.equal((await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [] })).status, 400, 'empty cart refused');
   assert.equal((await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: ['Made-up chapter'] }] })).status, 400, 'chapters must be in the syllabus');
   assert.equal((await api({ idToken: 'g:riya', action: 'module-order', board: 'CISCE', items: [{ subject: 'Science', chapters: [sci[0]] }] })).status, 400, 'ICSE has no combined Science');
   db.set('onlineStudents/junior', { ...prof, uid: 'junior', class: '8' });
-  assert.match((await api({ idToken: 'g:junior', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: [sci[0]] }] })).body.error, /Classes 9 to 12/);
+  // Class 8 (new NCERT "Curiosity" / "Ganita Prakash" chapters) can order custom tests too.
+  const sci8 = sy.chapters('CBSE', '8', 'Science'), mat8 = sy.chapters('CBSE', '8', 'Mathematics');
+  assert.equal(sci8[0], 'Exploring the Investigative World of Science'); assert.equal(mat8.length, 14);
+  assert.equal(sy.chapters('CISCE', '7', 'Physics')[0], 'Physical Quantities and Measurement'); assert.equal(sy.boardLabel('CISCE', '8'), 'ICSE');
+  const jr = await api({ idToken: 'g:junior', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: [sci8[1], sci8[4]] }] });
+  assert.equal(jr.status, 200, 'Class 8 custom test order'); assert.equal(jr.body.amountPaise, 39800);
+  assert.match((await api({ idToken: 'g:junior', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: [sci[0], sci[1]] }] })).body.error, /not in the CBSE syllabus/, 'Class 10 chapters refused for Class 8');
   const one = await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: [sci[0]] }, { subject: 'Mathematics', chapters: [mat[0], mat[1]] }] });
   assert.equal(one.status, 400); assert.match(one.body.error, /at least 2 chapters for Science/, 'each paper needs 2+ chapters');
   const mo = await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: [sci[3], sci[0], sci[1], sci[0]] }, { subject: 'Mathematics', chapters: [mat[0], mat[1], mat[2]] }] });
@@ -227,12 +233,13 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal((await hook({ event: 'payment.captured', payload: { payment: { entity: { id: mpay, order_id: mo.body.orderId, amount: 109600, currency: 'INR', status: 'captured' } } } })).status, 200);
   assert.equal(reqKeys().length, 2, 'webhook after checkout creates nothing twice');
   const tm = await api({ idToken: 'p:tnc1', action: 'module-order', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: [mat[5], mat[7]] }] });
-  assert.equal(tm.status, 200); assert.ok(!tm.body.free); assert.equal(tm.body.amountPaise, 39800, 'TNC students pay for custom modules (2 × ₹199)');
-  assert.equal(db.get('onlineOrders/' + tm.body.orderId).enrolled, true);
+  assert.equal(tm.status, 200); assert.equal(tm.body.free, true, 'TNC students order custom tests free'); assert.equal(tm.body.requests.length, 1, 'paper requested straight away');
+  const tmo = db.get('onlineOrders/' + tm.body.orderId); assert.equal(tmo.enrolled, true); assert.equal(tmo.amountPaise, 0); assert.equal(tmo.confirmedVia, 'free');
+  assert.equal(calls.razorpay.filter(c => c.body.notes && c.body.notes.uid === 'tnc1').length, 0, 'no Razorpay order for a TNC custom test');
   test('oncust01', { kind: 'custom', forUid: 'riya', requestId: rq.id, testName: 'Custom module · Science' }); db.set('offlineTestKeys/oncust01', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
   assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: 'oncust01' })).status, 403, "another student's custom paper is refused");
   assert.equal((await ot({ idToken: 'g:riya', action: 'start', testId: 'oncust01' })).status, 200, 'the student starts their custom paper without paying again');
-  console.log('✓ custom module: ₹199 × 4 then ₹150, syllabus-checked cart, Classes 9–12 only, paid → one request per subject (once), TNC students pay too, paper only for its student');
+  console.log('✓ custom module: ₹199 × 4 then ₹150, syllabus-checked cart, Classes 9–12 only, paid → one request per subject (once), TNC students free, paper only for its student');
 
   // ── Promo codes: 100% off one purchase for Google students ──
   test('onpromo1', { kind: 'chapter', testName: 'Chapter promo' }); test('onpromo2', { kind: 'mock', testName: 'Mock promo' }); test('onpromo3', { kind: 'chapter', testName: 'Chapter promo 2' });
@@ -340,6 +347,8 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.match((await api({ idToken: 'g:sam', action: 'check-promo', code: 'TNCCHAP', packageId: 'pkphy8' })).body.error, /chapter-wise tests only|used up/);
   assert.match((await api({ idToken: 'g:sam', action: 'check-promo', code: 'TNCPACK', testId: 'onpromo3' })).body.error, /mock packs only/, 'pack code does not work on tests');
   assert.equal((await api({ idToken: 'g:sam', action: 'check-promo', code: 'TNCPACK', packageId: 'pkphy8' })).status, 200);
+  db.set('mockPackages/pkcls8', { title: 'Class 8 pack', class: '8', board: '', subject: 'Science', mocks: 4, priceInr: 1699, schedule: [later], active: true });
+  assert.match((await api({ idToken: 'g:junior', action: 'package-order', packageId: 'pkcls8' })).body.error, /Classes 9 to 12/, 'no mock packs for Class 8');
   assert.match((await api({ idToken: 'g:sam', action: 'package-order', packageId: 'pkphy8', promoCode: 'CAP399' })).body.error, /covers up to ₹399[\s\S]*₹3199/, 'a ₹399 code cannot pay for a ₹3199 pack');
   const pj = await api({ idToken: 'g:sam', action: 'package-order', packageId: 'pkphy8', promoCode: 'TNCPACK' });
   assert.equal(pj.body.free, true); assert.equal(db.get('onlinePurchases/pkg_pkphy8__sam').via, 'promo'); assert.equal(db.get('promoCodes/TNCPACK').uses, 1);
@@ -349,9 +358,9 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(tp.body.free, true); assert.equal(db.get('onlinePurchases/pkg_pkphy8__tnc1').via, 'promo');
   assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: 'onpack01' })).status, 200, 'TNC student in the pack starts its mock');
   db.set('promoCodes/TNCMODT', { code: 'TNCMODT', scope: 'custom', maxUses: 0, uses: 0, oncePerStudent: true, active: true });
-  assert.equal((await api({ idToken: 'p:tnc1', action: 'check-promo', code: 'TNCMODT', kind: 'custom' })).status, 200, 'TNC student checks a custom-module code');
+  assert.equal((await api({ idToken: 'p:tnc1', action: 'check-promo', code: 'TNCMODT', kind: 'custom' })).status, 409, 'TNC students need no code for custom tests (already free)');
   const tcm = await api({ idToken: 'p:tnc1', action: 'module-order', board: 'CBSE', promoCode: 'TNCMODT', items: [{ subject: 'Mathematics', chapters: [mat[6], mat[8]] }] });
-  assert.equal(tcm.body.free, true); assert.equal(tcm.body.promo, 'TNCMODT');
+  assert.equal(tcm.body.free, true); assert.ok(!tcm.body.promo, 'free without using the code'); assert.equal(db.get('promoCodes/TNCMODT').uses, 0);
   assert.equal((await api({ idToken: 'p:tnc1', action: 'redeem-promo', code: 'TNCMODT', testId: 'onpromo3' })).status, 409, 'no codes on tests for TNC students');
   console.log('✓ mock packs: weekly schedule, ₹3199 order + verify / webhook join, cannot join twice, paused / other board refused, opens only at its time, TNC students pay (or use a code), pack promo code');
 

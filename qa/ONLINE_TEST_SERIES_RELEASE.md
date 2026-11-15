@@ -27,8 +27,8 @@ An app-style page (bottom tabs on phones, side rail on laptops):
 5. **Free full mocks** on subjects the student chooses (Home "free mock" chip/card, or
    "Use a free mock here" on any mock); a used free mock cannot be moved.
    - Online (Google) students: **1 free mock**; chapter-wise ₹199, other mocks ₹499.
-   - TNC students: **chapter-wise tests and full mocks are free**, so they appear on the leaderboard.
-     **Custom module tests and mock packs are paid** for them too (same prices; promo codes work there).
+   - TNC students: **chapter-wise tests, full mocks and custom module tests are free**, so they
+     appear on the leaderboard. **Mock packs are paid** for them too (same price; promo codes work there).
 6. **Unlock** with Razorpay (UPI, cards, net banking) → **Start** → paper + server timer →
    write on paper → upload one PDF or page photos → teacher checks → checked script and marks
    in **Results** (permanent).
@@ -78,10 +78,10 @@ any count 1–52 and any price can be set).
 
 ## Promo codes and the contact card (before Razorpay)
 
-- Every Pay screen has **Have a promo code?** (chapter test and full mock for Google students;
-  custom-module cart and mock packs for everyone, TNC students included). A valid code makes that
+- Every Pay screen has **Have a promo code?** (chapter test, full mock and custom-module cart for
+  Google students; mock packs for everyone, TNC students included). A valid code makes that
   one purchase **₹0** and unlocks it at once — no Razorpay needed. TNC students don't see it on
-  chapter-wise tests or full mocks, which are already free for them.
+  chapter tests, full mocks or custom tests, which are already free for them.
 - While Razorpay is not connected, the Pay button is replaced by a **contact card**: Call
   +91 99034 61361 or WhatsApp (pre-filled with the test name, class and the student's ID).
   Send them a code from admin and they unlock it themselves.
@@ -115,7 +115,7 @@ A **Custom** tab (shown only to Classes 9–12): the student picks a board (CBSE
 9–10 / ISC for 11–12), taps chapters from any subjects into a cart, and pays once.
 
 - Price for the whole cart: **₹199 a chapter for the first 4, ₹150 for each chapter after that**
-  (5 chapters = ₹946). TNC students pay the same.
+  (5 chapters = ₹946). Free for TNC students.
 - **At least 2 chapters per subject** (each subject is one paper; a single chapter is a chapter-wise
   test). Until then the cart shows "Add 1 more <subject> chapter" and Review / Pay stay locked; the
   server refuses it too.
@@ -258,3 +258,26 @@ Check: `node qa/admin-desk.cjs` (Playwright; 320 / 390 / 1440 px).
   home-header, portal-syntax, `scripts/version-assets.cjs --check`.
 
 Not covered locally: real Razorpay, real Google popup, physical phone cameras.
+
+## SEO (search)
+
+- `/test-series`: title "Online Test Series India – Class 7–12 | The NewTown Classes", a description
+  with CBSE / ICSE / chapter tests / full mocks, social-share tags, and structured data
+  (EducationalOrganization + WebPage + Course with prices). The homepage description, keywords and
+  organisation data now mention the all-India online test series; the sitemap is updated.
+- After deploying: Google Search Console → URL inspection → `https://thenewtownclasses.com/test-series`
+  → Request indexing, and resubmit `sitemap.xml`. Rankings for broad searches like "test series India"
+  build over time (links from other sites, Google Business Profile, reviews); brand searches for
+  "The NewTown Classes test series" should pick it up first.
+
+## Classes 7–8: Custom tests on, mock packs off
+
+- Custom module tests are open to **Classes 7–12** (Home · Custom · Results · More on phones).
+  Mock packs are shown to **Classes 9–12 only** (and the server refuses a pack for Class 7–8).
+- Chapter lists (`assets/js/syllabus.js`) now cover Classes 7–12 for CBSE and ICSE/ISC:
+  - CBSE 7–8: new NCERT books — Science *Curiosity* (Class 7: 12 chapters, Class 8: 13),
+    Maths *Ganita Prakash* Parts 1 + 2 (Class 7: 15, Class 8: 14).
+  - ICSE 7–8: Physics, Chemistry, Biology and Mathematics, following the Selina Concise books
+    (CISCE has no single prescribed book for these classes). **A teacher should check these lists
+    against the school's books before launch.**
+- Admin → Test Desk → New mock pack offers Classes 9–12 only.

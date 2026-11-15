@@ -457,10 +457,14 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
       await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu');
-      assert.equal(await page.locator('.more-menu a[href="#/custom"]').count(), 0, 'no Custom test below Class 9');
-      assert.equal(await page.locator('.more-menu a[href="#/packs"]').count(), 0, 'Packs is on the tab bar instead');
+      assert.equal(await page.locator('.more-menu a[href="#/packs"]').count(), 0, 'Class 8: no mock packs anywhere');
       await page.keyboard.press('Escape'); await page.waitForSelector('#sheet', { state: 'hidden' });
-      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'packs', 'results', 'more'], 'Class 8: Packs takes the second slot');
+      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'results', 'more'], 'Class 8: Custom test on the tab bar');
+      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom .row.pick');
+      assert.match(await page.textContent('.v-custom'), /Exploring the Investigative World of Science/, 'Class 8 CBSE chapters (Curiosity)');
+      await page.click('[data-cboard=CISCE]'); assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Physics', 'Chemistry', 'Biology', 'Mathematics'], 'Class 8 ICSE subjects');
+      await page.evaluate(() => { location.hash = '#/packs'; }); await page.waitForSelector('.v .empty, .v [class*=empty]');
+      assert.match(await page.textContent('#view'), /For Classes 9 to 12/, 'packs page explains it is for 9–12');
       assert.deepEqual(errors, []); await page.close();
     }
     console.log('✓ custom module: CBSE/ICSE chapters, per-board cart, ₹199 × 4 then ₹150, cart sheet + remove, Razorpay → one paper per subject, ready paper starts, only own papers, Classes 9–12');
@@ -585,22 +589,22 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
         assert.ok(rows.length && rows.every(r => /Free/.test(r) && !/₹/.test(r)), 'every ' + seg + ' test free for TNC students');
       }
       await shot(page, '19-tnc-subject-390');
-      // Mock packs and custom tests are paid for TNC students too (promo codes work there).
+      // Mock packs are paid for TNC students (promo codes work there); custom tests are free.
       await goTab(page, 'packs'); await page.waitForSelector('.pack-card[data-pack=pkphy8]');
       assert.match(await page.textContent('.pack-card[data-pack=pkphy8]'), /₹3199[\s\S]*₹400\/mock/);
       await page.click('.pack-card[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');
       assert.match(await page.textContent('[data-ppay]'), /Join for ₹3199/); assert.equal(await page.locator('#sheet .promo-box').count(), 1, 'promo box offered');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
       await goTab(page, 'custom'); await page.waitForSelector('.v-custom .row.pick');
-      assert.match(await page.textContent('.cm-price'), /₹199 a chapter/);
-      await page.click('.row.pick[data-ch="0"]'); await page.click('.row.pick[data-ch="1"]'); assert.match(await page.textContent('.cart-bar'), /2 chapters · ₹398/);
+      assert.match(await page.textContent('.cm-price'), /Free for TNC students/);
+      await page.click('.row.pick[data-ch="0"]'); await page.click('.row.pick[data-ch="1"]'); assert.match(await page.textContent('.cart-bar'), /2 chapters · Free/);
       await page.click('[data-cart]'); await page.waitForSelector('#sheet.on [data-buy]');
-      assert.match(await page.textContent('#sheet .bill'), /Total[\s\S]*₹398/); assert.match(await page.textContent('[data-buy]'), /Pay ₹398/);
-      assert.equal(await page.locator('#sheet .promo-box').count(), 1);
-      await shot(page, '29-tnc-custom-paid-390');
+      assert.match(await page.textContent('#sheet .bill'), /Free · TNC student[\s\S]*Total[\s\S]*₹0/); assert.match(await page.textContent('[data-buy]'), /Request my tests · free/);
+      assert.equal(await page.locator('#sheet .promo-box').count(), 0, 'no promo box: custom tests are already free');
+      await shot(page, '29-tnc-custom-free-390');
       assert.deepEqual(errors, []); await page.close();
     }
-    console.log('✓ cached data opens Home instantly; TNC ID students: chapter-wise tests and full mocks free; mock packs and custom tests paid (with promo box)');
+    console.log('✓ cached data opens Home instantly; TNC ID students: chapter-wise tests and full mocks free; custom tests free; mock packs paid (with promo box)');
     console.log(`Screenshots: ${path.relative(root, out)}`);
   } finally {
     await browser.close(); server.close();

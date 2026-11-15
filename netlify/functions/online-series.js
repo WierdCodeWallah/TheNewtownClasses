@@ -18,8 +18,8 @@
  *                      the subject they choose. Saved in onlineFreeClaims/{uid};
  *                      never moved.
  *    'module-order'    { board, items:[{subject, chapters[]}] } — Custom module
- *                      test (Classes 9–12): ₹199 a chapter for the first 4,
- *                      ₹150 after (TNC students pay too). Each subject
+ *                      test (Classes 7–12): ₹199 a chapter for the first 4,
+ *                      ₹150 after (free for TNC students). Each subject
  *                      becomes a moduleRequests/{id} the team makes a paper for.
  *    'check-promo'     { code, testId } or { code, kind:'custom', board?, items? } — is the code
  *                      valid for this purchase? (100% off; nothing is used yet)
@@ -28,8 +28,8 @@
  *    'package-order'   { packageId, promoCode? } — join a mock pack (weekly
  *                      full-syllabus mocks): ₹0 with a promo code, otherwise a
  *                      Razorpay order for the pack price (TNC students pay too).
- *  TNC (enrolled) students: chapter-wise tests and full mocks are free; custom
- *  module tests and mock packs are paid (promo codes work for them there).
+ *  TNC (enrolled) students: chapter-wise tests, full mocks and custom module
+ *  tests are free; mock packs are paid (promo codes work for them there).
  *  Prices: chapter-wise ₹199 and full mock ₹499. Enrolled (TNC ID) students
  *  get every test free, so they can take them all and appear on the leaderboard.
  *
@@ -192,6 +192,7 @@ exports.handler = async function (event) {
       if (pkg.active === false) return bad(409, 'This pack is not on sale right now.');
       if (String(pkg.class) !== String(profile.class)) return bad(403, 'This pack is for a different class.');
       if (pkg.board && pkg.board !== profile.board) return bad(403, 'This pack is for a different board.');
+      if (!policy.PACK_CLASSES.includes(String(profile.class))) return bad(403, 'Mock packs are for Classes 9 to 12.');
       if (await fsGet(projectId, sa, `onlinePurchases/${key}__${uid}`)) return bad(409, 'You have already joined this pack.', { unlocked: true });
       const purchase = (extra) => ({ path: `onlinePurchases/${key}__${uid}`, currentDocument: { exists: false }, data: {
         uid, testId: key, packageId, kind: 'package', orderId: '', paymentId: '', amountPaise: 0, currency: 'INR',
@@ -231,7 +232,7 @@ exports.handler = async function (event) {
     // Promo codes (Google students): check, then use one on a test unlock.
     if (body.action === 'check-promo' || body.action === 'redeem-promo') {
       // TNC students need no code for tests (all free); they can use one on a custom module.
-      if (enrolled && (body.kind !== 'custom' || body.action === 'redeem-promo')) return bad(409, 'Chapter-wise tests and full mocks are already free for you.');
+      if (enrolled) return bad(409, 'Chapter tests, full mocks and custom tests are already free for you.');
       if (!profile || !profile.profileComplete) return bad(403, 'Complete your profile first.');
       let kind = 'custom', test = null, testId = '';
       if (body.kind !== 'custom' || body.action === 'redeem-promo') {
@@ -284,10 +285,16 @@ exports.handler = async function (event) {
       const board = String(body.board || '');
       const cart = online.checkModuleCart(board, profile.class, body.items);
       if (!cart.ok) return bad(400, cart.error);
-      const amountPaise = policy.modulePrice(cart.count, enrolled) * 100;
+      const amountPaise = enrolled ? 0 : policy.modulePrice(cart.count) * 100;
       const order = { type: 'module', uid, class: String(profile.class), board, items: cart.items, chapterCount: cart.count, amountPaise, currency: 'INR',
         enrolled, studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || '',
         testName: `Custom module · ${cart.count} chapter${cart.count === 1 ? '' : 's'}`, subject: cart.items.map(i => i.subject).join(', '), createdAt: now };
+      if (enrolled) {   // TNC students: no payment, the papers are requested straight away
+        const orderId = 'free_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex') + uid.slice(0, 6);
+        const writes = await online.createModuleRequests(projectId, sa, { ...order, orderId }, orderId, now);
+        await fsCommit(projectId, sa, [{ path: `onlineOrders/${orderId}`, data: { ...order, orderId, fullAmountPaise: policy.modulePrice(cart.count) * 100, status: 'paid', paidAt: now, confirmedVia: 'free' } }, ...writes]);
+        return ok({ ok: true, free: true, orderId, requests: writes.map(w => w.data) });
+      }
       if (!(amountPaise > 0)) return bad(400, 'Your cart is empty.');
       if (body.promoCode) {   // a 100% promo code: the order is placed at ₹0
         try {

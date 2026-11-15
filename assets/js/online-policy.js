@@ -10,23 +10,25 @@
   // Online students get one free full mock on a subject they choose.
   // Enrolled TNC students get every test free, so no free-mock claim is needed.
   const FREE_MOCKS = { online: 1, enrolled: 0 };
-  // Custom module tests (Classes 9–12): the student picks chapters; the team
+  // Custom module tests (Classes 7–12): the student picks chapters; the team
   // makes one paper per subject. ₹199 a chapter for the first 4, ₹150 after.
   // minPerPaper: each subject's paper needs at least 2 chapters (one chapter = a chapter-wise test).
-  const MODULE = { classes: ['9', '10', '11', '12'], first: 199, firstCount: 4, rest: 150, maxChapters: 40, readyHours: 24, minPerPaper: 2 };
+  const MODULE = { classes: ['7', '8', '9', '10', '11', '12'], first: 199, firstCount: 4, rest: 150, maxChapters: 40, readyHours: 24, minPerPaper: 2 };
   // Mock packs: a set of full-syllabus mocks, one a week at a fixed day and time.
   // Each pack has its own price (e.g. 8 mocks ₹3199, 4 mocks ₹1699); presets below.
   const PACK_PRESETS = [{ mocks: 8, priceInr: 3199 }, { mocks: 4, priceInr: 1699 }];
-  const PACK_REMIND_DAYS = 3;   // admins are reminded this many days before a mock opens
+  const PACK_REMIND_DAYS = 3;
+  const PACK_CLASSES = ['9', '10', '11', '12'];   // mock packs are offered to Classes 9–12 only   // admins are reminded this many days before a mock opens
   // Weekly schedule: first date 'YYYY-MM-DD' + time 'HH:MM' (India time).
   function packSchedule(firstDate, time, count) {
     const start = Date.parse(`${firstDate}T${time || '10:00'}:00+05:30`);
     if (!Number.isFinite(start)) return [];
     return Array.from({ length: Math.max(0, Math.min(52, Number(count) || 0)) }, (_, i) => new Date(start + i * 7 * 86400000).toISOString());
   }
-  // Custom modules are paid by everyone, TNC students included (only chapter-wise
-  // tests and full mocks are free for them). The second argument is ignored.
-  function modulePrice(count) {
+  // Price of a custom-module cart. TNC students order free (the server charges ₹0);
+  // pass enrolled = true to get 0.
+  function modulePrice(count, enrolled) {
+    if (enrolled) return 0;
     const n = Math.max(0, Math.floor(Number(count) || 0));
     const a = Math.min(n, MODULE.firstCount);
     return a * MODULE.first + (n - a) * MODULE.rest;
@@ -136,7 +138,7 @@
     return 1 + scores.filter(s => s > avg).length;
   }
 
-  const api = { PRICE_INR, PRICES, KINDS, FREE_MOCKS, MODULE, modulePrice, PACK_PRESETS, PACK_REMIND_DAYS, packSchedule, kindOf, priceFor, CLASSES, BOARDS, SUBJECTS, TARGETS, GENDERS, RELATIONS, STATES,
+  const api = { PRICE_INR, PRICES, KINDS, FREE_MOCKS, MODULE, modulePrice, PACK_PRESETS, PACK_REMIND_DAYS, PACK_CLASSES, packSchedule, kindOf, priceFor, CLASSES, BOARDS, SUBJECTS, TARGETS, GENDERS, RELATIONS, STATES,
     validateProfile, onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NTCOnlinePolicy = api;
