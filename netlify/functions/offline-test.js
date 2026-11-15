@@ -62,6 +62,50 @@ const CORS = {
   'Content-Type'                : 'application/json'
 };
 const ok  = obj => ({ statusCode: 200, headers: CORS, body: JSON.stringify(obj) });
+
+// ── Result email to the parent (and the student) when a checked script is sent back ──
+// Needs BREVO_API_KEY and RESULT_EMAIL_FROM (a sender verified in Brevo) in Netlify.
+// Without them nothing is sent. A failed email never blocks the return itself.
+const escHtml = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const realEmail = e => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(e || '')) && !/@ntcportal\.local$|@example\./i.test(String(e));
+async function resultEmailTargets(projectId, sa, rep) {
+  const [onl, stu] = await Promise.all([fsGet(projectId, sa, `onlineStudents/${rep.uid}`).catch(() => null), fsGet(projectId, sa, `students/${rep.uid}`).catch(() => null)]);
+  const o = onl ? decFields(onl) : {}, s = stu ? decFields(stu) : {};
+  const parent = [o.guardianEmail, s.guardianEmail, s.parentEmail].find(realEmail) || '';
+  const student = [o.email, s.email].find(realEmail) || '';
+  return { parent, student: student && student.toLowerCase() !== parent.toLowerCase() ? student : '', guardianName: o.guardianName || s.parentName || '' };
+}
+async function sendResultEmail(projectId, sa, rep, score, remark, checkedScriptUrl) {
+  const key = process.env.BREVO_API_KEY, from = process.env.RESULT_EMAIL_FROM;
+  if (!key || !from) return [];
+  const t = await resultEmailTargets(projectId, sa, rep);
+  const to = [t.parent, t.student].filter(Boolean);
+  if (!to.length) return [];
+  const total = Number(rep.totalMarks) || 0, pct = total > 0 ? Math.round(score / total * 100) : null;
+  const online = rep.series === 'online';
+  const link = online ? 'https://thenewtownclasses.com/test-series#/results' : 'https://thenewtownclasses.com/login/student';
+  const name = rep.studentName || 'Your child';
+  const subject = `${name}'s result: ${rep.testName || 'Test'} — ${score}/${total}`;
+  const row = (k, v) => `<tr><td style="padding:6px 0;color:#64748b;font-size:14px">${escHtml(k)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right">${escHtml(v)}</td></tr>`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;background:#f3f6fb;padding:24px 12px"><div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e3e9f1">
+    <div style="background:#003087;color:#fff;padding:18px 22px"><div style="font-size:12px;letter-spacing:2px;font-weight:700;opacity:.85">THE NEWTOWN CLASSES</div><div style="font-size:19px;font-weight:700;margin-top:4px">Test result</div></div>
+    <div style="padding:20px 22px"><p style="margin:0 0 14px;font-size:15px;color:#0f172a">${t.guardianName ? 'Dear ' + escHtml(t.guardianName) + ',' : 'Hello,'}</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#334155">${escHtml(name)}'s answer sheet has been checked by our software and approved by a TNC teacher.</p>
+      <div style="text-align:center;background:#eef4ff;border-radius:12px;padding:16px;margin-bottom:16px"><div style="font-size:32px;font-weight:800;color:#003087">${escHtml(score)} / ${escHtml(total)}</div>${pct == null ? '' : `<div style="font-size:14px;color:#475569">${pct}%</div>`}</div>
+      <table style="width:100%;border-collapse:collapse">${row('Student', name)}${row('Test', rep.testName || '')}${row('Subject', rep.subject || '')}${rep.chapter ? row('Chapter', rep.chapter) : ''}${row('Class', rep.studentClass || '')}</table>
+      ${remark ? `<div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border-left:3px solid #19a3a0;border-radius:8px;font-size:14px;color:#334155"><b>Teacher's feedback</b><br>${escHtml(remark).replace(/\n/g, '<br>')}</div>` : ''}
+      <div style="margin-top:20px">${checkedScriptUrl ? `<a href="${escHtml(checkedScriptUrl)}" style="display:inline-block;background:#003087;color:#fff;text-decoration:none;padding:11px 16px;border-radius:10px;font-weight:700;font-size:14px;margin:0 8px 8px 0">View checked answer sheet</a>` : ''}<a href="${link}" style="display:inline-block;background:#eef4ff;color:#003087;text-decoration:none;padding:11px 16px;border-radius:10px;font-weight:700;font-size:14px">Open all results</a></div>
+      <p style="margin:20px 0 0;font-size:12px;color:#94a3b8">Questions? Call or WhatsApp +91 99034 61361 · thenewtownclasses.com</p></div></div></div>`;
+  const text = `${subject}\n\nStudent: ${name}\nTest: ${rep.testName || ''} (${rep.subject || ''})\nMarks: ${score}/${total}${pct == null ? '' : ' (' + pct + '%)'}${remark ? '\nFeedback: ' + remark : ''}${checkedScriptUrl ? '\nChecked answer sheet: ' + checkedScriptUrl : ''}\nAll results: ${link}\n\nThe NewTown Classes · +91 99034 61361`;
+  try {
+    const r = await request('api.brevo.com', '/v3/smtp/email', 'POST', { 'api-key': key, 'Content-Type': 'application/json', accept: 'application/json' }, {
+      sender: { name: process.env.RESULT_EMAIL_FROM_NAME || 'The NewTown Classes', email: from },
+      to: to.map(email => ({ email })), subject, htmlContent: html, textContent: text, tags: ['result'] });
+    if (r.status >= 200 && r.status < 300) return to;
+    console.error('[offline-test] result email failed', r.status, r.body && r.body.message);
+  } catch (e) { console.error('[offline-test] result email failed', e.message); }
+  return [];
+}
 const bad = (status, msg) => ({ statusCode: status, headers: CORS, body: JSON.stringify({ error: msg }) });
 
 const MAX_PAGES = 25;
@@ -188,7 +232,8 @@ exports.handler = async function (event) {
         , ...audit
       ]);
       await refreshBoard(projectId, sa, rep);
-      return ok({ ok: true, status: 'approved' });
+      const emailed = await sendResultEmail(projectId, sa, rep, score, remark, checkedScriptUrl).catch(() => []);
+      return ok({ ok: true, status: 'approved', emailed });
     }
 
     // ── Admin: permanently delete one submission everywhere ──

@@ -104,6 +104,8 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
       await page.click('[data-dk-tab=done]');
       assert.match(await page.locator('.dk-row').first().textContent(), new RegExp(firstName + '[\\s\\S]*16/20'));
       await page.locator('.dk-row').first().click(); await page.waitForSelector('#dkSheet.on .dk-score');
+      const wa = await page.getAttribute('#dkWa', 'href');
+      assert.ok(wa.startsWith('https://wa.me/') && decodeURIComponent(wa).includes('Result from The NewTown Classes') && decodeURIComponent(wa).includes('16/20'), 'WhatsApp-to-parent message ready');
       assert.match(await page.textContent('#dkSheetBody'), /Label the diagram/);
       if (width === 390) await shot(page, 'desk-04-checked-sheet-390');
       await page.click('#dkSheetClose'); await page.waitForSelector('#dkSheet', { state: 'hidden' });

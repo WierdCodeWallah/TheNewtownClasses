@@ -116,7 +116,7 @@ function openStudent(uid, btn) {
       ${fact('Date of birth', s.dob ? date(s.dob + 'T00:00:00') : '')}${fact('Gender', s.gender)}${fact('Class', s.class && 'Class ' + s.class)}${fact('Board', s.board)}
       ${fact('School', s.school)}${fact('Subjects', (s.subjects || []).join(', '))}${fact('Preparing for', s.target)}${fact('Joined', date(s.createdAt))}
       ${fact('Address', s.address)}${fact('City', s.city)}${fact('State', s.state)}${fact('PIN code', s.pincode)}
-      ${fact('Guardian', s.guardianName)}${fact('Relation', s.guardianRelation)}${fact('Guardian mobile', s.guardianPhone)}${fact('Last active', date(s.lastSeenAt))}
+      ${fact('Guardian', s.guardianName)}${fact('Relation', s.guardianRelation)}${fact('Guardian mobile', s.guardianPhone)}${fact('Guardian email', s.guardianEmail)}${fact('Last active', date(s.lastSeenAt))}
       ${fact(`Free mocks (${s.enrolled ? 2 : 1})`, (data.claims[uid] || []).map(c => `${c.subject} · ${c.testName} (${date(c.claimedAt)})`).join('; ') || 'Not used yet')}</dl>
     <h4 style="margin:6px 0 8px;color:#16365f">Unlocked tests (${purchases.length})</h4>
     <div class="oar-list">${purchases.length ? purchases.map(p => `<div class="oar-row"><div class="oar-who"><strong>${esc(p.testName || p.testId)}</strong><small>${esc([p.subject, p.class && 'Class ' + p.class].filter(Boolean).join(' · '))}</small></div><div class="oar-meta">${Number(p.amountPaise) > 0 ? `<span class="oar-marks">${inr(Number(p.amountPaise) / 100)}</span>` : p.via === 'promo' ? `<span class="oar-chip info">Promo ${esc(p.promoCode || '')}</span>` : '<span class="oar-chip info">Free mock</span>'}<span class="oar-chip ok">${esc(date(p.paidAt))}</span>${p.paymentId ? `<span class="oar-chip">${esc(p.paymentId)}</span>` : ''}</div></div>`).join('') : '<div class="oar-empty">No unlocks yet' + (s.enrolled ? ' — chapter-wise tests are free for TNC students.' : '.') + '</div>'}</div>
@@ -137,7 +137,7 @@ function exportCsv() {
   if (!data) return;
   const cols = [['Name', 'name'], ['ID', s => s.onlineId || s.studentId], ['Account', s => s.enrolled ? 'TNC student' : 'Online'], ['Email', 'email'], ['Mobile', 'phone'],
     ['Date of birth', 'dob'], ['Gender', 'gender'], ['Class', 'class'], ['Board', 'board'], ['School', 'school'], ['Subjects', s => (s.subjects || []).join('; ')], ['Preparing for', 'target'],
-    ['Address', 'address'], ['City', 'city'], ['State', 'state'], ['PIN code', 'pincode'], ['Guardian', 'guardianName'], ['Relation', 'guardianRelation'], ['Guardian mobile', 'guardianPhone'],
+    ['Address', 'address'], ['City', 'city'], ['State', 'state'], ['PIN code', 'pincode'], ['Guardian', 'guardianName'], ['Relation', 'guardianRelation'], ['Guardian email', 'guardianEmail'], ['Guardian mobile', 'guardianPhone'],
     ['Tests unlocked', s => (data.purchasesBy[s.id] || []).length], ['Free mocks', s => (data.claims[s.id] || []).map(c => c.subject).join('; ')], ['Scripts submitted', s => (data.reportsBy[s.id] || []).length], ['Joined', s => (s.createdAt || '').slice(0, 10)]];
   // Quote every cell; a leading = + - @ is neutralised so spreadsheets never run it as a formula.
   const cell = v => { let t = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };

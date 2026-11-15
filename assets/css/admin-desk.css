@@ -220,3 +220,7 @@
   .dk-rows .dk-row:nth-child(odd) { border-right: 1px solid #eef2f7; }
   .dk-rows .dk-row:only-child, .dk-rows .dk-row.dk-add { grid-column: 1 / -1; border-right: 0; }
 }
+
+/* WhatsApp-to-parent button on checked scripts */
+.dk-btn.wa { width: 100%; justify-content: center; background: #e9f9ef; border-color: #b9ebcb; color: #127a3a; }
+.dk-btn.wa:hover { background: #dcf5e6; }

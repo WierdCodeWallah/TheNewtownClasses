@@ -12,7 +12,7 @@ process.env.URL = 'https://example.test';
 
 const db = new Map(), versions = new Map();
 let version = 0, orderSeq = 0;
-const calls = { razorpay: [] };
+const calls = { razorpay: [], brevo: [] };
 const clone = v => JSON.parse(JSON.stringify(v));
 const stub = {
   // Tokens: "g:<uid>" = Google sign-in, "p:<uid>" = password (TNC ID) sign-in.
@@ -45,6 +45,7 @@ const stub = {
       return { status: 200, body: docs.map(([k, v]) => ({ document: { name: 'projects/fixture/databases/(default)/documents/' + k, fields: clone(v) } })) };
     }
     if (host === 'api.uploadcare.com') return { status: 204, body: '' };
+    if (host === 'api.brevo.com' && p === '/v3/smtp/email') { calls.brevo.push({ headers, body }); return { status: 201, body: { messageId: 'm1' } }; }
     throw new Error('unexpected request ' + host + p);
   }
 };
@@ -374,7 +375,20 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   await ot({ idToken: 'p:tnc1', action: 'submit', testId: 'onpaid01', scriptPdfUrl: script, pageUrls: [] });
   assert.equal(db.get('offlineReports/onpaid01__tnc1').enrolled, true);
   const checked = 'https://ucarecdn.com/33333333-3333-3333-3333-333333333333/';
-  assert.equal((await ot({ idToken: 'p:t1', action: 'return-script', attemptId: 'onfree01__riya', checkedScriptUrl: checked, score: 30, remark: 'Good' })).status, 200);
+  // Parent email: optional on the form, validated, and the result is emailed on Send back.
+  assert.equal(policy.validateProfile(form({ guardianEmail: 'not-an-email' })).errors.guardianEmail, 'Enter a valid email, or leave it empty.');
+  assert.ok(policy.validateProfile(form({ guardianEmail: '' })).ok, 'guardian email is optional');
+  assert.equal((await api({ idToken: 'g:riya', action: 'save-profile', profile: form({ guardianEmail: 'Anil.Sharma@Gmail.com' }) })).status, 200);
+  assert.equal(db.get('onlineStudents/riya').guardianEmail, 'anil.sharma@gmail.com');
+  process.env.BREVO_API_KEY = 'xkeysib-fixture'; process.env.RESULT_EMAIL_FROM = 'results@thenewtownclasses.com';
+  const ret = await ot({ idToken: 'p:t1', action: 'return-script', attemptId: 'onfree01__riya', checkedScriptUrl: checked, score: 30, remark: 'Good <b>work</b>' });
+  assert.equal(ret.status, 200); assert.deepEqual(ret.body.emailed, ['anil.sharma@gmail.com', 'riya@gmail.example'], 'parent + student emailed');
+  const mail = calls.brevo[0].body;
+  assert.equal(calls.brevo[0].headers['api-key'], 'xkeysib-fixture'); assert.equal(mail.sender.email, 'results@thenewtownclasses.com');
+  assert.match(mail.subject, /Riya Sharma's result: Full mock 1 — 30\/40/);
+  assert.match(mail.htmlContent, /30 \/ 40[\s\S]*75%[\s\S]*Dear Anil Sharma[\s\S]*|Dear Anil Sharma[\s\S]*30 \/ 40[\s\S]*75%/); assert.match(mail.htmlContent, /Good &lt;b&gt;work&lt;\/b&gt;/, 'feedback escaped');
+  assert.match(mail.htmlContent, /View checked answer sheet/); assert.match(mail.htmlContent, /approved by a TNC teacher/);
+  delete process.env.BREVO_API_KEY;
   const result = db.get('onlineStudents/riya/results/onfree01__riya');
   assert.equal(result.teacherName, 'TNC faculty'); assert.equal(result.teacherUid, '', 'online students never see who checked');
   assert.equal(db.get('offlineReports/onfree01__riya').approvedByUid, 't1', 'admins still see the checker');

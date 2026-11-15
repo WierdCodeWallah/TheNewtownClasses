@@ -58,7 +58,8 @@
       subjects: (Array.isArray(x.subjects) ? x.subjects : []).map(s => clean(s, 30)).filter((s, i, a) => SUBJECTS.includes(s) && a.indexOf(s) === i),
       target: clean(x.target, 20),
       address: clean(x.address, 200), city: clean(x.city, 60), state: clean(x.state, 60), pincode: String(x.pincode == null ? '' : x.pincode).replace(/\D/g, '').slice(0, 6),
-      guardianName: clean(x.guardianName, 80), guardianRelation: clean(x.guardianRelation, 20), guardianPhone: phone(x.guardianPhone)
+      guardianName: clean(x.guardianName, 80), guardianRelation: clean(x.guardianRelation, 20), guardianPhone: phone(x.guardianPhone),
+      guardianEmail: clean(x.guardianEmail, 120).toLowerCase()
     };
     const need = (k, ok, msg) => { if (!ok) errors[k] = msg; };
     if (!o.enrolled) {
@@ -80,6 +81,8 @@
     need('guardianName', v.guardianName.length >= 2, "Enter your parent or guardian's name.");
     need('guardianRelation', RELATIONS.includes(v.guardianRelation), 'Choose the relation.');
     need('guardianPhone', /^[6-9]\d{9}$/.test(v.guardianPhone), 'Enter a 10-digit mobile number.');
+    // Optional: results are emailed here when a checked script is sent back.
+    need('guardianEmail', !v.guardianEmail || /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(v.guardianEmail), 'Enter a valid email, or leave it empty.');
     return { ok: !Object.keys(errors).length, value: v, errors };
   }
 

@@ -604,7 +604,7 @@ function viewProfile() {
     ['Personal', [['Date of birth', p.dob ? new Date(p.dob + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''], ['Gender', p.gender], ['Mobile', p.phone], ['Email', p.email]]],
     ['Studies', [['Class', p.class ? 'Class ' + p.class : ''], ['Board', p.board], ['School', p.school], ['Subjects', (p.subjects || []).join(', ')], ['Preparing for', p.target]]],
     ['Address', [['Address', p.address], ['City', p.city], ['State', p.state], ['PIN code', p.pincode]]],
-    ['Parent / guardian', [['Name', p.guardianName], ['Relation', p.guardianRelation], ['Mobile', p.guardianPhone]]]
+    ['Parent / guardian', [['Name', p.guardianName], ['Relation', p.guardianRelation], ['Mobile', p.guardianPhone], ['Email', p.guardianEmail]]]
   ].map(([title, rows]) => [title, rows.map(([k, v]) => row(k, v)).join('')]).filter(([, html]) => html);
   const missing = enrolled() && !p.guardianPhone;
   return `<section class="v v-me">
@@ -1453,7 +1453,7 @@ window.addEventListener('beforeunload', e => {
 const OB_STEPS = [
   { title: 'About you', sub: 'So TNC faculty know whose script it is.', fields: ['name', 'dob', 'gender', 'phone'] },
   { title: 'Your studies', sub: 'We show papers for your class and board.', fields: ['class', 'board', 'school', 'subjects', 'target'] },
-  { title: 'Address & guardian', sub: 'For results, certificates and important updates.', fields: ['address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianPhone'] }
+  { title: 'Address & guardian', sub: 'For results, certificates and important updates.', fields: ['address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianPhone', 'guardianEmail'] }
 ];
 const draftKey = () => 'ntc-online:draft:' + S.user.uid;
 function startOnboarding(editing) {
@@ -1462,7 +1462,7 @@ function startOnboarding(editing) {
   try { draft = JSON.parse(localStorage.getItem(draftKey()) || 'null'); } catch (_) {}
   const base = { name: p.name || (S.user.displayName || ''), dob: p.dob || '', gender: p.gender || '', phone: p.phone || '', class: p.class || '', board: p.board || '',
     school: p.school || '', subjects: p.subjects || [], target: p.target || '', address: p.address || '', city: p.city || '', state: p.state || '', pincode: p.pincode || '',
-    guardianName: p.guardianName || '', guardianRelation: p.guardianRelation || '', guardianPhone: p.guardianPhone || '' };
+    guardianName: p.guardianName || '', guardianRelation: p.guardianRelation || '', guardianPhone: p.guardianPhone || '', guardianEmail: p.guardianEmail || '' };
   S.ob = { step: 0, editing, data: !editing && draft ? { ...base, ...draft } : base, errors: {} };
   show('onboard'); renderOb();
 }
@@ -1493,6 +1493,7 @@ function field(name) {
     case 'guardianName': return text("Parent / guardian's name", 'autocomplete="off" autocapitalize="words" maxlength="80"');
     case 'guardianRelation': return group('Relation', chips('guardianRelation', P.RELATIONS));
     case 'guardianPhone': return text("Parent / guardian's mobile", 'type="tel" inputmode="numeric" placeholder="10-digit number"');
+    case 'guardianEmail': return text("Parent's email (optional)", 'type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="120" placeholder="Results are emailed here"');
     default: return '';
   }
 }

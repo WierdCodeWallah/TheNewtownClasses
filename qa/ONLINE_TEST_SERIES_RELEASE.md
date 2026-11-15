@@ -281,3 +281,18 @@ Not covered locally: real Razorpay, real Google popup, physical phone cameras.
     (CISCE has no single prescribed book for these classes). **A teacher should check these lists
     against the school's books before launch.**
 - Admin → Test Desk → New mock pack offers Classes 9–12 only.
+
+## Results to parents
+
+- **Email (automatic):** when a checked script is sent back, the result (marks, %, teacher's feedback,
+  "View checked answer sheet" and "Open all results" buttons) is emailed to the parent's email and
+  the student's own email. The sign-up form has an optional **Parent's email** field (also editable in
+  Profile → Edit details). Test Desk's toast says who was emailed. A failed email never blocks the return.
+  **Setup:** create a free Brevo account, verify a sender address (e.g. results@thenewtownclasses.com),
+  then add `BREVO_API_KEY` (secret) and `RESULT_EMAIL_FROM` (that address) in Netlify → Environment
+  variables, and redeploy. Optional `RESULT_EMAIL_FROM_NAME` (default "The NewTown Classes").
+  Without the key, nothing is emailed.
+- **WhatsApp (stopgap, one tap):** Test Desk → Checked → open a script → **Send result to parent on
+  WhatsApp** opens WhatsApp with the result typed out, addressed to the parent's mobile from the
+  Test Series profile (or the institute record). Automatic WhatsApp needs the WhatsApp Business
+  Platform and an approved Meta template.

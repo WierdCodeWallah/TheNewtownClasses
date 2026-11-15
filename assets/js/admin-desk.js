@@ -25,6 +25,7 @@ const I = {
   chev: svg('<path d="M9 5l7 7-7 7"/>'), check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), doc: svg('<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20zM14 3.5V8h4M9.5 12.5h5M9.5 16h5"/>'),
   clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'), send: svg('<path d="M4 12 20 4l-6 16-3-7z"/>'), refresh: svg('<path d="M19 12a7 7 0 1 1-2.1-5M19 4.5V9h-4.5"/>'),
   inbox: svg('<path d="M4 13.5 6.5 5h11L20 13.5V19H4zM4 13.5h4.5l1 2.5h5l1-2.5H20"/>'),
+  wa: svg('<path d="M5 19.5 6.2 16a7.5 7.5 0 1 1 2.8 2.7zM9.5 9.5c.3 1.6 1.4 3 3 3.8l1-1 1.7.8-.4 1.5c-2.9 0-5.6-2.7-5.6-5.6l1.5-.4.8 1.7z"/>'),
   cal: svg('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M4 10h16M8.5 14h2M13.5 14h2M8.5 17h2"/>')
 };
 
@@ -385,8 +386,10 @@ function openScript(id, opener) {
       <div class="dk-score ${r.pct == null ? '' : r.pct >= 75 ? 'ok' : r.pct >= 50 ? 'warn' : 'bad'}"><b>${r.score == null ? '—' : r.score}<small> / ${r.totalMarks}</small></b><span>${r.pct == null ? '' : r.pct + '%'} · returned ${esc(day(r.approvedAt))}</span></div>
       ${r.remark ? `<p class="dk-note">${esc(r.remark)}</p>` : ''}
       <div class="dk-actions">${r.checkedScriptUrl ? `<a class="dk-btn primary" href="${esc(r.checkedScriptUrl)}" target="_blank" rel="noopener">${I.doc}<span>Checked script</span></a>` : ''}<a class="dk-btn" href="${esc(r.scriptPdfUrl)}" target="_blank" rel="noopener">${I.doc}<span>Student's script</span></a></div>
+      <a class="dk-btn wa" id="dkWa" href="${esc(waLink(r, ''))}" target="_blank" rel="noopener">${I.wa}<span id="dkWaText">Send result to parent on WhatsApp</span></a>
       <p class="dk-msg" id="dkMsg" role="status"></p>${deleteBlock(r)}`, opener);
     bindDelete(r);
+    parentPhone(r).then(ph => { const a = $('dkWa'); if (!a || !ph) return; a.href = waLink(r, ph); $('dkWaText').textContent = 'Send result to parent on WhatsApp · ' + ph.replace(/(\d{5})(\d{5})/, '$1 $2'); });
     return;
   }
   const busyCheck = ['checking', 'grading'].includes(r.status);
@@ -424,12 +427,13 @@ async function sendBack(r) {
     if (!S.sheet.url) S.sheet.url = await F().upload(file, p => say(`Uploading checked script… ${Math.round(p * 100)}%`));
     say('Sending to the student…');
     const remark = $('dkRemark').value.trim();
-    await api({ action: 'return-script', attemptId: r.id, checkedScriptUrl: S.sheet.url, score, remark, onBehalfOf: teacher });
+    const sent = await api({ action: 'return-script', attemptId: r.id, checkedScriptUrl: S.sheet.url, score, remark, onBehalfOf: teacher });
     Object.assign(r, { status: 'approved', stage: 'returned', stageLabel: 'Returned', score, pct: r.totalMarks > 0 ? Math.round(score / r.totalMarks * 100) : null, remark, overdue: false,
       checkedScriptUrl: U().deliveryUrl(S.sheet.url), approvedAt: new Date().toISOString(), teacher: (S.teachers.find(t => t.uid === teacher) || {}).name || r.assignedTeacher });
     S.sheet = null; S.sending = false;
     closeSheet(); render(); setBadge(inbox().length);
-    toast(`Sent back to ${r.studentName} · ${score}/${r.totalMarks}`);
+    const mailed = (sent && sent.emailed) || [];
+    toast(`Sent back to ${r.studentName} · ${score}/${r.totalMarks}${mailed.length ? ' · result emailed to ' + mailed.join(', ') : ''}`);
   } catch (e) {
     S.sending = false; btn.disabled = false;
     say((e.message || 'Could not send.') + ' Nothing was sent — tap Send back again.', 'bad');
@@ -643,6 +647,23 @@ async function publishSlot(p, n) {
     closeSheet(); render(); setBadge(inbox().length);
     toast(`Mock ${n} uploaded · opens ${when(releaseAt)}`);
   } catch (e) { S.sending = false; btn.disabled = false; say((e.message || 'Could not upload.') + ' Nothing was published — try again.', 'bad'); }
+}
+
+// WhatsApp (stopgap until automatic WhatsApp): opens WhatsApp with the result typed out.
+function waLink(r, phone) {
+  const msg = [`Result from The NewTown Classes`, `${r.studentName} — ${r.test}${r.subject ? ' (' + r.subject + ')' : ''}`,
+    `Marks: ${r.score == null ? '—' : r.score}/${r.totalMarks}${r.pct == null ? '' : ' (' + r.pct + '%)'}`,
+    r.remark ? `Teacher's feedback: ${r.remark}` : '', r.checkedScriptUrl ? `Checked answer sheet: ${r.checkedScriptUrl}` : '',
+    `Software-checked, approved by a TNC teacher. Questions? +91 99034 61361`].filter(Boolean).join('\n');
+  return `https://wa.me/${phone ? '91' + phone : ''}?text=${encodeURIComponent(msg)}`;
+}
+// Parent's mobile: the Test Series profile (guardian) first, then the institute record.
+async function parentPhone(r) {
+  if (!r.uid) return '';
+  const get = async p => { try { const res = await fetch(`${base()}/${p}?key=${ctx.config.apiKey}`, { headers: await auth() }); return res.ok ? (await res.json()).fields || {} : {}; } catch (_) { return {}; } };
+  const [o, s] = await Promise.all([get(`onlineStudents/${r.uid}`), get(`students/${r.uid}`)]);
+  const ten = v => String(v || '').replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, '');
+  return [str(o, 'guardianPhone'), str(s, 'parentPhone'), str(s, 'guardianPhone')].map(ten).find(v => /^[6-9]\d{9}$/.test(v)) || '';
 }
 
 function openPaper(id, opener) {

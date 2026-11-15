@@ -70,7 +70,7 @@ async function retryOnConflict(fn) {
 
 function publicProfile(p) {
   const keys = ['uid', 'onlineId', 'enrolled', 'provider', 'email', 'studentId', 'name', 'dob', 'gender', 'phone', 'class', 'board',
-    'school', 'subjects', 'target', 'address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianPhone',
+    'school', 'subjects', 'target', 'address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianEmail', 'guardianPhone',
     'profileComplete', 'createdAt', 'photoUrl'];
   return Object.fromEntries(keys.filter(k => p[k] !== undefined).map(k => [k, p[k]]));
 }
