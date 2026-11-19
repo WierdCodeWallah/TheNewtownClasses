@@ -196,3 +196,56 @@ body[data-portal="admin"] .desk-notice button { min-height: 32px; padding: 0 12p
 }
 
 #adminRefreshTeachers { min-height: 34px; padding: 0 12px; font-size: 13px; margin: 2px 0 8px; }
+/* Field help lines: hidden until the small ⓘ beside the label is tapped */
+body[data-portal="admin"] .aa-help { display: none !important; }
+body[data-portal="admin"] .aa-help.show { display: block !important; margin: 6px 0 0 !important; padding: 7px 10px; border-radius: 9px; background: #f3f6fb; color: #475569 !important; font-size: 12px !important; line-height: 1.45; }
+.aa-info.sm { width: 20px; height: 20px; margin-left: 4px; vertical-align: -5px; }
+.aa-info.sm svg { width: 15px; height: 15px; }
+body[data-portal="admin"] .card > .hint.aa-desc.show { display: block !important; }
+/* ── Class → subject → chapter as icon tiles (two per row on phones, more on laptops): less scrolling ── */
+body[data-portal="admin"] #mainContent .portal-choices:has(> .portal-choice) { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+@media (min-width: 900px) { body[data-portal="admin"] #mainContent .portal-choices:has(> .portal-choice) { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; } }
+body[data-portal="admin"] #mainContent .portal-choice { display: flex !important; flex-direction: column !important; align-items: flex-start !important; justify-content: flex-start !important; gap: 8px !important; min-height: 104px !important; padding: 12px !important; text-align: left !important; border-radius: 16px !important;
+  background: linear-gradient(160deg, #fff 55%, #f2f6ff) !important; border: 1px solid var(--aa-line) !important; box-shadow: 0 8px 18px -16px rgba(14, 28, 54, .5) !important; transition: transform .14s cubic-bezier(.2, .8, .2, 1), border-color .18s ease !important; }
+body[data-portal="admin"] #mainContent .portal-choice:active { transform: scale(.97); }
+body[data-portal="admin"] #mainContent .portal-choice::after, body[data-portal="admin"] #mainContent .portal-choice > :last-child:not(:has(strong)):not(.portal-choice-icon) { display: none !important; }
+body[data-portal="admin"] #mainContent .portal-choice .portal-choice-icon { width: 40px !important; height: 40px !important; min-width: 40px !important; border-radius: 12px !important; display: grid !important; place-items: center !important; font-size: 15px !important; font-weight: 800 !important;
+  background: linear-gradient(145deg, #2f6fe0, #0b3d91) !important; color: #fff !important; border: 0 !important; box-shadow: 0 8px 16px -10px rgba(11, 61, 145, .8) !important; }
+body[data-portal="admin"] #mainContent .portal-choice .portal-choice-icon svg { width: 20px; height: 20px; color: #fff; }
+body[data-portal="admin"] #mainContent .portal-choice strong { display: block; font-size: 14px !important; line-height: 1.3 !important; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+body[data-portal="admin"] #mainContent .portal-choice small { font-size: 12px !important; }
+/* Text areas: soft, roomy and clearly focused */
+body[data-portal="admin"] #mainContent textarea { min-height: 96px !important; padding: 12px 14px !important; border: 1.5px solid var(--aa-line) !important; border-radius: 14px !important; background: #fbfcfe !important; font: 500 15px/1.5 'DM Sans', system-ui, sans-serif !important; color: var(--aa-ink, #0e1c36) !important; resize: vertical; box-shadow: inset 0 1px 2px rgba(14, 28, 54, .04) !important; transition: border-color .18s ease, box-shadow .18s ease, background .18s ease !important; }
+body[data-portal="admin"] #mainContent textarea:focus { outline: 0 !important; border-color: #2f6fe0 !important; background: #fff !important; box-shadow: 0 0 0 4px rgba(47, 111, 224, .12) !important; }
+body[data-portal="admin"] #mainContent textarea::placeholder { color: #9aa6b8 !important; }
+/* Inside the theme's field wrapper the wrapper is the box: no second border on the textarea */
+body[data-portal="admin"] #mainContent .app-input-field textarea { border: 0 !important; background: transparent !important; box-shadow: none !important; border-radius: 0 !important; padding: 12px 0 !important; }
+body[data-portal="admin"] #mainContent .app-input-field:has(textarea) { border-radius: 14px !important; transition: border-color .18s ease, box-shadow .18s ease !important; }
+body[data-portal="admin"] #mainContent .app-input-field:has(textarea:focus) { border-color: #2f6fe0 !important; box-shadow: 0 0 0 4px rgba(47, 111, 224, .12) !important; }
+/* ── Edit a student's enrolled subjects: bottom sheet on phones, centred card on laptops ── */
+.stu-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.ss-back { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: flex-end; justify-content: center; background: rgba(8, 18, 38, 0); transition: background .22s ease; }
+.ss-back.on { background: rgba(8, 18, 38, .48); }
+.ss-sheet { width: 100%; max-width: 520px; max-height: 88dvh; overflow-y: auto; display: grid; gap: 14px; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); background: #fff; border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 50px -20px rgba(8, 18, 38, .45); transform: translateY(100%); transition: transform .3s cubic-bezier(.2, .9, .25, 1); font-family: 'DM Sans', system-ui, sans-serif; }
+.ss-back.on .ss-sheet { transform: none; }
+@media (min-width: 640px) { .ss-back { align-items: center; padding: 24px; } .ss-sheet { border-radius: 22px; transform: translateY(16px) scale(.98); opacity: 0; transition: transform .26s cubic-bezier(.2, .9, .25, 1), opacity .2s ease; } .ss-back.on .ss-sheet { opacity: 1; } }
+.ss-head { display: flex; align-items: flex-start; gap: 12px; }
+.ss-head > div { flex: 1; min-width: 0; }
+.ss-kicker { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #245cda; }
+.ss-head h2 { margin: 2px 0 0; font-size: 19px; color: #0e1c36; }
+.ss-head p { margin: 2px 0 0; font-size: 13px; color: #64748b; }
+.ss-x { width: 36px; height: 36px; flex: none; border: 0; border-radius: 50%; background: #f1f4f9; color: #475569; font-size: 15px; cursor: pointer; }
+.ss-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ss-chip { position: relative; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px; border: 1.5px solid #e3e9f2; border-radius: 14px; background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: #334155; transition: border-color .15s ease, background .15s ease; -webkit-tap-highlight-color: transparent; }
+.ss-chip input { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; flex: none; margin: 0; border: 2px solid #c5d0e0; border-radius: 6px; background: #fff; display: grid; place-items: center; transition: background .15s ease, border-color .15s ease; }
+.ss-chip input::after { content: ''; width: 9px; height: 5px; border-left: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(-45deg) translate(1px, -1px); opacity: 0; }
+.ss-chip input:checked { background: #245cda; border-color: #245cda; }
+.ss-chip input:checked::after { opacity: 1; }
+.ss-chip:has(input:checked) { border-color: #9cbcf7; background: #f3f7ff; color: #0e1c36; }
+.ss-chip:has(input:focus-visible) { outline: 3px solid #9cbcf7; outline-offset: 1px; }
+.ss-note { margin: 0; font-size: 12.5px; color: #64748b; line-height: 1.45; }
+.ss-msg { margin: 0; font-size: 13px; font-weight: 600; } .ss-msg:empty { display: none; } .ss-msg.bad { color: #c02b2b; }
+.ss-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.ss-actions .btn { min-height: 44px; padding: 0 18px; }
+@media (prefers-reduced-motion: reduce) { .ss-back, .ss-sheet { transition: none; } }

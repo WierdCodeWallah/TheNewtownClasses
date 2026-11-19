@@ -27,46 +27,53 @@ export function startAdminEnquiries(db, adminUid) {
     $('inquiryList').replaceChildren();
     $('inquiryCount').textContent = `${filtered.length} ${filtered.length === 1 ? 'inquiry' : 'inquiries'}${search || status ? ' matching your filters' : ' received'}`;
     if (!filtered.length) $('inquiryList').append(text('p', rows.length ? 'No inquiries match your search.' : 'No inquiries yet. New website submissions will appear here automatically.', 'inquiry-empty'));
+    // Compact rows: name, course · class, time and the follow-up status; tap a
+    // row to see contact buttons, the message and the details.
     filtered.slice(page * pageSize, (page + 1) * pageSize).forEach(row => {
-      const card = document.createElement('article'); card.className = 'inquiry-item';
-      const header = document.createElement('div'); header.className = 'inquiry-item-header';
-      const heading = document.createElement('div');
-      heading.append(text('h3', row.name || 'Unnamed student'));
+      const st = statuses.includes(row.status) ? row.status : 'New';
+      const card = document.createElement('article'); card.className = 'inquiry-item' + (st === 'New' ? ' is-new' : '');
+      const top = document.createElement('div'); top.className = 'inquiry-row';
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'inquiry-open'; open.setAttribute('aria-expanded', 'false');
+      const moreId = 'inq-' + row.id.replace(/[^A-Za-z0-9_-]/g, ''); open.setAttribute('aria-controls', moreId);
+      const initials = String(row.name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+      const main = document.createElement('span'); main.className = 'inquiry-main';
+      main.append(text('b', row.name || 'Unnamed student'), text('small', [row.course, row.currentClass].filter(Boolean).join(' · ') || 'No course chosen'));
       const date = dateOf(row.createdAt);
       const time = text('time', date ? `${dateFormat.format(date)} IST` : 'Submission date unavailable');
       if (date) time.dateTime = date.toISOString();
-      heading.append(time);
-      header.append(heading, text('span', row.status || 'New', `inquiry-status inquiry-status-${statuses.includes(row.status) ? row.status.toLowerCase() : 'new'}`));
-      card.append(header);
-      const details = document.createElement('dl'); details.className = 'inquiry-details';
-      const detail = (label, value, link) => {
-        const group = document.createElement('div'), description = text('dd', link ? '' : value || 'Not provided');
-        if (link) { const anchor = text('a', value); anchor.href = link; description.append(anchor); }
-        group.append(text('dt', label), description); details.append(group);
-      };
-      detail('Mobile', row.phone, /^[6-9]\d{9}$/.test(row.phone) ? `tel:+91${row.phone}` : null);
-      detail(row.uid ? 'Google email' : 'Email (legacy submission)', row.email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email || '') ? `mailto:${encodeURIComponent(row.email)}` : null);
-      detail('Course', row.course); detail('Current class', row.currentClass);
-      detail('Google account name', row.googleName); detail('Source', row.source);
-      card.append(details);
-      const query = document.createElement('div'); query.className = 'inquiry-query';
-      query.append(text('strong', 'Message'), text('p', row.message || 'No additional message.')); card.append(query);
-      const footer = document.createElement('div'); footer.className = 'inquiry-item-footer';
-      const label = text('label', 'Follow-up status');
-      const select = document.createElement('select'); select.setAttribute('aria-label', `Follow-up status for ${row.name || 'student'}`);
+      main.append(time);
+      open.append(text('span', initials, 'inquiry-av'), main, text('span', '', 'inquiry-chev'));
+      const select = document.createElement('select'); select.className = 'inquiry-status-select is-' + st.toLowerCase();
+      select.setAttribute('aria-label', `Follow-up status for ${row.name || 'student'}`);
       statuses.forEach(status => { const option = text('option', status); option.value = status; select.append(option); });
-      select.value = statuses.includes(row.status) ? row.status : 'New';
+      select.value = st;
       select.onchange = async () => {
         select.disabled = true; $('inquiryError').textContent = '';
-        try { await updateDoc(doc(db, 'enquiries', row.id), { status: select.value, updatedAt: serverTimestamp(), updatedBy: adminUid }); }
+        try { await updateDoc(doc(db, 'enquiries', row.id), { status: select.value, updatedAt: serverTimestamp(), updatedBy: adminUid }); select.className = 'inquiry-status-select is-' + select.value.toLowerCase(); }
         catch (_) { select.value = row.status || 'New'; $('inquiryError').textContent = 'Could not update the inquiry. Please try again.'; }
         finally { select.disabled = false; }
       };
-      label.append(select); footer.append(label);
-      const meta = text('small', `Reference: ${row.id}${row.uid ? ` · Account ID: ${row.uid}` : ''}`);
+      top.append(open, select); card.append(top);
+
+      const more = document.createElement('div'); more.className = 'inquiry-more'; more.id = moreId; more.hidden = true;
+      const actions = document.createElement('div'); actions.className = 'inquiry-actions';
+      const action = (label, href, cls) => { const a = text('a', label, 'inquiry-act ' + cls); a.href = href; if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener'; } actions.append(a); };
+      if (/^[6-9]\d{9}$/.test(row.phone || '')) { action('Call ' + row.phone.replace(/(\d{5})(\d{5})/, '$1 $2'), `tel:+91${row.phone}`, 'call'); action('WhatsApp', `https://wa.me/91${row.phone}`, 'wa'); }
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email || '')) action('Email', `mailto:${encodeURIComponent(row.email)}`, 'mail');
+      if (actions.children.length) more.append(actions);
+      const query = document.createElement('div'); query.className = 'inquiry-query';
+      query.append(text('strong', 'Message'), text('p', row.message || 'No additional message.')); more.append(query);
+      const details = document.createElement('dl'); details.className = 'inquiry-details';
+      const detail = (label, value) => { if (!value) return; const g = document.createElement('div'); g.append(text('dt', label), text('dd', value)); details.append(g); };
+      detail('Mobile', row.phone); detail(row.uid ? 'Google email' : 'Email (legacy submission)', row.email);
+      detail('Google account name', row.googleName); detail('Source', row.source);
+      if (details.children.length) more.append(details);
+      const meta = text('small', `Reference: ${row.id}${row.uid ? ` · Account ID: ${row.uid}` : ''}`, 'inquiry-meta');
       const updated = dateOf(row.updatedAt);
-      if (updated) meta.append(text('span', `Last updated: ${dateFormat.format(updated)} IST${row.updatedBy ? ` · By: ${row.updatedBy}` : ''}`));
-      footer.append(meta); card.append(footer); $('inquiryList').append(card);
+      if (updated) meta.append(text('span', ` · Last updated ${dateFormat.format(updated)} IST${row.updatedBy ? ` by ${row.updatedBy}` : ''}`));
+      more.append(meta); card.append(more);
+      open.onclick = () => { const show = more.hidden; more.hidden = !show; open.setAttribute('aria-expanded', String(show)); card.classList.toggle('is-open', show); };
+      $('inquiryList').append(card);
     });
     $('inquiryPagination').hidden = filtered.length <= pageSize;
     $('inquiryPage').textContent = `Page ${page + 1} of ${Math.max(1, Math.ceil(filtered.length / pageSize))}`;

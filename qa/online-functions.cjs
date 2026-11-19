@@ -86,7 +86,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   console.log('✓ policy: ranking with ties, own rank from anonymous scores, short names, validation');
 
   // ── session + onboarding ──
-  db.set('students/tnc1', { name: 'Aman Gupta', studentId: 'NTC-2026-001', class: '10', board: 'CBSE', phone: '9800000001' });
+  db.set('students/tnc1', { name: 'Aman Gupta', studentId: 'NTC-2026-001', class: '10', board: 'CBSE', phone: '9800000001', subjects: ['Physics', 'Maths'] });
   assert.equal((await api({ idToken: 'bad', action: 'session' })).status, 401);
   assert.equal((await api({ idToken: 'p:stranger', action: 'session' })).status, 403, 'a password account that is not enrolled is refused');
   let s = await api({ idToken: 'g:riya', action: 'session' });
@@ -152,12 +152,18 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   const free = await ot({ idToken: 'g:riya', action: 'start', testId: 'onfree01' });
   assert.equal(free.status, 200); assert.ok(free.body.questionPdfUrl);
   assert.equal((await ot({ idToken: 'g:riya', action: 'start', testId: 'onmock02' })).status, 402, 'other subjects\' mocks stay paid');
-  // TNC students: every test free (chapter-wise and full mocks), no claim needed.
+  // TNC students: free only in their enrolled subjects (Physics, Maths here); other subjects are paid.
   test('onmock03', { kind: 'mock', testName: 'Mock 3' }); db.set('offlineTestKeys/onmock03', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
-  for (const id of ['onpaid01', 'onfree01', 'onmock02', 'onmock03']) assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: id })).status, 200, 'TNC students start ' + id + ' free');
+  test('onsci001', { kind: 'chapter', subject: 'Science', testName: 'Science test' }); db.set('offlineTestKeys/onsci001', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
+  test('onmat001', { kind: 'chapter', subject: 'Mathematics', testName: 'Maths test' }); db.set('offlineTestKeys/onmat001', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
+  for (const id of ['onpaid01', 'onfree01', 'onmock03', 'onmat001', 'onsci001']) assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: id })).status, 200, 'TNC students start ' + id + ' free (enrolled subject; Maths = Mathematics; Science via Physics)');
+  const tncPaid = await ot({ idToken: 'p:tnc1', action: 'start', testId: 'onmock02' });
+  assert.equal(tncPaid.status, 402, 'Chemistry is not a TNC subject for this student'); assert.match(tncPaid.body.error, /₹499/);
+  assert.deepEqual((await api({ idToken: 'p:tnc1', action: 'session' })).body.enrolledSubjects, ['Physics', 'Maths'], 'the app knows which subjects are free');
+  assert.equal(policy.priceFor({ kind: 'chapter', subject: 'Chemistry' }, null, ['Physics']), 299); assert.equal(policy.priceFor({ kind: 'mock', subject: 'Science' }, null, ['Biology']), 0);
   assert.deepEqual((await api({ idToken: 'p:tnc1', action: 'session' })).body.freeMock, { allowance: 0, usedCount: 0, left: 0, claims: [] }, 'no free-mock offer for TNC students');
   assert.equal((await api({ idToken: 'p:tnc1', action: 'claim-free', testId: 'onmock03' })).status, 409, 'TNC students need no claim');
-  console.log('✓ start: online — chapter ₹299 / mock ₹499, 1 free mock; TNC — every test free');
+  console.log('✓ start: online — chapter ₹299 / mock ₹499, 1 free mock; TNC — free only in enrolled subjects, others paid');
 
   // ── payments ──
   assert.equal((await api({ idToken: 'g:riya', action: 'create-order', testId: 'onpaid01' })).status, 503, 'no keys → payments not ready');
@@ -263,6 +269,13 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(tm.status, 200); assert.equal(tm.body.free, true, 'TNC students order custom tests free'); assert.equal(tm.body.requests.length, 1, 'paper requested straight away');
   const tmo = db.get('onlineOrders/' + tm.body.orderId); assert.equal(tmo.enrolled, true); assert.equal(tmo.amountPaise, 0); assert.equal(tmo.confirmedVia, 'free');
   assert.equal(calls.razorpay.filter(c => c.body.notes && c.body.notes.uid === 'tnc1').length, 0, 'no Razorpay order for a TNC custom test');
+  // A TNC cart mixing an enrolled subject (Maths: free) and another (Science, CBSE Class 10 student with Physics → free too) is free;
+  // a paid-only subject would be charged — here the cart has two Social Science chapters (₹398).
+  const sst = sy.chapters('CBSE', '10', 'Social Science');
+  const mixed = await api({ idToken: 'p:tnc1', action: 'module-order', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: [mat[1], mat[2]] }, { subject: 'Social Science', chapters: [sst[0], sst[1]] }] });
+  assert.equal(mixed.status, 200); assert.ok(!mixed.body.free, 'not free: Social Science is not a TNC subject'); assert.equal(mixed.body.amountPaise, 2 * 19900, 'only the Social Science chapters are charged');
+  const mixedOrder = db.get('onlineOrders/' + mixed.body.orderId);
+  assert.equal(mixedOrder.items.find(i => i.subject === 'Mathematics').tnc, true); assert.ok(!mixedOrder.items.find(i => i.subject === 'Social Science').tnc);
   test('oncust01', { kind: 'custom', forUid: 'riya', requestId: rq.id, testName: 'Custom module · Science' }); db.set('offlineTestKeys/oncust01', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
   assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: 'oncust01' })).status, 403, "another student's custom paper is refused");
   assert.equal((await ot({ idToken: 'g:riya', action: 'start', testId: 'oncust01' })).status, 200, 'the student starts their custom paper without paying again');
@@ -385,10 +398,11 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(tp.body.free, true); assert.equal(db.get('onlinePurchases/pkg_pkphy8__tnc1').via, 'promo');
   assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: 'onpack01' })).status, 200, 'TNC student in the pack starts its mock');
   db.set('promoCodes/TNCMODT', { code: 'TNCMODT', scope: 'custom', maxUses: 0, uses: 0, oncePerStudent: true, active: true });
-  assert.equal((await api({ idToken: 'p:tnc1', action: 'check-promo', code: 'TNCMODT', kind: 'custom' })).status, 409, 'TNC students need no code for custom tests (already free)');
+  assert.equal((await api({ idToken: 'p:tnc1', action: 'check-promo', code: 'TNCMODT', kind: 'custom', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: [mat[6], mat[8]] }] })).status, 409, 'no code needed for a TNC subject (already free)');
+  assert.equal((await api({ idToken: 'p:tnc1', action: 'check-promo', code: 'TNCMODT', kind: 'custom', board: 'CBSE', items: [{ subject: 'Social Science', chapters: sy.chapters('CBSE', '10', 'Social Science').slice(0, 2) }] })).status, 200, 'codes work for subjects outside their TNC subjects');
   const tcm = await api({ idToken: 'p:tnc1', action: 'module-order', board: 'CBSE', promoCode: 'TNCMODT', items: [{ subject: 'Mathematics', chapters: [mat[6], mat[8]] }] });
   assert.equal(tcm.body.free, true); assert.ok(!tcm.body.promo, 'free without using the code'); assert.equal(db.get('promoCodes/TNCMODT').uses, 0);
-  assert.equal((await api({ idToken: 'p:tnc1', action: 'redeem-promo', code: 'TNCMODT', testId: 'onpromo3' })).status, 409, 'no codes on tests for TNC students');
+  assert.equal((await api({ idToken: 'p:tnc1', action: 'redeem-promo', code: 'TNCMODT', testId: 'onpromo3' })).status, 409, 'no code needed on a test in a TNC subject');
   console.log('✓ mock packs: weekly schedule, ₹3199 order + verify / webhook join, cannot join twice, paused / other board refused, opens only at its time, TNC students pay (or use a code), pack promo code');
 
   // ── submit → teacher returns → leaderboard ──

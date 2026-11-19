@@ -14,7 +14,8 @@
   const PAPER = { chapter: { marks: 40, durationMin: 90, graceMin: 10 }, mock: { marks: 80, durationMin: 180, graceMin: 20 } };
   const paperFor = kind => PAPER[kind === 'mock' || kind === 'package' ? 'mock' : 'chapter'];
   // Online students get one free full mock on a subject they choose.
-  // Enrolled TNC students get every test free, so no free-mock claim is needed.
+  // TNC students get the subjects they are enrolled in free (see enrolledIn),
+  // so they get no free-mock claim.
   const FREE_MOCKS = { online: 1, enrolled: 0 };
   // Custom module tests (Classes 7–12): the student picks chapters; the team
   // makes one paper per subject. ₹199 a chapter for the first 4, ₹150 after.
@@ -47,8 +48,9 @@
   // Whole cart: papers [{ count, full }]. Full mocks cost MODULE.fullMock each;
   // every other chapter is priced together at the per-chapter rate.
   // listInr is what the full mocks' chapters would cost (shown struck through).
+  // Papers marked tnc (a TNC student's enrolled subject) are free and left out.
   function cartPrice(papers, enrolled) {
-    const list = Array.isArray(papers) ? papers : [];
+    const list = (Array.isArray(papers) ? papers : []).filter(p => p && !p.tnc);
     const full = list.filter(p => p && p.full), chapters = list.filter(p => p && !p.full).reduce((n, p) => n + (Number(p.count) || 0), 0);
     const chapterInr = modulePrice(chapters), fullInr = full.length * MODULE.fullMock;
     const listInr = full.reduce((n, p) => n + modulePrice(p.count), 0);
@@ -57,11 +59,12 @@
   // Each paper's share of a cart's price (for the per-subject request records).
   function paperValues(papers) {
     const list = Array.isArray(papers) ? papers : [], c = cartPrice(list);
-    return list.map(p => p.full ? MODULE.fullMock : c.chapters ? c.chapterInr * (Number(p.count) || 0) / c.chapters : 0);
+    return list.map(p => p.tnc ? 0 : p.full ? MODULE.fullMock : c.chapters ? c.chapterInr * (Number(p.count) || 0) / c.chapters : 0);
   }
   const CLASSES = ['7', '8', '9', '10', '11', '12'];
   const BOARDS = ['CBSE', 'ICSE', 'State Board', 'Other'];
-  const SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Science', 'Computer', 'English'];
+  const SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Science', 'Social Science', 'History & Civics', 'Geography', 'Computer', 'English'];
+  const SST_ICSE = ['History & Civics', 'Geography'];
   const TARGETS = ['School exams', 'NEET', 'JEE', 'Olympiad', 'Other'];
   const GENDERS = ['Female', 'Male', 'Other', 'Prefer not to say'];
   const RELATIONS = ['Father', 'Mother', 'Guardian'];
@@ -76,11 +79,30 @@
   // Physics, Chemistry and Biology separately (no combined Science). Other
   // boards: Science up to Class 10, the three sciences at any class.
   const PCB = ['Physics', 'Chemistry', 'Biology'];
+  // Social studies: CBSE has one "Social Science" paper; ICSE has two —
+  // "History & Civics" and "Geography". Both up to Class 10 only.
   function subjectAllowed(subject, board, cls) {
     const b = String(board || '').toUpperCase(), c = parseInt(cls, 10) || 0;
     if (subject === 'Science') return b === 'ICSE' ? false : !(c >= 11);
     if (PCB.includes(subject)) return !(b === 'CBSE' && c && c <= 10);
+    if (subject === 'Social Science') return b !== 'ICSE' && !(c >= 11);
+    if (SST_ICSE.includes(subject)) return b !== 'CBSE' && !(c >= 11);
     return true;
+  }
+  // TNC students study at the institute only in their enrolled subjects (from
+  // the institute record: Physics, Chemistry, Maths, Biology, Computer…).
+  // Those subjects' online tests are free; every other subject is paid.
+  // CBSE "Science" counts if they take any of Physics / Chemistry / Biology.
+  const ENROLL_ALIAS = { maths: 'Mathematics', math: 'Mathematics', mathematics: 'Mathematics', 'computer science': 'Computer', computer: 'Computer',
+    'social studies': 'Social Science', sst: 'Social Science', 'social science': 'Social Science', 'history and civics': 'History & Civics', 'history & civics': 'History & Civics' };
+  function enrolledIn(subject, list) {
+    const have = new Set((Array.isArray(list) ? list : []).map(x => { const k = String(x || '').trim(); return ENROLL_ALIAS[k.toLowerCase()] || k; }));
+    if (have.has(subject)) return true;
+    if (subject === 'Science') return PCB.some(x => have.has(x));
+    if (PCB.includes(subject)) return have.has('Science');
+    if (SST_ICSE.includes(subject)) return have.has('Social Science');
+    if (subject === 'Social Science') return SST_ICSE.some(x => have.has(x));
+    return false;
   }
   const subjectsFor = (board, cls) => SUBJECTS.filter(s => subjectAllowed(s, board, cls));
   // Custom tests use the student's own board syllabus: CBSE → 'CBSE', ICSE → 'CISCE'.
@@ -157,10 +179,13 @@
     if (['mock', 'chapter', 'custom', 'package'].includes(t.kind)) return t.kind;
     return /full\s*syllabus|mock/i.test(`${t.chapter || ''} ${t.testName || ''}`) ? 'mock' : 'chapter';
   }
+  // enrolled: a TNC student's enrolled subjects (array) — free only in those —
+  // or true for "free in every subject" (older callers), false for online students.
   function priceFor(t, prices, enrolled) {
     if (t && t.isFree) return 0;
     const k = kindOf(t), p = prices || PRICES;
-    if (enrolled || k === 'custom' || k === 'package') return 0;   // paid for by the module order / the pack
+    if (k === 'custom' || k === 'package') return 0;   // paid for by the module order / the pack
+    if (Array.isArray(enrolled) ? enrolledIn(t && t.subject, enrolled) : enrolled) return 0;
     return Number(p[k]) || PRICES[k];
   }
 
@@ -204,7 +229,7 @@
   }
 
   const api = { PRICE_INR, PRICES, LIST_PRICES, PAPER, paperFor, KINDS, FREE_MOCKS, MODULE, modulePrice, isFullMock, cartPrice, paperValues, listPriceFor, facultyName, PACK_PRESETS, PACK_REMIND_DAYS, PACK_CLASSES, packSchedule, kindOf, priceFor, CLASSES, BOARDS, SUBJECTS, TARGETS, GENDERS, RELATIONS, STATES,
-    validateProfile, QUICK_FIELDS, subjectAllowed, subjectsFor, customBoard, LEVELS, levelOf, NOTE_MAX, cleanNote: v => clean(v, NOTE_MAX), onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
+    validateProfile, QUICK_FIELDS, enrolledIn, subjectAllowed, subjectsFor, customBoard, LEVELS, levelOf, NOTE_MAX, cleanNote: v => clean(v, NOTE_MAX), onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NTCOnlinePolicy = api;
 })(typeof window === 'undefined' ? null : window);

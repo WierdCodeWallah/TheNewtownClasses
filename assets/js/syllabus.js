@@ -10,6 +10,14 @@
          book for Classes 7–8, so those lists follow the widely used Selina
          Concise books (Physics, Chemistry, Biology, Mathematics); a teacher
          should check them against the school's book list each session.
+   Social studies (Classes 9–10): CBSE "Social Science" (rationalised NCERT
+         History, Geography, Political Science, Economics — chapters prefixed
+         with the book); ICSE "History & Civics" and "Geography" (CISCE
+         syllabus, Selina chapter order). Classes 7–8 social studies are not
+         listed yet: NCERT's new 2025 books are still changing.
+   Computer: CBSE Computer Applications (165) for 9–10, Computer Science (083)
+         for 11–12; ICSE Computer Applications for 9–10, ISC Computer Science
+         for 11–12 — current session syllabus units.
    A chapter's title is its ID in orders, so rename with care: a renamed
    chapter only affects new orders. */
 (function (root) {
@@ -36,7 +44,16 @@
       Science: ['Matter in Our Surroundings', 'Is Matter Around Us Pure?', 'Atoms and Molecules', 'Structure of the Atom', 'The Fundamental Unit of Life', 'Tissues',
         'Motion', 'Force and Laws of Motion', 'Gravitation', 'Work and Energy', 'Sound', 'Improvement in Food Resources'],
       Mathematics: ['Number Systems', 'Polynomials', 'Coordinate Geometry', 'Linear Equations in Two Variables', "Introduction to Euclid's Geometry", 'Lines and Angles',
-        'Triangles', 'Quadrilaterals', 'Circles', "Heron's Formula", 'Surface Areas and Volumes', 'Statistics']
+        'Triangles', 'Quadrilaterals', 'Circles', "Heron's Formula", 'Surface Areas and Volumes', 'Statistics'],
+      'Social Science': ['History · The French Revolution', 'History · Socialism in Europe and the Russian Revolution', 'History · Nazism and the Rise of Hitler',
+        'History · Forest Society and Colonialism', 'History · Pastoralists in the Modern World', 'Geography · India: Size and Location',
+        'Geography · Physical Features of India', 'Geography · Drainage', 'Geography · Climate', 'Geography · Natural Vegetation and Wildlife',
+        'Geography · Population', 'Political Science · What is Democracy? Why Democracy?', 'Political Science · Constitutional Design',
+        'Political Science · Electoral Politics', 'Political Science · Working of Institutions', 'Political Science · Democratic Rights',
+        'Economics · The Story of Village Palampur', 'Economics · People as Resource', 'Economics · Poverty as a Challenge',
+        'Economics · Food Security in India'],
+      Computer: ['Basics of Information Technology', 'Computer Hardware and Software', 'Cyber Safety', 'Word Processing', 'Presentation Tools', 'Spreadsheets',
+        'Scratch Programming', 'Python Basics']
     },
     '10': {
       Science: ['Chemical Reactions and Equations', 'Acids, Bases and Salts', 'Metals and Non-metals', 'Carbon and its Compounds', 'Life Processes', 'Control and Coordination',
@@ -44,7 +61,16 @@
         'Magnetic Effects of Electric Current', 'Our Environment'],
       Mathematics: ['Real Numbers', 'Polynomials', 'Pair of Linear Equations in Two Variables', 'Quadratic Equations', 'Arithmetic Progressions', 'Triangles',
         'Coordinate Geometry', 'Introduction to Trigonometry', 'Some Applications of Trigonometry', 'Circles', 'Areas Related to Circles',
-        'Surface Areas and Volumes', 'Statistics', 'Probability']
+        'Surface Areas and Volumes', 'Statistics', 'Probability'],
+      'Social Science': ['History · The Rise of Nationalism in Europe', 'History · Nationalism in India', 'History · The Making of a Global World',
+        'History · The Age of Industrialisation', 'History · Print Culture and the Modern World', 'Geography · Resources and Development',
+        'Geography · Forest and Wildlife Resources', 'Geography · Water Resources', 'Geography · Agriculture', 'Geography · Minerals and Energy Resources',
+        'Geography · Manufacturing Industries', 'Geography · Lifelines of National Economy', 'Political Science · Power-sharing',
+        'Political Science · Federalism', 'Political Science · Gender, Religion and Caste', 'Political Science · Political Parties',
+        'Political Science · Outcomes of Democracy', 'Economics · Development', 'Economics · Sectors of the Indian Economy', 'Economics · Money and Credit',
+        'Economics · Globalisation and the Indian Economy'],
+      Computer: ['Networking and the Internet', 'Internet Services: Email, Chat and E-commerce', 'Introduction to HTML', 'HTML Text Formatting and Lists',
+        'HTML Images and Links', 'HTML Tables', 'Audio and Video in HTML', 'Cyber Ethics']
     },
     '11': {
       Physics: ['Units and Measurements', 'Motion in a Straight Line', 'Motion in a Plane', 'Laws of Motion', 'Work, Energy and Power', 'System of Particles and Rotational Motion',
@@ -56,7 +82,9 @@
         'Plant Growth and Development', 'Breathing and Exchange of Gases', 'Body Fluids and Circulation', 'Excretory Products and their Elimination', 'Locomotion and Movement',
         'Neural Control and Coordination', 'Chemical Coordination and Integration'],
       Mathematics: ['Sets', 'Relations and Functions', 'Trigonometric Functions', 'Complex Numbers and Quadratic Equations', 'Linear Inequalities', 'Permutations and Combinations',
-        'Binomial Theorem', 'Sequences and Series', 'Straight Lines', 'Conic Sections', 'Introduction to Three Dimensional Geometry', 'Limits and Derivatives', 'Statistics', 'Probability']
+        'Binomial Theorem', 'Sequences and Series', 'Straight Lines', 'Conic Sections', 'Introduction to Three Dimensional Geometry', 'Limits and Derivatives', 'Statistics', 'Probability'],
+      Computer: ['Computer Systems and Organisation', 'Boolean Logic', 'Number Systems and Encoding Schemes', 'Introduction to Problem Solving',
+        'Getting Started with Python', 'Flow of Control', 'Strings', 'Lists', 'Tuples and Dictionaries', 'Python Modules', 'Society, Law and Ethics']
     },
     '12': {
       Physics: ['Electric Charges and Fields', 'Electrostatic Potential and Capacitance', 'Current Electricity', 'Moving Charges and Magnetism', 'Magnetism and Matter',
@@ -68,7 +96,9 @@
         'Evolution', 'Human Health and Disease', 'Microbes in Human Welfare', 'Biotechnology: Principles and Processes', 'Biotechnology and its Applications',
         'Organisms and Populations', 'Ecosystem', 'Biodiversity and Conservation'],
       Mathematics: ['Relations and Functions', 'Inverse Trigonometric Functions', 'Matrices', 'Determinants', 'Continuity and Differentiability', 'Application of Derivatives',
-        'Integrals', 'Application of Integrals', 'Differential Equations', 'Vector Algebra', 'Three Dimensional Geometry', 'Linear Programming', 'Probability']
+        'Integrals', 'Application of Integrals', 'Differential Equations', 'Vector Algebra', 'Three Dimensional Geometry', 'Linear Programming', 'Probability'],
+      Computer: ['Python Revision Tour', 'Functions', 'Exception Handling', 'File Handling: Text, Binary and CSV Files', 'Data Structures: Stack',
+        'Computer Networks', 'Database Concepts', 'Structured Query Language (SQL)', 'Interface Python with MySQL']
     }
   };
   const CISCE = {
@@ -105,7 +135,19 @@
       Mathematics: ['Rational and Irrational Numbers', 'Compound Interest', 'Expansions', 'Factorisation', 'Simultaneous Linear Equations', 'Indices', 'Logarithms',
         'Triangles and Congruency', 'Isosceles Triangles', 'Inequalities', 'Mid-point and its Converse', "Pythagoras' Theorem", 'Rectilinear Figures', 'Construction of Polygons',
         'Area and Perimeter of Plane Figures', 'Circle', 'Statistics', 'Mensuration of Solids', 'Trigonometric Ratios', 'Trigonometric Ratios of Standard Angles',
-        'Solution of Right Triangles', 'Co-ordinate Geometry and Graphical Solution']
+        'Solution of Right Triangles', 'Co-ordinate Geometry and Graphical Solution'],
+      'History & Civics': ['Civics · Our Constitution', 'Civics · Salient Features of the Constitution I', 'Civics · Salient Features of the Constitution II',
+        'Civics · Elections', 'Civics · Local Self-Government: Rural', 'Civics · Local Self-Government: Urban', 'History · The Harappan Civilisation',
+        'History · The Vedic Period', 'History · Jainism and Buddhism', 'History · The Mauryan Empire', 'History · The Sangam Age',
+        'History · The Age of the Guptas', 'History · Medieval India: The Cholas', 'History · Medieval India: The Delhi Sultanate',
+        'History · Medieval India: The Mughal Empire', 'History · Medieval India: Composite Culture', 'History · The Modern Age in Europe: Renaissance',
+        'History · The Modern Age in Europe: Reformation', 'History · The Modern Age in Europe: Industrial Revolution'],
+      Geography: ['Our World', 'Geographic Grid: Latitudes and Longitudes', 'Rotation and Revolution', 'Earth\'s Structure', 'Landforms of the Earth', 'Rocks',
+        'Volcanoes', 'Earthquakes', 'Weathering', 'Denudation', 'Hydrosphere', 'Composition and Structure of the Atmosphere', 'Insolation',
+        'Atmospheric Pressure and Winds', 'Humidity and Precipitation', 'Pollution', 'Natural Regions of the World'],
+      Computer: ['Introduction to Object-Oriented Programming Concepts', 'Elementary Concept of Objects and Classes', 'Values and Data Types', 'Operators in Java',
+        'Input in Java', 'Mathematical Library Methods', 'Conditional Constructs in Java', 'Iterative Constructs in Java', 'Nested Loops',
+        'Computing and Ethics']
     },
     '10': {
       Physics: ['Force', 'Work, Energy and Power', 'Machines', 'Refraction of Light at Plane Surfaces', 'Refraction through a Lens', 'Spectrum', 'Sound', 'Current Electricity',
@@ -118,7 +160,19 @@
       Mathematics: ['Goods and Services Tax (GST)', 'Banking (Recurring Deposit Accounts)', 'Linear Inequations', 'Quadratic Equations', 'Problems on Quadratic Equations',
         'Ratio and Proportion', 'Remainder and Factor Theorems', 'Matrices', 'Arithmetic Progression', 'Geometric Progression', 'Reflection', 'Section and Mid-point Formula',
         'Equation of a Line', 'Similarity', 'Loci', 'Circles', 'Tangents and Intersecting Chords', 'Constructions', 'Cylinder, Cone and Sphere', 'Trigonometrical Identities',
-        'Heights and Distances', 'Graphical Representation', 'Measures of Central Tendency', 'Probability']
+        'Heights and Distances', 'Graphical Representation', 'Measures of Central Tendency', 'Probability'],
+      'History & Civics': ['Civics · The Union Parliament', 'Civics · The Union Executive: President and Vice-President',
+        'Civics · The Union Executive: Prime Minister and Council of Ministers', 'Civics · The Judiciary: Supreme Court',
+        'Civics · The Judiciary: High Courts and Subordinate Courts', 'History · The First War of Independence, 1857', 'History · Growth of Nationalism',
+        'History · The Early Nationalists', 'History · The Assertive Nationalists', 'History · Mahatma Gandhi and the National Movement',
+        'History · The Muslim League', 'History · Forward Bloc and the INA', 'History · Independence and Partition of India',
+        'History · The First World War', 'History · Rise of Dictatorships', 'History · The Second World War', 'History · The United Nations',
+        'History · Major Agencies of the United Nations', 'History · The Non-Aligned Movement'],
+      Geography: ['Interpretation of Topographical Maps', 'Map of India', 'Location, Extent and Physical Features of India', 'Climate', 'Soil Resources',
+        'Natural Vegetation', 'Water Resources', 'Mineral Resources', 'Conventional Sources of Energy', 'Non-Conventional Sources of Energy', 'Agriculture',
+        'Agro-based Industries', 'Mineral-based Industries', 'Transport', 'Waste Management'],
+      Computer: ['Revision of Class IX', 'Class as the Basis of all Computation', 'User-defined Methods', 'Constructors', 'Library Classes and Wrapper Classes',
+        'Encapsulation', 'Arrays', 'String Handling']
     },
     '11': {
       Physics: ['Units and Measurements', 'Motion in a Straight Line', 'Motion in a Plane', 'Laws of Motion', 'Work, Energy and Power', 'System of Particles and Rotational Motion',
@@ -132,7 +186,10 @@
         'Neural Control and Coordination', 'Chemical Coordination and Integration'],
       Mathematics: ['Sets', 'Relations and Functions', 'Trigonometric Functions', 'Complex Numbers and Quadratic Equations', 'Linear Inequalities', 'Permutations and Combinations',
         'Binomial Theorem', 'Sequences and Series', 'Straight Lines', 'Circles', 'Conic Sections', 'Introduction to Three-dimensional Geometry', 'Limits and Derivatives',
-        'Statistics', 'Probability', 'Correlation Analysis']
+        'Statistics', 'Probability', 'Correlation Analysis'],
+      Computer: ['Numbers and Number Systems', 'Encodings', 'Propositional Logic', 'Computer Hardware and Logic Gates', 'Objects and Classes',
+        'Primitive Values, Wrapper Classes, Types and Casting', 'Variables and Expressions', 'Statements and Scope', 'Methods', 'Arrays and Strings',
+        'Basic Input/Output', 'Recursion', 'Implementation of Algorithms', 'Packages', 'Trends in Computing and Ethical Issues']
     },
     '12': {
       Physics: ['Electric Charges and Fields', 'Electrostatic Potential and Capacitance', 'Current Electricity', 'Moving Charges and Magnetism', 'Magnetism and Matter',
@@ -145,7 +202,9 @@
         'Organisms and Populations', 'Ecosystem', 'Biodiversity and Conservation'],
       Mathematics: ['Relations and Functions', 'Inverse Trigonometric Functions', 'Matrices', 'Determinants', 'Continuity and Differentiability', 'Applications of Derivatives',
         'Integrals', 'Differential Equations', 'Probability', 'Vectors', 'Three-dimensional Geometry', 'Applications of Integrals',
-        'Application of Calculus in Commerce and Economics', 'Linear Regression', 'Linear Programming']
+        'Application of Calculus in Commerce and Economics', 'Linear Regression', 'Linear Programming'],
+      Computer: ['Boolean Algebra', 'Logic Gates and Circuits: Adders, Encoders, Decoders, Multiplexers', 'Objects and Classes', 'Arrays', 'Strings', 'Recursion',
+        'Inheritance, Interfaces and Polymorphism', 'Data Structures: Stack and Queue', 'Linked Lists and Binary Trees', 'Complexity and Big O Notation']
     }
   };
   const CLASSES = ['7', '8', '9', '10', '11', '12'];

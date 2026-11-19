@@ -26,8 +26,22 @@
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'aa-info'; b.setAttribute('aria-label', 'About this section'); b.setAttribute('aria-expanded', 'false');
       b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8v.2"/></svg>';
-      b.onclick = function () { var on = !p.classList.contains('show'); p.classList.toggle('show', on); b.setAttribute('aria-expanded', String(on)); };
+      // Tip boxes in the same card (e.g. "Student ID format") open with the description.
+      var card = p.closest('.card'), extra = card ? Array.prototype.slice.call(card.querySelectorAll(':scope > .hint')) : [];
+      extra.forEach(function (h) { h.classList.add('aa-desc'); h.dataset.aaDesc = '1'; });
+      b.onclick = function () { var on = !p.classList.contains('show'); [p].concat(extra).forEach(function (el) { el.classList.toggle('show', on); }); b.setAttribute('aria-expanded', String(on)); };
       title.appendChild(b);
+    });
+    // Small grey help lines under a field: hidden behind a tiny ⓘ beside the field's label.
+    root.querySelectorAll('.field > p[style*="90a4ae"], .form-group > p[style*="90a4ae"]').forEach(function (p) {
+      if (p.dataset.aaHelp) return;
+      var label = p.parentElement.querySelector(':scope > label'); if (!label) return;
+      p.dataset.aaHelp = '1'; p.classList.add('aa-help');
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'aa-info sm'; b.setAttribute('aria-label', 'More about ' + label.textContent.replace(/\*/g, '').trim()); b.setAttribute('aria-expanded', 'false');
+      b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8v.2"/></svg>';
+      b.onclick = function (e) { e.preventDefault(); var on = !p.classList.contains('show'); p.classList.toggle('show', on); b.setAttribute('aria-expanded', String(on)); };
+      label.appendChild(b);
     });
   }
   function tidyButtons(root) {

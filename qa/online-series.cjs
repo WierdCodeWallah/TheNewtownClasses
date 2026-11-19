@@ -99,7 +99,7 @@ async function open(browser, origin, state, viewport) {
       const b = req.postDataJSON(); state.calls.push(b.action);
       if (state.slow) await new Promise(r => setTimeout(r, state.slow));
       const uid = b.idToken.replace('tok-', '');
-      if (b.action === 'session') return route.fulfill({ json: { uid, enrolled: uid === 'tnc1', email: uid + '@example.test', profile: state.profiles[uid] || { uid, profileComplete: false }, unlocked: state.unlocked, prices: { chapter: 299, mock: 499 }, listPrices: { chapter: 399, mock: 699 }, freeMock: { allowance: uid === 'tnc1' ? 0 : 1, usedCount: state.freeUsed ? 1 : 0, left: uid === 'tnc1' ? 0 : 1 - (state.freeUsed ? 1 : 0), claims: state.freeUsed ? [{ testId: state.freeUsed, subject: 'Physics' }] : [] }, paymentsReady: state.paymentsReady !== false, razorpayKeyId: 'rzp_test', serverNow: new Date().toISOString() } });
+      if (b.action === 'session') return route.fulfill({ json: { uid, enrolled: uid === 'tnc1', email: uid + '@example.test', profile: state.profiles[uid] || { uid, profileComplete: false }, unlocked: state.unlocked, enrolledSubjects: uid === 'tnc1' ? ['Physics', 'Maths'] : [], prices: { chapter: 299, mock: 499 }, listPrices: { chapter: 399, mock: 699 }, freeMock: { allowance: uid === 'tnc1' ? 0 : 1, usedCount: state.freeUsed ? 1 : 0, left: uid === 'tnc1' ? 0 : 1 - (state.freeUsed ? 1 : 0), claims: state.freeUsed ? [{ testId: state.freeUsed, subject: 'Physics' }] : [] }, paymentsReady: state.paymentsReady !== false, razorpayKeyId: 'rzp_test', serverNow: new Date().toISOString() } });
       if (b.action === 'save-profile') {
         if (state.failSave) { state.failSave = false; return route.fulfill({ status: 500, json: { error: 'Something went wrong. Please try again.' } }); }
         state.saved = b.profile; state.profiles[uid] = { ...b.profile, uid, onlineId: 'TNC-ON-MEERA', profileComplete: true, detailsComplete: require('../assets/js/online-policy.js').validateProfile(b.profile).ok, email: uid + '@example.test' };
@@ -347,6 +347,8 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.match(await page.textContent('.price-top'), /₹299[\s\S]*₹399/, 'sheet price with the regular price struck through');
       assert.match(await page.textContent('#sheetBody .no-refund'), /Non-refundable\.\s*Once paid, the amount is not refunded/, 'non-refundable notice before paying');
       assert.match(await page.textContent('.price .save'), /Save ₹100/, 'saving shown on the price card');
+      assert.ok(await page.evaluate(() => { const sh = document.querySelector('.tsx-sheet'); return sh.scrollHeight <= sh.clientHeight + 1; }), 'unlock sheet fits the screen without scrolling');
+      assert.equal(await page.isVisible('#sheet .co-more-body'), false, 'details collapsed'); await page.click('#sheet .co-more > summary'); assert.match(await page.textContent('#sheet .co-more-body'), /fair timer/); await page.click('#sheet .co-more > summary');
       assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector('[data-go=pay]')).backgroundImage.includes('gradient')), 'premium pay button');
       await shot(page, '10-unlock-sheet-390');
       await page.click('[data-go=pay]');
@@ -420,6 +422,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.doesNotMatch(await page.locator('#app').innerText(), /Priya Das|Aarav Sen/, 'no teacher names shown to online students');
       await page.click('[data-result="chem1__riya"]'); await page.waitForSelector('#sheet.on .score');
       assert.match(await page.textContent('#sheetBody'), /State symbols|state symbols/);
+      assert.match(await page.textContent('#sheetBody .key-card.wait'), /Answer key[\s\S]*shared here soon/, 'no key yet: students are told it will come');
       await shot(page, '17-result-sheet-390');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
       await goTab(page, 'me'); await page.waitForSelector('.me-card');
@@ -453,7 +456,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await goTab(page, 'custom'); await page.waitForSelector('.v-custom .row.pick');
       assert.equal(await page.locator('[data-cboard]').count(), 0, 'CBSE student: no board switch, CBSE syllabus only');
       assert.match(await page.textContent('.v-custom .sec h3'), /Class 10 CBSE/);
-      assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Science', 'Mathematics']);
+      assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Science', 'Mathematics', 'Social Science', 'Computer Applications'], 'CBSE Class 10 custom subjects incl. Social Science and Computer');
       for (const i of [0, 1, 2]) await page.click(`.row.pick[data-ch="${i}"]`);
       await page.click('[data-csub=Mathematics]');
       await page.click('.row.pick[data-ch="0"]');
@@ -472,7 +475,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.match(await page.textContent('.fm-note.on'), new RegExp(`Custom full mock · all ${sciAll.length} Science chapters`));
       assert.match(await page.textContent('.cart-bar'), /1 full mock \+ 2 chapters · ₹1097/, 'Science ₹699 + 2 Maths chapters × ₹199');
       await noOverflow(page, 'custom full mock'); await shot(page, '20b-custom-full-mock-390');
-      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .bill');
+      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .co-bar');
       assert.match(await page.textContent('.bill'), new RegExp(`Custom full mock · Science[\\s\\S]*₹${pol.modulePrice(sciAll.length)}[\\s\\S]*₹699[\\s\\S]*2 × ₹199[\\s\\S]*Total[\\s\\S]*₹1097`));
       assert.match(await page.textContent('#sheet .cg'), /Custom full mock · all/);
       await shot(page, '21b-custom-full-mock-cart-390');
@@ -482,10 +485,13 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.match(await page.textContent('.cart-bar'), /5 chapters · ₹946/);
       await noOverflow(page, 'custom build'); await shot(page, '20-custom-build-390');
       assert.ok(!(await page.locator('[data-csub]').allTextContents()).some(x => ['Physics', 'Chemistry', 'Biology'].includes(x)), 'no ICSE subjects for a CBSE student');
-      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .bill');
+      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .co-bar');
       assert.match(await page.textContent('.bill'), /4 × ₹199[\s\S]*₹796[\s\S]*1 × ₹150[\s\S]*₹150[\s\S]*You save[\s\S]*₹49[\s\S]*Total[\s\S]*₹946/);
       assert.match(await page.textContent('#sheetBody .no-refund'), /Non-refundable/, 'non-refundable notice in the cart');
       await shot(page, '21-custom-cart-390');
+      // Checkout fits one screen: chapters open from the subject row, the breakdown from Details.
+      assert.ok(await page.evaluate(() => { const sh = document.querySelector('.tsx-sheet'); return sh.scrollHeight <= sh.clientHeight + 1; }), 'cart fits the screen without scrolling');
+      await page.locator('#sheet .co-items .cg > summary').first().click();
       await page.locator('#sheet [data-rm]').first().click();
       await page.waitForFunction(() => /Total\s*₹796/.test(document.querySelector('.bill').textContent));
       // Level and a request for the teacher go with the order.
@@ -608,19 +614,27 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('.v-home .subj');
       assert.equal(await page.locator('.subj:has-text("Physics")').count(), 1);
       assert.equal(await page.locator('.v-home .chk-card').count(), 1, 'Home shows the live checking card before any result');
-      await goTab(page, 'packs'); await page.waitForSelector('.v-packs .pack-card');
-      assert.equal(await page.locator('.v-packs .pack-card').count(), 2, 'paused packs are not on sale');
-      assert.match(await page.textContent('.pack-card[data-pack=pkphy8]'), /Physics · 8 weekly mocks[\s\S]*8 mocks[\s\S]*₹3199[\s\S]*₹400\/mock/);
-      assert.match(await page.textContent('.pack-card[data-pack=pkche4]'), /₹1699[\s\S]*₹425\/mock/);
-      assert.match(await page.textContent('.pack-card[data-pack=pkphy8] .pk-sub'), /Physics · Class 10/, 'each pack shows its subject');
-      assert.deepEqual(await page.locator('.v-packs .pk-sec h3').allTextContents(), ['Physics', 'Chemistry'], 'packs grouped by subject');
-      await page.click('[data-psub=Chemistry]'); assert.equal(await page.locator('.v-packs .pack-card').count(), 1, 'subject filter');
-      await shot(page, '25b-packs-chemistry-390');
-      await page.click('[data-psub=""]'); assert.equal(await page.locator('.v-packs .pack-card').count(), 2);
+      // Home: a small notice about the packs opens the Mocks tab.
+      assert.match(await page.textContent('.v-home .mk-note'), /Weekly mock packs are live[\s\S]*Physics, Chemistry · from ₹1699/);
+      await shot(page, '24-home-pack-notice-390');
+      await page.click('.v-home .mk-note a'); await page.waitForSelector('.v-packs .mk-tile');
+      // Mocks: one icon tile per subject; tap one to see its pack types.
+      assert.deepEqual(await page.locator('.v-packs .mk-tile b').allTextContents(), ['Physics', 'Chemistry'], 'paused packs are not on sale; one tile per subject');
+      assert.match(await page.textContent('.mk-tile[href="#/packs/Physics"]'), /1 pack · from ₹3199/);
+      assert.match(await page.textContent('.mk-tile[href="#/packs/Chemistry"]'), /from ₹1699/);
       await noOverflow(page, 'packs 390');
       await shot(page, '25-packs-390');
-      await page.click('.pack-card[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');
+      await page.click('.mk-tile[href="#/packs/Physics"]'); await page.waitForSelector('.mk-type[data-pack=pkphy8]');
+      assert.match(await page.textContent('.mk-head'), /Physics mock packs[\s\S]*Class 10/);
+      assert.match(await page.textContent('.mk-type[data-pack=pkphy8]'), /8[\s\S]*mocks[\s\S]*Physics · 8 weekly mocks[\s\S]*₹3199[\s\S]*₹400\/mock/);
+      assert.ok(await page.isVisible('#topBack'), 'back to all subjects');
+      await shot(page, '25b-packs-physics-390');
+      await page.click('.mk-type[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');
       assert.equal(await page.locator('#sheet .rows.sched li').count(), 8, 'the 8 weekly dates are listed');
+      assert.ok(await page.evaluate(() => { const sh = document.querySelector('.tsx-sheet'); return sh.scrollHeight <= sh.clientHeight + 1; }), 'pack checkout fits the screen without scrolling');
+      await page.setViewportSize({ width: 1366, height: 660 }); await page.waitForTimeout(400);
+      assert.ok(await page.evaluate(() => { const sh = document.querySelector('.tsx-sheet'); return sh.scrollHeight <= sh.clientHeight + 1; }), 'pack checkout fits a laptop screen without scrolling');
+      await shot(page, '26b-pack-checkout-laptop'); await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(300);
       assert.match(await page.textContent('#sheet'), /non-refundable/i);
       assert.match(await page.textContent('[data-ppay]'), /Join for ₹3199/);
       await shot(page, '26-pack-sheet-390');
@@ -634,18 +648,21 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.click('[data-slot-test=pk1m1]'); await page.waitForSelector('#sheet.on [data-go=confirm]');
       assert.match(await page.textContent('#sheet .facts'), /Pack mock · 1 of 8[\s\S]*80 marks/);
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
-      await page.waitForSelector('[data-pseg=mine][aria-selected=true]');
+      await page.waitForSelector('.mk-type[data-pack=pkphy8] .mk-flag.own');
+      await page.click('#topBack'); await page.waitForSelector('[data-pseg=mine][aria-selected=true]');
       assert.equal(await page.locator('.pack-card').count(), 1); assert.match(await page.textContent('.pack-card'), /Joined[\s\S]*|0 of 8 done/);
       // Chemistry pack with a promo code.
-      await page.click('[data-pseg=packs]'); await page.click('.pack-card[data-pack=pkche4]'); await page.waitForSelector('#sheet.on [data-ppay]');
+      await page.click('[data-pseg=packs]'); await page.click('.mk-tile[href="#/packs/Chemistry"]'); await page.click('.mk-type[data-pack=pkche4]'); await page.waitForSelector('#sheet.on [data-ppay]');
       await page.click('.promo-box summary'); await page.fill('#promoInput', 'tncgift1'); await page.click('[data-promo-apply]');
       await page.waitForSelector('#sheet .promo.ok');
       assert.match(await page.textContent('.price-top'), /₹0[\s\S]*₹1699/);
       await page.click('[data-pjoin]'); await page.waitForSelector('#sheet.on .pk-progress');
       assert.equal(state.packOrder.promoCode, 'TNCGIFT1'); assert.match(await page.textContent('#toast'), /Promo applied/);
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
+      await page.click('#topBack'); await page.waitForSelector('[data-pseg=mine]');
       assert.match(await page.textContent('[data-pseg=mine]'), /2/);
       await page.click('.tsx-nav a[data-tab=home]'); await page.waitForSelector('.v-home .next-mock');
+      assert.equal(await page.locator('.v-home .mk-note').count(), 0, 'no pack notice once the student has joined');
       assert.match(await page.textContent('.next-mock'), /Mock ready · Physics 1\/8/, 'Home shows the open pack mock');
       await shot(page, '28-home-next-mock-390');
       assert.deepEqual(errors, []); await page.close();
@@ -675,27 +692,37 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.click('.subj:has-text("Physics")');
       for (const seg of ['mock', 'chapter']) {
         await page.click('[data-seg=' + seg + ']');
-        assert.match(await page.textContent('.seg-hint'), /Chapter-wise tests and full mocks are free for TNC students/);
+        assert.match(await page.textContent('.seg-hint'), /Physics is one of your TNC subjects/);
         const rows = await page.locator('.v-subject .row').allTextContents();
-        assert.ok(rows.length && rows.every(r => /Free/.test(r) && !/₹/.test(r)), 'every ' + seg + ' test free for TNC students');
+        assert.ok(rows.length && rows.every(r => /Free/.test(r) && !/₹/.test(r)), 'every Physics ' + seg + ' test free: an enrolled subject');
       }
       await shot(page, '19-tnc-subject-390');
+      // Chemistry is not one of this student's TNC subjects: paid like any online student.
+      await page.click('#topBack'); await page.click('.subj:has-text("Chemistry")'); await page.click('[data-seg=chapter]');
+      assert.match(await page.textContent('.seg-hint.tnc'), /Not one of your TNC subjects/);
+      assert.ok((await page.locator('.v-subject .row').allTextContents()).every(r => /₹299/.test(r)), 'Chemistry tests are paid');
+      await shot(page, '19b-tnc-paid-subject-390');
       // Mock packs are paid for TNC students (promo codes work there); custom tests are free.
-      await goTab(page, 'packs'); await page.waitForSelector('.pack-card[data-pack=pkphy8]');
-      assert.match(await page.textContent('.pack-card[data-pack=pkphy8]'), /₹3199[\s\S]*₹400\/mock/);
-      await page.click('.pack-card[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');
+      await goTab(page, 'packs'); await page.click('.mk-tile[href="#/packs/Physics"]'); await page.waitForSelector('.mk-type[data-pack=pkphy8]');
+      assert.match(await page.textContent('.mk-type[data-pack=pkphy8]'), /₹3199[\s\S]*₹400\/mock/);
+      await page.click('.mk-type[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');
       assert.match(await page.textContent('[data-ppay]'), /Join for ₹3199/); assert.equal(await page.locator('#sheet .promo-box').count(), 1, 'promo box offered');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
       await goTab(page, 'custom'); await page.waitForSelector('.v-custom .row.pick');
-      assert.match(await page.textContent('.cm-price'), /Free for TNC students/);
+      assert.match(await page.textContent('.cm-price'), /Physics is free for you \(TNC subject\)/);
       await page.click('.row.pick[data-ch="0"]'); await page.click('.row.pick[data-ch="1"]'); assert.match(await page.textContent('.cart-bar'), /2 chapters · Free/);
       await page.click('[data-cart]'); await page.waitForSelector('#sheet.on [data-buy]');
-      assert.match(await page.textContent('#sheet .bill'), /Free · TNC student[\s\S]*Total[\s\S]*₹0/); assert.match(await page.textContent('[data-buy]'), /Request my tests · free/);
-      assert.equal(await page.locator('#sheet .promo-box').count(), 0, 'no promo box: custom tests are already free');
+      assert.match(await page.textContent('#sheet .bill'), /Physics · TNC subject[\s\S]*Free[\s\S]*Total[\s\S]*₹0/); assert.match(await page.textContent('[data-buy]'), /Request my tests · free/);
+      assert.equal(await page.locator('#sheet .promo-box').count(), 0, 'no promo box: TNC subject papers are free');
       await shot(page, '29-tnc-custom-free-390');
+      // Adding a subject they don't take at TNC makes those chapters paid.
+      await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
+      await page.click('[data-csub=Chemistry]'); assert.match(await page.textContent('.cm-price'), /Chemistry isn’t a TNC subject for you/);
+      await page.click('.row.pick[data-ch="0"]'); await page.click('.row.pick[data-ch="1"]');
+      assert.match(await page.textContent('.cart-bar'), /4 chapters · ₹398/, 'Physics free + 2 Chemistry chapters × ₹199');
       assert.deepEqual(errors, []); await page.close();
     }
-    console.log('✓ cached data opens Home instantly; TNC ID students: chapter-wise tests and full mocks free; custom tests free; mock packs paid (with promo box)');
+    console.log('✓ cached data opens Home instantly; TNC ID students: enrolled subjects free (tests and custom), other subjects paid; mock packs paid (with promo box)');
     console.log(`Screenshots: ${path.relative(root, out)}`);
   } finally {
     await browser.close(); server.close();

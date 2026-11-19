@@ -154,6 +154,9 @@ const server = http.createServer((req, res) => {
     assert.match(await admin.locator('#inquiryAnnouncement').textContent(), /1 new website inquiry/);
     assert.match(await admin.locator('.inquiry-item').first().textContent(), /Student <img/);
     assert.equal(await admin.locator('.inquiry-item img,.inquiry-item script').count(),0,'inquiry text cannot create HTML');
+    assert.equal(await admin.locator('.inquiry-item .inquiry-more').first().isVisible(),false,'compact row: details closed');
+    await admin.locator('.inquiry-item .inquiry-open').first().click(); assert.equal(await admin.locator('.inquiry-item .inquiry-more').first().isVisible(),true,'tap a row to see the details');
+    await admin.locator('.inquiry-item .inquiry-open').first().click();
     assert.match(await admin.locator('.inquiry-item time').first().textContent(), /2026.*11:30.*IST/);
     await admin.evaluate(()=>window.__updateError=true);
     await admin.locator('.inquiry-item select').first().selectOption('Contacted');

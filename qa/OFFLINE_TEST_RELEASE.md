@@ -23,7 +23,7 @@ it in **Offline Test Series → Results** and in **My Results**.
 ## Student experience
 
 The compact navy-and-gold guide uses four small animated figures: download,
-write, upload, teacher review. It includes the promise **Results within 48 hours
+write, upload, teacher review. It includes the promise **Results within 24 hours
 of submission**. Reduced-motion mode presents one static scene. The 320-pixel
 phone layout keeps the first test action above the bottom navigation.
 

@@ -32,7 +32,7 @@ const graceForMins = m => Math.min(30, Math.max(10, Math.round(m / 9)));
 // Paper format line: marks · time + upload time (· price for online papers).
 function formatLine(kind, online) {
   const f = P().paperFor(kind), price = P().priceFor({ kind }), list = P().listPriceFor({ kind });
-  return `${I.clock}<span><b>${f.marks} marks · ${f.durationMin} min</b> + ${f.graceMin} min to upload${online ? ` · ₹${price}${list ? ` <s>₹${list}</s>` : ''} · free for TNC students` : ''}</span>`;
+  return `${I.clock}<span><b>${f.marks} marks · ${f.durationMin} min</b> + ${f.graceMin} min to upload${online ? ` · ₹${price}${list ? ` <s>₹${list}</s>` : ''} · free for TNC students in their subjects` : ''}</span>`;
 }
 // Reads and uploads the optional answer key PDF; '' when none was chosen.
 async function uploadKey(file, say) {
@@ -117,7 +117,7 @@ async function loadAll() {
       totalMarks: Number((f.totalMarks && (f.totalMarks.doubleValue ?? f.totalMarks.integerValue)) || 0), durationMin: Number((f.durationMin && f.durationMin.integerValue) || 0),
       teacher: str(f, 'teacherName') || '—', teacherUid: str(f, 'teacherUid'), isActive: !f.isActive || f.isActive.booleanValue !== false, createdAt: str(f, 'createdAt'),
       series: online ? 'Online' : 'Offline', kind: online ? P().kindOf({ kind: str(f, 'kind'), chapter: str(f, 'chapter'), testName: str(f, 'testName') }) : str(f, 'kind'), paper: papers[id] || '',
-      answerKey: answerKeys[id] || '', hasAnswerKey: !!(f.hasAnswerKey && f.hasAnswerKey.booleanValue), uploadGraceMin: Number((f.uploadGraceMin && f.uploadGraceMin.integerValue) || 0), forUid: str(f, 'forUid'), packageId: str(f, 'packageId'), slot: Number((f.slot && f.slot.integerValue) || 0), releaseAt: str(f, 'releaseAt') }; })
+      instructions: str(f, 'instructions'), answerKey: answerKeys[id] || '', hasAnswerKey: !!(f.hasAnswerKey && f.hasAnswerKey.booleanValue), uploadGraceMin: Number((f.uploadGraceMin && f.uploadGraceMin.integerValue) || 0), forUid: str(f, 'forUid'), packageId: str(f, 'packageId'), slot: Number((f.slot && f.slot.integerValue) || 0), releaseAt: str(f, 'releaseAt') }; })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   S.loaded = true;
 }
@@ -300,7 +300,7 @@ function rowHtml(tab, r, counts) {
   const person = n => `<span class="dk-av" style="--h:${hue(n)}">${esc(initials(n))}</span>`;
   if (tab === 'papers') {
     const c = counts[r.id] || { total: 0 };
-    return open(r.id, '', `<span class="dk-av paper">${I.doc}</span>`, esc(r.name), esc([kindLabel(r), r.chapter, c.total ? plural(c.total, 'script') : ''].filter(Boolean).join(' · ')),
+    return open(r.id, '', `<span class="dk-av paper">${I.doc}</span>`, esc(r.name), esc([kindLabel(r), r.chapter, c.total ? plural(c.total, 'script') : ''].filter(Boolean).join(' · ')) + (r.answerKey ? '' : ' · <em class="dk-nokey">No answer key</em>'),
       `<span class="dk-pill ${r.isActive ? 'ok' : ''}">${r.isActive ? 'Live' : 'Closed'}</span>`);
   }
   if (tab === 'packages') {
@@ -478,7 +478,7 @@ function openRequest(id, opener) {
   if (String(id).includes('#')) { const [pid, n] = id.split('#'); return openSlot(pid, Number(n), opener); }
   const r = S.requests.find(x => x.id === id); if (!r) return;
   const facts = `<dl class="dk-facts">${fact('Student', r.studentName)}${fact('ID', r.onlineId)}${fact('Class', 'Class ' + r.class + ' · ' + (r.boardLabel || ''))}${fact('Subject', r.subject)}
-    ${fact('Chapters', r.chapterCount)}${fact('Level', (P().LEVELS[P().levelOf(r.level)]) + (r.level ? '' : ' (not chosen)'))}${fact('Paid', r.enrolled ? 'Free (TNC student)' : '₹' + Math.round((r.amountPaise || 0) / 100))}${fact('Ordered', day(r.createdAt) + ' · ' + ago(r.createdAt))}${fact(r.status === 'requested' ? 'Due' : 'Sent', day(r.status === 'requested' ? r.dueAt : r.readyAt))}</dl>
+    ${fact('Chapters', r.chapterCount)}${fact('Level', (P().LEVELS[P().levelOf(r.level)]) + (r.level ? '' : ' (not chosen)'))}${fact('Paid', r.amountPaise ? '₹' + Math.round(r.amountPaise / 100) : r.enrolled ? 'Free (TNC subject)' : '₹0')}${fact('Ordered', day(r.createdAt) + ' · ' + ago(r.createdAt))}${fact(r.status === 'requested' ? 'Due' : 'Sent', day(r.status === 'requested' ? r.dueAt : r.readyAt))}</dl>
     ${r.note ? `<p class="dk-note"><b>Student's request:</b> ${esc(r.note)}</p>` : ''}
     <div class="dk-chapters"><b>Chapters to cover</b><ol>${(r.chapters || []).map(c => `<li>${esc(c)}</li>`).join('')}</ol></div>`;
   if (r.status !== 'requested') {
@@ -575,8 +575,8 @@ function openNewPack(opener) {
   openSheet('New mock pack', 'Weekly full-syllabus mocks', `<div class="dk-presets">${P().PACK_PRESETS.map(x => `<button type="button" class="dk-preset" data-preset="${x.mocks}|${x.priceInr}"><b>${x.mocks} mocks</b><span>₹${x.priceInr} · one a week</span></button>`).join('')}</div>
     <div class="dk-form">
       <label>Class<select id="dknClass">${opt([['', 'Select'], ...['9', '10', '11', '12'].map(c => [c, 'Class ' + c])], '')}</select></label>
-      <label>Subject<select id="dknSubject">${opt([['', 'Select'], ['Physics', 'Physics'], ['Chemistry', 'Chemistry'], ['Mathematics', 'Mathematics'], ['Biology', 'Biology'], ['Science', 'Science'], ['Computer', 'Computer Science'], ['English', 'English']], '')}</select></label>
-      <label>Board<select id="dknBoard">${opt([['', 'All boards'], ['CBSE', 'CBSE only'], ['ICSE', 'ICSE / ISC only']], '')}</select></label>
+      <label>Board<select id="dknBoard">${opt([['', 'Select'], ['CBSE', 'CBSE'], ['ICSE', 'ICSE / ISC'], ['ALL', 'All boards']], '')}</select></label>
+      <label class="dk-full">Subject<select id="dknSubject"><option value="">Choose class and board first</option></select></label>
       <label>Number of mocks<input id="dknMocks" type="number" min="1" max="52" inputmode="numeric" value="8"></label>
       <label>First mock on<input id="dknDate" type="date" value="${ist.date(next)}"></label>
       <label>At (time)<input id="dknTime" type="time" value="10:00"></label>
@@ -593,6 +593,14 @@ function openNewPack(opener) {
   };
   ['dknDate', 'dknTime', 'dknMocks', 'dknPrice'].forEach(id => $(id).addEventListener('input', preview)); preview();
   $('dkSheetBody').querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { const [m, pr] = b.dataset.preset.split('|'); $('dknMocks').value = m; $('dknPrice').value = pr; $('dkSheetBody').querySelectorAll('.dk-preset').forEach(x => x.classList.toggle('on', x === b)); preview(); });
+  // Subjects follow the board and class, like the New paper form.
+  const syncSubjects = () => {
+    const cls = $('dknClass').value, board = $('dknBoard').value, sel = $('dknSubject'), cur = sel.value;
+    const list = !cls || !board ? [] : board === 'ALL' ? P().subjectsFor('CBSE', cls).filter(x => P().subjectAllowed(x, 'ICSE', cls)) : P().subjectsFor(board, cls);
+    sel.innerHTML = list.length ? `<option value="">Select</option>${list.map(x => `<option value="${esc(x)}"${x === cur ? ' selected' : ''}>${esc(x === 'Computer' ? 'Computer Science' : x)}</option>`).join('')}` : '<option value="">Choose class and board first</option>';
+    sel.disabled = !list.length;
+  };
+  ['dknClass', 'dknBoard'].forEach(id => { $(id).onchange = syncSubjects; }); syncSubjects();
   $('dknCreate').onclick = createPack;
 }
 async function createPack() {
@@ -610,9 +618,9 @@ async function createPack() {
   const id = 'pk' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), now = new Date().toISOString(), s = x => ({ stringValue: x });
   const title = v('dknTitle') || `${window.PortalUI.subject(subject)} · ${mocks} weekly mocks`;
   try {
-    await patch(`mockPackages/${id}`, { title: s(title), class: s(cls), board: s(v('dknBoard')), subject: s(subject), mocks: { integerValue: String(mocks) }, priceInr: { integerValue: String(price) },
+    await patch(`mockPackages/${id}`, { title: s(title), class: s(cls), board: s(v('dknBoard') === 'ALL' ? '' : v('dknBoard')), subject: s(subject), mocks: { integerValue: String(mocks) }, priceInr: { integerValue: String(price) },
       schedule: { arrayValue: { values: schedule.map(x => s(x)) } }, description: s(v('dknDesc')), active: { booleanValue: true }, createdAt: s(now), createdBy: s(ctx.uid || '') });
-    S.packages.unshift({ id, title, class: cls, board: v('dknBoard'), subject, schedule, priceInr: price, active: true, description: v('dknDesc'), createdAt: now });
+    S.packages.unshift({ id, title, class: cls, board: v('dknBoard') === 'ALL' ? '' : v('dknBoard'), subject, schedule, priceInr: price, active: true, description: v('dknDesc'), createdAt: now });
     recountMake(); S.sending = false; S.tab = 'packages'; S.page = 0;
     closeSheet(); render(); setBadge(inbox().length);
     toast(`“${title}” is on sale · first mock ${when(schedule[0])}`);
@@ -690,51 +698,82 @@ async function parentPhone(r) {
   return [str(o, 'guardianPhone'), str(s, 'parentPhone'), str(s, 'guardianPhone')].map(ten).find(v => /^[6-9]\d{9}$/.test(v)) || '';
 }
 
+// Answer key state for admins: shared (green), private to teachers (amber) or missing (red).
+function keyState(t) {
+  return t.answerKey && t.hasAnswerKey ? { cls: 'ok', text: 'Shared · students download it after they submit' }
+    : t.answerKey ? { cls: 'warn', text: 'Uploaded · private to teachers (students can’t see it)' }
+    : { cls: 'bad', text: 'Answer key not uploaded' };
+}
 function openPaper(id, opener) {
   const t = S.tests.find(x => x.id === id); if (!t) return;
   const mine = S.reports.filter(r => r.testId === t.id), pending = mine.filter(r => r.stage !== 'returned').length;
   const price = t.series === 'Online' && ['chapter', 'mock'].includes(t.kind) ? ' · ₹' + P().priceFor({ kind: t.kind }) : '';
-  const keyNote = t.hasAnswerKey ? 'Students download it after they submit.' : t.answerKey ? 'Kept private: only teachers see it.' : 'No answer key yet.';
-  openSheet(t.name, t.isActive ? 'Live paper' : 'Closed paper', `<dl class="dk-facts">${fact('Class', 'Class ' + t.class + (t.board ? ' · ' + t.board : ''))}${fact('Subject', t.subject)}${fact('Chapter', t.chapter)}${fact('Type', kindLabel(t) + price)}
+  const k = keyState(t);
+  openSheet(t.name, t.isActive ? 'Live paper' : 'Closed paper', `<div class="dk-keyrow ${k.cls}" id="dkKeyRow">${t.answerKey ? I.check : I.x}<span><b>Answer key</b><small>${esc(k.text)}</small></span>${t.answerKey ? `<a class="dk-btn" href="${esc(t.answerKey)}" target="_blank" rel="noopener">${I.doc}<span>Open</span></a>` : ''}</div>
+    <dl class="dk-facts">${fact('Class', 'Class ' + t.class + (t.board ? ' · ' + t.board : ''))}${fact('Subject', t.subject)}${fact('Chapter', t.chapter)}${fact('Type', kindLabel(t) + price)}
       ${fact('Marks', t.totalMarks)}${fact('Time', t.durationMin + ' min + ' + (t.uploadGraceMin || 15) + ' to upload')}${fact('Shown as', t.teacher)}${fact('Published', day(t.createdAt))}${fact('Submitted', mine.length)}${fact('To check', pending)}</dl>
-    <div class="dk-keybox"><b>Answer key</b><small id="dkKeyNote">${esc(keyNote)}</small>
-      <div class="dk-actions">${t.answerKey ? `<a class="dk-btn" href="${esc(t.answerKey)}" target="_blank" rel="noopener">${I.doc}<span>Open key</span></a>` : ''}
-        ${t.answerKey && !t.hasAnswerKey ? `<button type="button" class="dk-btn" id="dkKeyShare">${I.send}<span>Share with students</span></button>` : ''}</div>
-      ${fileField('dkKeyNew', t.answerKey ? 'Replace answer key PDF' : 'Add answer key PDF')}
-      <button type="button" class="dk-btn primary" id="dkKeySave" hidden>${I.up}<span>Save answer key</span></button></div>
     <p class="dk-msg" id="dkMsg" role="status"></p>
-    <div class="dk-actions">${t.paper ? `<a class="dk-btn" href="${esc(t.paper)}" target="_blank" rel="noopener">${I.doc}<span>Question paper</span></a>` : ''}
+    <div class="dk-actions"><button type="button" class="dk-btn ${t.answerKey ? '' : 'primary'}" id="dkEdit">${I.up}<span>${t.answerKey ? 'Edit paper' : 'Edit · add answer key'}</span></button>
+      ${t.paper ? `<a class="dk-btn" href="${esc(t.paper)}" target="_blank" rel="noopener">${I.doc}<span>Question paper</span></a>` : ''}
       ${mine.length ? `<button type="button" class="dk-btn" id="dkPaperScripts">${I.inbox}<span>See scripts</span></button>` : ''}
       <button type="button" class="dk-btn ${t.isActive ? 'danger' : 'primary'}" id="dkToggle">${t.isActive ? 'Close paper' : 'Reopen paper'}</button></div>
     <p class="dk-fine">${t.isActive ? 'Closing hides the paper from students who have not started it. Submitted scripts and results are kept.' : 'Reopening makes the paper available to students again.'}</p>`, opener);
   const scripts = $('dkPaperScripts');
   if (scripts) scripts.onclick = () => { S.tab = pending ? 'inbox' : 'done'; S.q = t.name; S.page = 0; closeSheet(); $('dkSearch').value = t.name; render(); };
-  const say = (m, cls) => { $('dkMsg').textContent = m; $('dkMsg').className = 'dk-msg' + (cls ? ' ' + cls : ''); };
-  const label = t.answerKey ? 'Replace answer key PDF' : 'Add answer key PDF';
-  $('dkKeyNew').addEventListener('change', e => { $('dkKeyNewName').textContent = e.target.files[0] ? 'Answer key · ' + e.target.files[0].name : label; $('dkKeyNewBox').classList.toggle('has', !!e.target.files[0]); $('dkKeySave').hidden = !e.target.files[0]; });
-  // Answer keys added here are shared with students (after they submit).
-  const share = async (url, b) => {
-    if (S.sending) return; S.sending = true; b.disabled = true;
-    try {
-      if (url) await patch(`offlineTestKeys/${t.id}`, { answerPdfUrl: { stringValue: url } });
-      await patch(`offlineTests/${t.id}`, { hasAnswerKey: { booleanValue: true } });
-      if (url) t.answerKey = U().deliveryUrl(url);
-      t.hasAnswerKey = true; S.sending = false;
-      toast('Answer key saved · students can download it after they submit'); openPaper(t.id, opener);
-    } catch (err) { S.sending = false; b.disabled = false; say((err.message || 'Could not save.') + ' Try again.', 'bad'); }
-  };
-  $('dkKeySave').onclick = async e => {
-    const b = e.currentTarget, file = $('dkKeyNew').files[0]; if (!file || S.sending) return;
-    b.disabled = true;
-    let url = '';
-    try { url = await uploadKey(file, say); } catch (err) { b.disabled = false; return say((err.message || 'Could not upload.') + ' Try again.', 'bad'); }
-    say('Saving…'); share(url, b);
-  };
-  const shareBtn = $('dkKeyShare'); if (shareBtn) shareBtn.onclick = e => share('', e.currentTarget);
+  $('dkEdit').onclick = () => openEditPaper(t, opener);
   $('dkToggle').onclick = async e => {
     const b = e.currentTarget; b.disabled = true;
     try { await patch(`offlineTests/${t.id}`, { isActive: { booleanValue: !t.isActive } }); t.isActive = !t.isActive; closeSheet(); render(); toast(t.isActive ? 'Paper reopened' : 'Paper closed'); }
     catch (err) { $('dkMsg').textContent = err.message; $('dkMsg').className = 'dk-msg bad'; b.disabled = false; }
+  };
+}
+// Edit a published paper: name, part, instructions; upload a forgotten answer
+// key (or replace it, or the question paper). Students who already started
+// keep the copy of the paper they downloaded.
+function openEditPaper(t, opener) {
+  const k = keyState(t), keyLabel = t.answerKey ? 'Replace answer key PDF' : 'Upload answer key PDF', paperLabel = 'Replace question paper PDF (optional)';
+  openSheet('Edit · ' + t.name, 'Edit paper', `<div class="dk-keyrow ${k.cls}">${t.answerKey ? I.check : I.x}<span><b>Answer key</b><small>${esc(k.text)}</small></span></div>
+    <div class="dk-form">
+      <label class="dk-full">Test name<input id="dkeName" maxlength="120" value="${esc(t.name)}"></label>
+      ${['custom', 'package'].includes(t.kind) ? '' : `<label>Part<input id="dkePart" maxlength="100" value="${esc(t.module || '')}"></label>`}
+      <label${['custom', 'package'].includes(t.kind) ? ' class="dk-full"' : ''}>Instructions<input id="dkeNote" maxlength="500" value="${esc(t.instructions || '')}" placeholder="e.g. Attempt all questions"></label>
+      ${fileField('dkeKey', keyLabel)}
+      <label class="dk-check dk-full"><input type="checkbox" id="dkeShare" ${t.hasAnswerKey || !t.answerKey ? 'checked' : ''}> Students can download the answer key after they submit</label>
+      ${fileField('dkePaper', paperLabel)}
+      <p class="dk-fine dk-full">A new question paper reaches students who haven’t started yet; anyone already writing keeps the copy they downloaded.</p>
+    </div>
+    <p class="dk-msg" id="dkMsg" role="status"></p>
+    <div class="dk-actions sticky"><button type="button" class="dk-btn" id="dkeCancel">Cancel</button><button type="button" class="dk-btn primary" id="dkeSave">${I.check}<span>Save changes</span></button></div>`, opener);
+  bindFile('dkeKey', keyLabel); bindFile('dkePaper', paperLabel);
+  $('dkeCancel').onclick = () => openPaper(t.id, opener);
+  $('dkeSave').onclick = async () => {
+    if (S.sending) return;
+    const v = id => ($(id) ? $(id).value : '').trim(), msg = $('dkMsg'), btn = $('dkeSave');
+    const say = (m, cls) => { msg.textContent = m; msg.className = 'dk-msg' + (cls ? ' ' + cls : ''); };
+    const name = v('dkeName'), keyFile = $('dkeKey').files[0], paperFile = $('dkePaper').files[0], share = $('dkeShare').checked;
+    if (!name) return say('Give the test a name.', 'bad');
+    S.sending = true; btn.disabled = true;
+    try {
+      const keyUrl = await uploadKey(keyFile, say);
+      let paperUrl = '';
+      if (paperFile) { say('Reading the question paper…'); await F().validateReadablePdf(paperFile); paperUrl = await F().upload(paperFile, pr => say(`Uploading question paper… ${Math.round(pr * 100)}%`)); }
+      say('Saving…');
+      const s2 = x => ({ stringValue: x }), keys = {};
+      if (keyUrl) keys.answerPdfUrl = s2(keyUrl);
+      if (paperUrl) keys.questionPdfUrl = s2(paperUrl);
+      if (keyUrl || paperUrl) keys.testName = s2(name);
+      if (Object.keys(keys).length) await patch(`offlineTestKeys/${t.id}`, keys);
+      const hasKey = !!(keyUrl || t.answerKey);
+      const fields = { testName: s2(name), instructions: s2(v('dkeNote')), hasAnswerKey: { booleanValue: hasKey && share } };
+      if ($('dkePart')) fields.module = s2(v('dkePart') || t.module || 'Full chapter');
+      await patch(`offlineTests/${t.id}`, fields);
+      patch(`offlineAudit/edit_${t.id}_${Date.now().toString(36)}`, { action: s2('edit-test'), testId: s2(t.id), byAdminUid: s2(ctx.uid), answerKey: { booleanValue: !!keyUrl }, questionPaper: { booleanValue: !!paperUrl }, at: s2(new Date().toISOString()) }).catch(() => {});
+      Object.assign(t, { name, instructions: v('dkeNote'), hasAnswerKey: hasKey && share, ...($('dkePart') ? { module: fields.module.stringValue } : {}),
+        ...(keyUrl ? { answerKey: U().deliveryUrl(keyUrl) } : {}), ...(paperUrl ? { paper: U().deliveryUrl(paperUrl) } : {}) });
+      S.sending = false; render();
+      toast(keyUrl ? (share ? 'Answer key uploaded · students can download it after they submit' : 'Answer key uploaded · kept private') : 'Paper updated');
+      openPaper(t.id, opener);
+    } catch (e) { S.sending = false; btn.disabled = false; say((e.message || 'Could not save.') + ' Nothing changed — try again.', 'bad'); }
   };
 }
 
@@ -746,11 +785,11 @@ function openPublish() {
       <label>Type<select id="dkpKind">${opt([['chapter', 'Chapter-wise'], ['mock', 'Full mock']], 'chapter')}</select></label>
       <p class="dk-format dk-full" id="dkpFormat" aria-live="polite"></p>
       <label>Class<select id="dkpClass">${opt([['', 'Select'], ...['6', '7', '8', '9', '10', '11', '12'].map(c => [c, 'Class ' + c])], '')}</select></label>
-      <label>Subject<select id="dkpSubject">${opt([['', 'Select'], ['Physics', 'Physics'], ['Chemistry', 'Chemistry'], ['Mathematics', 'Mathematics'], ['Biology', 'Biology'], ['Science', 'Science'], ['Computer', 'Computer Science'], ['English', 'English']], '')}</select></label>
+      <label>Board<select id="dkpBoard">${opt([['', 'Select'], ['CBSE', 'CBSE'], ['ICSE', 'ICSE / ISC'], ['ALL', 'All boards']], '')}</select></label>
+      <label class="dk-full">Subject<select id="dkpSubject"><option value="">Choose class and board first</option></select></label>
       <label class="dk-full" id="dkpChapterBox">Chapter<input id="dkpChapter" list="dkpChapters" maxlength="120" placeholder="e.g. Electricity" autocomplete="off"><datalist id="dkpChapters">${chapters.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></label>
       <label>Test name<input id="dkpName" maxlength="120" placeholder="e.g. Chapter test 1"></label>
       <label>Part (optional)<input id="dkpPart" maxlength="100" placeholder="e.g. Part 1"></label>
-      <label>Board<select id="dkpBoard">${opt([['', 'All boards'], ['CBSE', 'CBSE only'], ['ICSE', 'ICSE / ISC only']], '')}</select></label>
       <label>Instructions (optional)<input id="dkpNote" maxlength="500" placeholder="e.g. Attempt all questions"></label>
       ${fileField('dkpFile', 'Choose question paper PDF')}
       ${fileField('dkpKey', KEY_LABEL)}
@@ -764,13 +803,21 @@ function openPublish() {
     $('dkpFormat').innerHTML = formatLine(kind, v('dkpSeries') === 'online');
     $('dkpChapterBox').hidden = kind === 'mock';
     $('dkpName').placeholder = kind === 'mock' ? 'e.g. Full mock 1' : 'e.g. Chapter test 1';
-    // Test Series shows CBSE (up to Class 10) only Science, and ICSE only Physics / Chemistry / Biology.
-    const cls = v('dkpClass'), board = v('dkpBoard'), online = v('dkpSeries') === 'online';
-    const hide = !online || !sub || !cls ? '' : ['CBSE', ''].includes(board) && !P().subjectAllowed(sub, 'CBSE', cls) ? ' CBSE students up to Class 10 see Science instead, so on Test Series only ICSE and other boards get this paper.'
-      : ['ICSE', ''].includes(board) && !P().subjectAllowed(sub, 'ICSE', cls) ? ' ICSE students see Physics, Chemistry and Biology instead, so on Test Series ICSE students don’t get this paper.' : '';
-    $('dkpBy').textContent = `Students see this paper from ${sub ? faculty(sub) : 'TNC <Subject> Faculty'}. They can download the answer key only after they submit.${hide}`;
+    $('dkpBy').textContent = `Students see this paper from ${sub ? faculty(sub) : 'TNC <Subject> Faculty'}. They can download the answer key only after they submit.`;
   };
-  ['dkpSeries', 'dkpKind', 'dkpSubject', 'dkpClass', 'dkpBoard'].forEach(id => { $(id).onchange = sync; });
+  // Subjects follow the board (and class): CBSE up to Class 10 → Science and
+  // Social Science; ICSE → Physics, Chemistry, Biology, History & Civics, Geography.
+  // "All boards" lists only subjects both boards share.
+  const label = x => x === 'Computer' ? 'Computer Science' : x;
+  const syncSubjects = () => {
+    const cls = v('dkpClass'), board = v('dkpBoard'), sel = $('dkpSubject'), cur = sel.value;
+    const list = !cls || !board ? [] : board === 'ALL' ? P().subjectsFor('CBSE', cls).filter(x => P().subjectAllowed(x, 'ICSE', cls)) : P().subjectsFor(board, cls);
+    sel.innerHTML = list.length ? `<option value="">Select</option>${list.map(x => `<option value="${esc(x)}"${x === cur ? ' selected' : ''}>${esc(label(x))}</option>`).join('')}` : '<option value="">Choose class and board first</option>';
+    sel.disabled = !list.length; sync();
+  };
+  ['dkpSeries', 'dkpKind', 'dkpSubject'].forEach(id => { $(id).onchange = sync; });
+  ['dkpClass', 'dkpBoard'].forEach(id => { $(id).onchange = syncSubjects; });
+  syncSubjects();
   sync();
   bindFile('dkpFile', 'Choose question paper PDF'); bindFile('dkpKey', KEY_LABEL);
   $('dkPublish').onclick = publish;
@@ -782,7 +829,7 @@ async function publish() {
   const series = v('dkpSeries') === 'offline' ? 'offline' : 'online', kind = v('dkpKind') === 'mock' ? 'mock' : 'chapter', f = P().paperFor(kind);
   const cls = v('dkpClass'), subject = v('dkpSubject'), chapter = kind === 'mock' ? 'Full syllabus' : v('dkpChapter'), name = v('dkpName'), file = $('dkpFile').files[0], keyFile = $('dkpKey').files[0];
   const part = v('dkpPart') || (kind === 'mock' ? 'Full mock' : 'Full chapter'), teacherName = faculty(subject);
-  if (!cls || !subject || !chapter || !name) return say(kind === 'mock' ? 'Fill class, subject and test name.' : 'Fill class, subject, chapter and test name.', 'bad');
+  if (!cls || !v('dkpBoard') || !subject || !chapter || !name) return say(kind === 'mock' ? 'Fill class, board, subject and test name.' : 'Fill class, board, subject, chapter and test name.', 'bad');
   if (!file) return say('Choose the question paper PDF.', 'bad');
   S.sending = true; btn.disabled = true;
   try {
@@ -792,12 +839,12 @@ async function publish() {
     say('Publishing…');
     const id = 'ots' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), now = new Date().toISOString(), s = x => ({ stringValue: x });
     await patch(`offlineTestKeys/${id}`, { questionPdfUrl: s(url), answerPdfUrl: s(keyUrl), testName: s(name), teacherUid: s(''), createdAt: s(now) });
-    await patch(`offlineTests/${id}`, { testName: s(name), class: s(cls), board: s(v('dkpBoard')), subject: s(subject), chapter: s(chapter), module: s(part),
+    await patch(`offlineTests/${id}`, { testName: s(name), class: s(cls), board: s(v('dkpBoard') === 'ALL' ? '' : v('dkpBoard')), subject: s(subject), chapter: s(chapter), module: s(part),
       totalMarks: { doubleValue: f.marks }, durationMin: { integerValue: String(f.durationMin) }, uploadGraceMin: { integerValue: String(f.graceMin) }, instructions: s(v('dkpNote')), gradingMode: s('teacher'),
       series: s(series), isFree: { booleanValue: false }, kind: s(kind), hasAnswerKey: { booleanValue: !!keyUrl },
       teacherUid: s(''), teacherName: s(teacherName), isActive: { booleanValue: true }, createdAt: s(now) });
     patch(`offlineAudit/publish_${id}`, { action: s('publish-test'), testId: s(id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(''), onBehalfOfName: s(teacherName), at: s(now) }).catch(() => {});
-    S.tests.unshift({ id, name, class: cls, board: v('dkpBoard'), subject: window.PortalUI.subject(subject), chapter, module: part, totalMarks: f.marks, durationMin: f.durationMin, uploadGraceMin: f.graceMin, teacher: teacherName, teacherUid: '',
+    S.tests.unshift({ id, name, class: cls, board: v('dkpBoard') === 'ALL' ? '' : v('dkpBoard'), subject: window.PortalUI.subject(subject), chapter, module: part, totalMarks: f.marks, durationMin: f.durationMin, uploadGraceMin: f.graceMin, teacher: teacherName, teacherUid: '',
       isActive: true, createdAt: now, series: series === 'online' ? 'Online' : 'Offline', kind, paper: U().deliveryUrl(url), answerKey: keyUrl ? U().deliveryUrl(keyUrl) : '', hasAnswerKey: !!keyUrl });
     S.sending = false; S.tab = 'papers'; S.page = 0;
     closeSheet(); render();

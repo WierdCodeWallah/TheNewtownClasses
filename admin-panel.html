@@ -790,6 +790,10 @@
             <label class="chip-check"><input type="checkbox" name="newSubjects" value="Maths"/> Maths</label>
             <label class="chip-check"><input type="checkbox" name="newSubjects" value="Biology"/> Biology</label>
             <label class="chip-check"><input type="checkbox" name="newSubjects" value="Computer"/> Computer Science</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Social Science"/> Social Science (CBSE)</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="History &amp; Civics"/> History &amp; Civics (ICSE)</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="Geography"/> Geography (ICSE)</label>
+            <label class="chip-check"><input type="checkbox" name="newSubjects" value="English"/> English</label>
           </div>
           <p style="font-size:.72rem;color:#90a4ae;margin-top:.4rem;">
             Pick only the subjects this student is enrolled in. They'll be shown as tags on the student card.
@@ -1103,6 +1107,10 @@
           <option value="Maths">Maths</option>
           <option value="Biology">Biology</option>
           <option value="Computer">Computer Science</option>
+          <option value="Social Science">Social Science</option>
+          <option value="History &amp; Civics">History &amp; Civics</option>
+          <option value="Geography">Geography</option>
+          <option value="English">English</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="loadStudents()">↻ Refresh</button>
         <button class="btn btn-outline btn-sm" id="downloadCredsBtn" type="button"
@@ -1684,7 +1692,7 @@
   //  BULK IMPORT STUDENTS — reads .xlsx/.csv and creates accounts
   // ════════════════════════════════════════════════════════════════
   let _bulkRows = [];   // parsed rows ready to import
-  const ALLOWED_SUBJECTS = ['Physics','Chemistry','Maths','Biology','Computer'];
+  const ALLOWED_SUBJECTS = ['Physics','Chemistry','Maths','Biology','Computer','Social Science','History & Civics','Geography','English'];
 
   function _bulkEsc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -1712,6 +1720,10 @@
     const subjects = subjRaw.split(/[;,]/).map(s => s.trim()).filter(Boolean)
       .map(s => s.toLowerCase() === 'mathematics' ? 'Maths'
               : s.toLowerCase() === 'computer science' ? 'Computer'
+              : /^(social studies|social science|sst)$/i.test(s) ? 'Social Science'
+              : /^history\s*(&|and)\s*civics$/i.test(s) ? 'History & Civics'
+              : /^geography$/i.test(s) ? 'Geography'
+              : /^english$/i.test(s) ? 'English'
               : s)
       .filter(s => ALLOWED_SUBJECTS.includes(s));
     let et = get('Enrollment Type','EnrollmentType','enrollmentType').toLowerCase();
@@ -2142,7 +2154,11 @@
     Chemistry: 'tag-amber',
     Maths:     'tag-indigo',
     Biology:   'tag-green',
-    Computer:  'tag-teal'
+    Computer:  'tag-teal',
+    'Social Science': 'tag-rose',
+    'History & Civics': 'tag-amber',
+    Geography: 'tag-green',
+    English: 'tag-sky'
   };
   // Map board → tag-class
   const BOARD_TAG_CLASS  = { CBSE: 'tag-blue', ICSE: 'tag-rose' };
@@ -2235,7 +2251,8 @@
         <td data-label="Enrollment"><span class="tag ${tagCls}">${_bulkEsc(etLabel)}</span></td>
         <td data-label="Phone">${_bulkEsc(s.phone)}</td>
         <td>
-          <button class="btn btn-danger btn-sm" data-uid="${_bulkEsc(s.uid)}" data-name="${_bulkEsc(s.name)}" onclick="deleteStudent(this.dataset.uid, this.dataset.name)">Delete</button>
+          <div class="stu-actions"><button class="btn btn-outline btn-sm stu-subj-btn" data-uid="${_bulkEsc(s.uid)}" onclick="editStudentSubjects(this.dataset.uid)">Edit subjects</button>
+          <button class="btn btn-danger btn-sm" data-uid="${_bulkEsc(s.uid)}" data-name="${_bulkEsc(s.name)}" onclick="deleteStudent(this.dataset.uid, this.dataset.name)">Delete</button></div>
         </td>
       </tr>`);
     });
@@ -2258,6 +2275,67 @@
       const matchesSubj  = !fSubj  || (s.subjects || []).indexOf(fSubj) !== -1;
       return matchesQ && matchesBoard && matchesSubj;
     }));
+  };
+
+  // ── Edit a TNC student's enrolled subjects (add or remove any subject) ──
+  // These decide what the student sees in class content, attendance and the
+  // Online Test Series (their enrolled subjects are free there; others are paid).
+  function studentSubjectOptions(board, cls) {
+    const c = parseInt(cls, 10) || 0, b = String(board || '').toUpperCase();
+    const base = [['Physics', 'Physics'], ['Chemistry', 'Chemistry'], ['Maths', 'Maths'], ['Biology', 'Biology'], ['Computer', 'Computer Science']];
+    const sst = c && c > 10 ? [] : b === 'ICSE' ? [['History & Civics', 'History & Civics'], ['Geography', 'Geography']]
+      : b === 'CBSE' ? [['Social Science', 'Social Science']] : [['Social Science', 'Social Science'], ['History & Civics', 'History & Civics'], ['Geography', 'Geography']];
+    return [...base, ...sst, ['English', 'English']];
+  }
+  window.editStudentSubjects = function (uid) {
+    const st = allStudents.find(x => x.uid === uid); if (!st) return;
+    closeEditStudentSubjects(true);
+    const current = new Set(st.subjects || []), options = studentSubjectOptions(st.board, st.class);
+    (st.subjects || []).forEach(x => { if (!options.some(([v]) => v === x)) options.push([x, x]); });   // keep anything already on the record
+    const overlay = document.createElement('div');
+    overlay.id = 'editStudentSubjModal'; overlay.className = 'ss-back';
+    overlay.innerHTML = `<div class="ss-sheet" role="dialog" aria-modal="true" aria-labelledby="ssTitle">
+        <div class="ss-head"><div><span class="ss-kicker">Enrolled subjects</span><h2 id="ssTitle">${_bulkEsc(st.name || 'Student')}</h2>
+          <p>${_bulkEsc(st.studentId || '')} · Class ${_bulkEsc(st.class || '—')}${st.board ? ' · ' + _bulkEsc(st.board) : ''}</p></div>
+          <button type="button" class="ss-x" aria-label="Close" onclick="closeEditStudentSubjects()">✕</button></div>
+        <div class="ss-chips">${options.map(([v, l]) => `<label class="ss-chip"><input type="checkbox" class="editStudentSubj" value="${_bulkEsc(v)}" ${current.has(v) ? 'checked' : ''}/><span>${_bulkEsc(l)}</span></label>`).join('')}</div>
+        <p class="ss-note">Ticked subjects are this student's TNC subjects: free on the Online Test Series and shown in their class content. Untick to remove one.</p>
+        <p class="ss-msg" id="editStudentSubjMsg" role="status"></p>
+        <div class="ss-actions"><button type="button" class="btn btn-outline btn-sm" onclick="closeEditStudentSubjects()">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="saveStudentSubjBtn" onclick="saveStudentSubjects('${_bulkEsc(st.uid)}')">Save subjects</button></div>
+      </div>`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeEditStudentSubjects(); });
+    overlay.addEventListener('keydown', e => { if (e.key === 'Escape') closeEditStudentSubjects(); });
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('on'));
+    const first = overlay.querySelector('.editStudentSubj'); if (first) first.focus({ preventScroll: true });
+  };
+  window.closeEditStudentSubjects = function (now) {
+    const m = document.getElementById('editStudentSubjModal'); if (!m) return;
+    if (now || matchMedia('(prefers-reduced-motion: reduce)').matches) return m.remove();
+    m.classList.remove('on'); setTimeout(() => m.remove(), 200);
+  };
+  window.saveStudentSubjects = async function (uid) {
+    const subjects = Array.from(document.querySelectorAll('.editStudentSubj:checked')).map(c => c.value);
+    const msg = document.getElementById('editStudentSubjMsg'), btn = document.getElementById('saveStudentSubjBtn');
+    if (!subjects.length) { msg.className = 'ss-msg bad'; msg.textContent = 'Keep at least one subject.'; return; }
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const adminToken = await auth.currentUser.getIdToken();
+      // Partial update: only the subjects field changes.
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents/students/${uid}?key=${FIREBASE_CONFIG.apiKey}&updateMask.fieldPaths=subjects`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken },
+        body: JSON.stringify({ fields: { subjects: { arrayValue: { values: subjects.map(x => ({ stringValue: x })) } } } })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error((data.error && data.error.message) || 'Could not save. Please try again.');
+      const st = allStudents.find(x => x.uid === uid); if (st) st.subjects = subjects;
+      closeEditStudentSubjects();
+      if (typeof window.filterStudents === 'function') window.filterStudents(); else renderTable(allStudents);
+    } catch (e) {
+      msg.className = 'ss-msg bad'; msg.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = 'Save subjects';
+    }
   };
 
   // ── Delete student ──

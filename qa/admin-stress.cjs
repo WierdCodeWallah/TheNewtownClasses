@@ -15,7 +15,7 @@ src = src.slice(0, src.indexOf('(async () => {'));
 const main = String.raw`
 const stressOut = path.join(__dirname, 'artifacts', 'admin-stress'); fs.mkdirSync(stressOut, { recursive: true });
 const snap = async (page, name) => { await page.waitForTimeout(250); await page.screenshot({ path: path.join(stressOut, name + '.png') }); };
-const SECTIONS = ['overview', 'all-students', 'online-students', 'test-desk', 'upload-material', 'ncert', 'teachers', 'tests', 'live-classes', 'enquiries', 'attendance', 'notifications'];
+const SECTIONS = ['overview', 'all-students', 'add-student', 'bulk-import', 'reset-password', 'online-students', 'test-desk', 'upload-material', 'ncert', 'teachers', 'tests', 'live-classes', 'enquiries', 'attendance', 'notifications'];
 const overflow = page => page.evaluate(() => {
   const w = document.documentElement.clientWidth, bad = [];
   if (document.documentElement.scrollWidth > w + 1) {
@@ -58,6 +58,33 @@ const ctxFor = () => {
     if (problems.length) { console.log('PROBLEMS:\n  ' + problems.join('\n  ')); throw new Error(problems.length + ' layout / error problem(s)'); }
     console.log('✓ all ' + SECTIONS.length + ' sections at 320 / 390 / 1440 px: no sideways scroll, no JS errors, no injected HTML runs');
 
+    // ── 1b. Edit a TNC student's enrolled subjects (add / remove) ──
+    {
+      const ctx = ctxFor();
+      ctx.collections = { ...(ctx.collections || {}), students: [{ id: 'stu-ana', uid: 'stu-ana', name: 'Ananya Roy', studentId: 'NTC-2026-010', class: '10', board: 'CBSE', subjects: ['Physics', 'Maths'], phone: '9800000010', enrollmentType: 'normal' }] };
+      const { page, errors } = await openPortal(browser, origin, 'admin', 'admin-panel.html', 390, ctx);
+      await page.waitForSelector('#logoutBtn');
+      await page.evaluate(() => switchAdminTab('all-students'));
+      for (let i = 0; i < 3 && !(await page.locator('.stu-subj-btn').first().isVisible().catch(() => false)); i++) {
+        const tile = page.locator('#tab-all-students .portal-choice').first();
+        if (await tile.isVisible().catch(() => false)) await tile.click(); else { const row = page.locator('#studentTableBody tr:not(.group-header)').first(); if (await row.isVisible().catch(() => false)) await row.click(); }
+        await page.waitForTimeout(250);
+      }
+      await page.locator('.stu-subj-btn').first().click(); await page.waitForSelector('#editStudentSubjModal.on');
+      const labels = await page.locator('#editStudentSubjModal .ss-chip').allTextContents();
+      assert.ok(labels.includes('Social Science') && !labels.includes('Geography'), 'CBSE Class 10: Social Science offered, not ICSE Geography');
+      assert.deepEqual(await page.locator('#editStudentSubjModal .editStudentSubj:checked').evaluateAll(els => els.map(e => e.value)), ['Physics', 'Maths'], 'current subjects ticked');
+      await page.click('#editStudentSubjModal .ss-chip:has-text("Physics")'); await page.click('#editStudentSubjModal .ss-chip:has-text("Social Science")');
+      await page.waitForTimeout(300); await snap(page, '390-edit-student-subjects');
+      await page.click('#saveStudentSubjBtn'); await page.waitForSelector('#editStudentSubjModal', { state: 'detached' });
+      const w = ctx.patches.find(x => x.path === 'students/stu-ana');
+      assert.ok(w, 'student record updated'); assert.deepEqual(w.body.fields.subjects.arrayValue.values.map(v => v.stringValue), ['Maths', 'Social Science'], 'Physics removed, Social Science added');
+      assert.deepEqual(Object.keys(w.body.fields), ['subjects'], 'only the subjects field is written');
+      if (errors.length) problems.push('edit subjects errors: ' + errors.join(' | '));
+      await page.close();
+      console.log('✓ edit a student’s subjects: board-aware choices, add / remove, only subjects saved');
+    }
+
     // ── 2. Rapid switching ──
     {
       const { page, errors } = await openPortal(browser, origin, 'admin', 'admin-panel.html', 390, ctxFor());
@@ -92,7 +119,7 @@ const ctxFor = () => {
       assert.equal(ctx.calls.filter(c => c.action === 'return-script').length, 1, 'double tap Send back → one return');
       // Double tap Create pack → one pack.
       await page.click('[data-dk-tab=packages]'); await page.click('[data-dk-newpack]'); await page.waitForSelector('#dknCreate');
-      await page.selectOption('#dknClass', '10'); await page.selectOption('#dknSubject', 'Physics');
+      await page.selectOption('#dknClass', '10'); await page.selectOption('#dknBoard', 'ICSE'); await page.selectOption('#dknSubject', 'Physics');   // subjects follow the board
       await page.locator('#dknCreate').dblclick();
       await page.waitForSelector('#dkSheet', { state: 'hidden' });
       assert.equal(ctx.patches.filter(p => /^mockPackages\/pk/.test(p.path) && p.body.fields.title).length, 1, 'double tap Create pack → one pack');

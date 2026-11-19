@@ -2503,6 +2503,14 @@ renderCards();
       if (['mock', 'chapter', 'custom', 'package'].includes(k)) return k;
       return /full\s*syllabus|mock/i.test(`${f.chapter?.stringValue || ''} ${f.testName?.stringValue || ''}`) ? 'mock' : 'chapter';
     }
+    // Same rule as NTCOnlinePolicy.enrolledIn: Maths = Mathematics, and CBSE
+    // Science counts if the student takes Physics, Chemistry or Biology.
+    function otsEnrolledIn(subject) {
+      const alias = { maths: 'Mathematics', math: 'Mathematics', 'computer science': 'Computer', 'social studies': 'Social Science', sst: 'Social Science' };
+      const have = new Set((profile.subjects || []).map(x => alias[String(x).toLowerCase()] || x)), pcb = ['Physics', 'Chemistry', 'Biology'];
+      return have.has(subject) || (subject === 'Science' && pcb.some(x => have.has(x))) || (pcb.includes(subject) && have.has('Science'))
+        || (['History & Civics', 'Geography'].includes(subject) && have.has('Social Science'));
+    }
     function otsAttemptState(t) {
       const a = _ots.attempts[t.id];
       if (!a) return { key: 'new' };
@@ -2558,9 +2566,10 @@ renderCards();
             series: f.series?.stringValue || 'offline', kind: otsKind(f), hasAnswerKey: f.hasAnswerKey?.booleanValue === true
           };
         // Online papers made for the whole class (chapter-wise and full mocks)
-        // show here too. Custom papers (one student's order) and mock-pack
-        // papers (bought and scheduled) stay on /test-series.
-        }).filter(t => (t.series !== 'online' || ['chapter', 'mock'].includes(t.kind)) && t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
+        // show here too, but only in the student's enrolled subjects (those are
+        // free for TNC students; other subjects are bought on /test-series).
+        // Custom papers and mock-pack papers stay on /test-series.
+        }).filter(t => (t.series !== 'online' || (['chapter', 'mock'].includes(t.kind) && otsEnrolledIn(t.subject))) && t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
         const attempts = await Promise.all(_ots.tests.map(async t => {
           const r = await fetch(`${base}/offlineAttempts/${t.id}__${user.uid}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } }).catch(() => null);
           if (!r || !r.ok) return null;
@@ -2670,6 +2679,7 @@ renderCards();
         else btn = '<button type="button" class="ots-btn soft" disabled>Submitted · awaiting teacher review</button>';
         // After submitting: the answer key, when the admin shared one.
         if (t.hasAnswerKey && ['checking', 'approved'].includes(st.key)) btn = `<div class="ots-act-row">${btn}<button type="button" class="ots-btn ots-key" data-key="${t.id}">🔑 Answer key</button></div>`;
+        else if (['checking', 'approved'].includes(st.key)) btn += '<p class="ots-keylater">🔑 The answer key will be shared here later.</p>';
         return `<div class="ots-card ots-test-card" data-state="${st.key}">
           <span class="ots-state">${{ new: 'Ready when you are', started: 'In progress', approved: 'Feedback is ready', checking: 'With your teacher' }[st.key]}</span>
           <span class="k">${otsEsc(t.module)}</span>

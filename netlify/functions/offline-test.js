@@ -330,10 +330,11 @@ exports.handler = async function (event) {
           return bad(403, `This mock opens on ${when}.`);
         }
       }
-      // Online series: TNC students get chapter-wise tests free; everything
-      // else needs a free-mock claim or a payment (both create a purchase).
-      if (isOnline && onlineSeries.priceFor(test, !!studentDoc) > 0 && !(await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`))) {
-        return bad(402, `Unlock this test for ₹${onlineSeries.priceFor(test, !!studentDoc)} to start.`);
+      // Online series: TNC students get their enrolled subjects free; everything
+      // else needs a free-mock claim, a promo or a payment (each creates a purchase).
+      const enrolledSubjects = studentDoc ? (Array.isArray(student.subjects) ? student.subjects : []) : false;
+      if (isOnline && onlineSeries.priceFor(test, enrolledSubjects) > 0 && !(await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`))) {
+        return bad(402, `Unlock this test for ₹${onlineSeries.priceFor(test, enrolledSubjects)} to start.`);
       }
       const keyDoc = await fsGet(projectId, sa, `offlineTestKeys/${testId}`);
       const key = keyDoc ? decFields(keyDoc) : {};

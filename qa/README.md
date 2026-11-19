@@ -125,7 +125,7 @@ three-year-old result keeps its PDF, marks, chapter average and count, and that
 My Results shows it beyond the usual 12-month window. Teachers' script
 downloads are saved as `Name_ID_Test.pdf`. Tests given include submitted
 attempts; chapter averages include all graded parts. The compact animated
-process guide promises results within 48 hours of submission. See
+process guide promises results within 24 hours of submission. See
 `OFFLINE_TEST_RELEASE.md` for deployment steps.
 
 `offline-admin.cjs` checks Offline Test Series records at scale: 30 students and

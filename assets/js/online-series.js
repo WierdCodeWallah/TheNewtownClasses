@@ -22,11 +22,14 @@ const KEY = FIREBASE_CONFIG.apiKey;
 const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const WA = 'https://wa.me/919903461361';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
-const SUBJECT_ICON = { Physics: 'physics', Chemistry: 'chemistry', Biology: 'biology', Mathematics: 'mathematics', Maths: 'mathematics', Science: 'science', Computer: 'computer', English: 'english' };
+const SUBJECT_ICON = { Physics: 'physics', Chemistry: 'chemistry', Biology: 'biology', Mathematics: 'mathematics', Maths: 'mathematics', Science: 'science', Computer: 'computer', English: 'english', 'Social Science': 'social', 'History & Civics': 'history', Geography: 'geography' };
 const TINT = { Physics: ['#4f46e5', '#eef0ff'], Chemistry: ['#0e8a85', '#e2f5f4'], Biology: ['#2d8a3a', '#e7f5e9'], Mathematics: ['#c26a00', '#fff1dc'],
-  Science: ['#7c3aed', '#f1ebff'], Computer: ['#30507f', '#e8eef7'], English: ['#c03d68', '#fdebf1'] };
+  Science: ['#7c3aed', '#f1ebff'], Computer: ['#30507f', '#e8eef7'], English: ['#c03d68', '#fdebf1'],
+  'Social Science': ['#b4531a', '#fdf0e6'], 'History & Civics': ['#8a5a14', '#f8f0e1'], Geography: ['#0f7a5a', '#e3f4ee'] };
 const ic = (id, cls) => `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#${id}"/></svg>`;
 const subjIc = s => ic('s-' + (SUBJECT_ICON[s] || 'science'));
+// Display name: the board papers are "Computer Applications" up to Class 10, "Computer Science" after.
+const subjName = (s, cls) => s === 'Computer' ? ((parseInt(cls, 10) || 12) <= 10 ? 'Computer Applications' : 'Computer Science') : s;
 const tint = s => { const t = TINT[s] || ['#1a56db', '#eaf1ff']; return `--tint:${t[0]};--tint-soft:${t[1]}`; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const fmtDate = v => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
@@ -41,9 +44,12 @@ const S = {
 };
 const now = () => Date.now() + S.offset;
 const enrolled = () => !!(S.session && S.session.enrolled);
-const priceOf = t => P.priceFor(t, S.session && S.session.prices, enrolled());
+// TNC students: their institute subjects are free; other subjects are paid.
+const enrolledSubs = () => (enrolled() ? (S.session.enrolledSubjects || []) : false);
+const tncFree = subject => enrolled() && P.enrolledIn(subject, S.session.enrolledSubjects || []);
+const priceOf = t => P.priceFor(t, S.session && S.session.prices, enrolledSubs());
 // Regular price shown struck through (0 when there is none, e.g. free or TNC).
-const listOf = t => P.listPriceFor(t, S.session && S.session.prices, S.session && S.session.listPrices, enrolled());
+const listOf = t => P.listPriceFor(t, S.session && S.session.prices, S.session && S.session.listPrices, enrolledSubs());
 const was = t => { const l = listOf(t); return l ? `<s>₹${l}</s>` : ''; };
 const kindOf = t => P.kindOf(t);
 // One free full mock per online student, on any subject they choose.
@@ -399,6 +405,7 @@ const tone = pct => pct == null ? '' : pct >= 75 ? 'good' : pct >= 50 ? 'mid' : 
 function route() {
   const h = location.hash.replace(/^#\/?/, '').split('/');
   if (h[0] === 's' && h[1]) return { name: 'subject', subject: decodeURIComponent(h[1]) };
+  if (h[0] === 'packs' && h[1]) return { name: 'packs', subject: decodeURIComponent(h[1]) };
   if (['ranks', 'results', 'me', 'packs', 'custom'].includes(h[0])) return { name: h[0] };
   return { name: 'home' };
 }
@@ -421,7 +428,7 @@ function openMore() {
     }));
 }
 $('navMore').onclick = () => openMore();
-$('topBack').onclick = () => { if (history.length > 1 && S.cameFromApp) history.back(); else location.hash = '#/'; };
+$('topBack').onclick = () => { const r = route(); if (history.length > 1 && S.cameFromApp) history.back(); else location.hash = r.name === 'packs' ? '#/packs' : '#/'; };
 
 // A checked script the student hasn't opened Results for yet.
 function newResults() {
@@ -439,8 +446,9 @@ function render(navigated) {
   $('navPacks').classList.remove('nav-extra');
   $('navResults').classList.toggle('nav-extra', packsEligible());
   $('topTitle').textContent = titles[r.name];
-  $('topBack').hidden = r.name !== 'subject';
-  $('topMark').hidden = r.name === 'subject';
+  const sub = r.name === 'subject' || (r.name === 'packs' && r.subject);
+  $('topBack').hidden = !sub;
+  $('topMark').hidden = !!sub;
   $('topAvatar').textContent = initials(p.name);
   $('topAvatar').hidden = r.name === 'me';
   // Ranks and Profile live in More; so does Results when Mocks is on the bar.
@@ -484,6 +492,13 @@ function bindView(root) {
   root.querySelectorAll('[data-rfilter]').forEach(b => b.onclick = () => { S.resultSubject = b.dataset.rfilter; render(); });
   root.querySelectorAll('[data-resume]').forEach(b => b.onclick = () => { const t = S.tests.find(x => x.id === b.dataset.resume); if (t) openExam(t, S.attempts[t.id], 0); });
   root.querySelectorAll('[data-free-pick]').forEach(b => b.onclick = openFreePicker);
+  root.querySelectorAll('[data-packnote-x]').forEach(b => b.onclick = () => {
+    try { localStorage.setItem(packNoteKey(), String(Date.now())); } catch (_) {}
+    const note = b.closest('.mk-note'); if (!note) return;
+    if (REDUCED.matches) return note.remove();
+    note.style.height = note.offsetHeight + 'px'; note.classList.add('out');
+    requestAnimationFrame(() => { note.style.height = '0px'; }); setTimeout(() => note.remove(), 260);
+  });
   bindCustom(root);
   root.querySelectorAll('[data-refresh]').forEach(b => b.onclick = async () => { const done = busy(b, 'Refreshing'); await refresh(); done(); });
   const act = { edit: () => startOnboarding(true), signout: confirmSignOut };
@@ -513,6 +528,16 @@ function checkCard() {
     <div class="chk-copy"><span class="eyebrow">How your paper is checked</span>
       <ol class="chk-steps"><li><b>You upload</b><small>Photos of your answer sheet</small></li><li><b>Software checks</b><small>Every answer, step by step</small></li><li><b>TNC teacher approves</b><small>Marks + feedback in 48 h</small></li></ol></div></div>`;
 }
+// Small Home notice about mock packs (Classes 9–12), until the student joins
+// one or taps "Not now" (hidden for a week).
+const packNoteKey = () => 'ntc-online:packnote:' + S.user.uid;
+function packNotice() {
+  if (!packsEligible() || ownedPacks().length) return '';
+  const sale = S.packages.filter(p => p.active); if (!sale.length) return '';
+  try { if (Date.now() - Number(localStorage.getItem(packNoteKey()) || 0) < 7 * 86400000) return ''; } catch (_) {}
+  const subs = [...new Set(sale.map(p => p.subject))], from = Math.min(...sale.map(p => p.priceInr));
+  return `<div class="mk-note" role="note"><a href="#/packs"><span class="mk-note-ic">${ic('i-calendar')}</span><span class="mk-note-txt"><b>Weekly mock packs are live</b><small>${esc(subs.slice(0, 3).join(', '))}${subs.length > 3 ? ' +' + (subs.length - 3) : ''} · from ₹${from}</small></span><span class="mk-note-go">View${ic('i-chev')}</span></a><button type="button" class="mk-note-x" data-packnote-x aria-label="Hide for now">${ic('i-x')}</button></div>`;
+}
 function viewHome() {
   const p = S.session.profile, ids = new Set(S.tests.map(t => t.id));
   const mine = Object.entries(S.attempts).filter(([id]) => ids.has(id)).map(([, a]) => a);
@@ -531,6 +556,7 @@ function viewHome() {
       <div role="listitem"><strong>${review}</strong><span>In review</span></div>
       <div role="listitem"><strong>${best ? '#' + best.rank : '—'}</strong><span>Best rank</span></div>
     </div>
+    ${packNotice()}
     ${live ? `<button type="button" class="resume" data-resume="${esc(live[0].id)}"><span class="resume-ic">${ic('i-clock')}</span><span><b>${esc(live[0].testName)}</b><small>${live[1].left > 0 ? fmtTime(live[1].left).replace(/:\d\d$/, '') + ' left · tap to continue' : 'Time is up · upload your answers'}</small></span>${ic('i-chev', 'chev')}</button>` : ''}
     <div class="sec"><h3>Subjects</h3>${S.errors.tests ? '<button type="button" class="link" data-refresh>' + ic('i-refresh') + 'Retry</button>' : `<span>${list.length}</span>`}</div>
     ${list.length ? `<div class="subj-grid">${list.map(s => `<a class="subj" href="#/s/${encodeURIComponent(s.name)}" style="${tint(s.name)}">
@@ -555,9 +581,10 @@ function viewSubject(subject) {
   const chapters = tests.filter(t => kindOf(t) === 'chapter'), mocks = tests.filter(t => kindOf(t) === 'mock');
   const shown = seg === 'mock' ? mocks : chapters;
   const hint = seg === 'results' ? ''
-    : enrolled() ? 'Chapter-wise tests and full mocks are free for TNC students'
+    : tncFree(subject) ? `${subject} is one of your TNC subjects — every test here is free for you`
     : seg === 'mock' ? `₹${priceOf({ kind: 'mock' })} per full mock${listOf({ kind: 'mock' }) ? ` (regular ₹${listOf({ kind: 'mock' })})` : ''}${freeLeft() ? ` · ${freeMocks(freeLeft())} left — use on any subject` : ''}`
     : `₹${priceOf({ kind: 'chapter' })} per chapter test${listOf({ kind: 'chapter' }) ? ` (regular ₹${listOf({ kind: 'chapter' })})` : ''}`;
+  const tncNote = enrolled() && seg !== 'results' && !tncFree(subject) ? `<p class="seg-hint tnc">${ic('i-shield')}Not one of your TNC subjects, so these tests are paid.</p>` : '';
   const rows = seg !== 'results'
     ? (shown.length ? `<ul class="rows">${shown.map((t, i) => { const s = stateOf(t), fresh = t.id === S.justUnlocked && s.key === 'ready'; return `<li><button type="button" class="row${fresh ? ' fresh' : ''}" data-test="${esc(t.id)}">
         <span class="row-ix">${fresh ? ic('i-unlock') : String(i + 1).padStart(2, '0')}</span>
@@ -572,7 +599,7 @@ function viewSubject(subject) {
       <a class="rank-chip" href="#/ranks" data-rank-link="${esc(subject)}">${st.rank ? `<b>#${st.rank}</b><small>of ${st.of}</small>` : `${ic('i-trophy')}<small>Not ranked</small>`}</a>
     </div>
     <div class="seg three" role="tablist"><button type="button" role="tab" data-seg="chapter" aria-selected="${seg === 'chapter'}">Chapter-wise <i>${chapters.length}</i></button><button type="button" role="tab" data-seg="mock" aria-selected="${seg === 'mock'}">Full mocks <i>${mocks.length}</i></button><button type="button" role="tab" data-seg="results" aria-selected="${seg === 'results'}">Results <i>${results.length}</i></button></div>
-    ${hint ? `<p class="seg-hint">${esc(hint)}</p>` : ''}
+    ${hint ? `<p class="seg-hint">${esc(hint)}</p>` : ''}${tncNote}
     ${rows}
   </section>`;
 }
@@ -670,12 +697,14 @@ function openTest(id, mode) {
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="claim">Use free mock</button></div>`;
   else if (mode === 'unlocked') body = `<div class="celebrate">${ic('i-unlock')}<b>Test unlocked</b><p>It's yours. Start whenever you're ready — the timer begins only when you open the paper.</p></div>
     <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button>`;
-  else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>${was(t)}${listOf(t) ? `<span class="save">Save ₹${listOf(t) - priceOf(t)}</span>` : ''}`}<small>One-time · this test</small></div>
-      <ul><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 24 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
+  else if (st.key === 'locked') { const promo = S.promo && S.promo.target === t.id;
+    body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}
+    ${coPrice(promo ? 0 : priceOf(t), promo ? priceOf(t) : listOf(t), 'One-time · this test only')}
+    ${coMore('What you get', `<ul class="co-list"><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 24 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li><li>${ic('i-check')}${t.totalMarks || '?'} marks · ${t.durationMin} min</li></ul>`)}
     ${promoBox(t.id, !S.session.paymentsReady)}
-    ${S.promo && S.promo.target === t.id ? `<button type="button" class="btn primary block" data-go="promo-redeem">${ic('i-unlock')}Unlock for ₹0</button>`
-      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-go="pay">${ic('i-lock')}Unlock for ₹${priceOf(t)}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
-      : contactCard(`"${t.testName}" (${t.subject})`)}`;
+    ${promo ? coBar(0, `<button type="button" class="btn primary" data-go="promo-redeem">${ic('i-unlock')}Unlock for ₹0</button>`, false)
+      : S.session.paymentsReady ? coBar(priceOf(t), `<button type="button" class="btn primary pay" data-go="pay">${ic('i-lock')}Unlock now</button>`, true)
+      : contactCard(`"${t.testName}" (${t.subject})`)}`; }
   else if (st.key === 'ready' && mode === 'confirm') body = `<div class="warn-box">${ic('i-clock')}<p><b>Your ${t.durationMin}-minute timer starts as soon as the paper opens.</b> It can't be paused. Keep pen, paper and your phone camera ready.</p></div>
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="start">Start now</button></div>`;
   else if (st.key === 'ready') body = `${kindOf(t) === 'custom' && t.module ? `<p class="instr"><b>Chapters:</b> ${esc(t.module)}</p>` : ''}${t.instructions ? `<p class="instr">${esc(t.instructions)}</p>` : ''}<ol class="how"><li>${ic('i-download')}<b>Download</b><small>Timer starts</small></li><li>${ic('i-pen')}<b>Write</b><small>On paper</small></li><li>${ic('i-camera')}<b>Upload</b><small>PDF or photos</small></li></ol>
@@ -705,7 +734,8 @@ function openTest(id, mode) {
 }
 // After submitting, the answer key (when the team shared one) — the server
 // checks the submission before handing it out.
-const keyButton = t => t.hasAnswerKey ? `<div class="key-card">${ic('i-doc')}<span><b>Answer key</b><small>Check your answers now</small></span><button type="button" class="btn sm ghost" data-go="key">${ic('i-download')}Download</button></div>` : '';
+const keyPending = () => `<div class="key-card wait">${ic('i-clock')}<span><b>Answer key</b><small>It will be shared here soon — check back later</small></span></div>`;
+const keyButton = t => t.hasAnswerKey ? `<div class="key-card">${ic('i-doc')}<span><b>Answer key</b><small>Check your answers now</small></span><button type="button" class="btn sm ghost" data-go="key">${ic('i-download')}Download</button></div>` : keyPending();
 async function downloadKey(t, btn) {
   const done = busy(btn, 'Opening answer key…');
   try {
@@ -720,7 +750,7 @@ function resultBody(r) {
   return `<div class="score ${tone(pct)}"><div class="ring" style="--p:${pct || 0}"><b>${Number.isFinite(r.score) ? r.score : '—'}</b><small>of ${r.totalMarks}</small></div>
     <div><b>${pct == null ? '' : pct + '%'}</b><small>Approved by a TNC teacher${r.approvedAt ? ' · ' + fmtDate(r.approvedAt) : ''}</small></div></div>
     ${r.remark && !/^Offline Test Series|^Checked by TNC faculty$/.test(r.remark) ? `<div class="feedback"><span class="eyebrow">Feedback from TNC faculty</span><p>${esc(r.remark)}</p></div>` : ''}
-    ${resultActions(r)}
+    ${resultActions(r)}${(() => { const t = S.tests.find(x => x.id === r.testId); return t && !t.hasAnswerKey ? keyPending() : ''; })()}
     <p class="fine center">Saved permanently in your results.</p>`;
 }
 // Small side-by-side actions: checked script, and the answer key when one was shared.
@@ -809,7 +839,19 @@ async function redeemPromo(t, btn) {
   }
 }
 
-// Shown above every Pay button: a successful payment is not refunded.
+// ── Checkout pieces: everything fits one screen; extra info sits behind "Details". ──
+// Price summary: big price, the regular price struck through, the saving.
+function coPrice(price, was, note) {
+  return `<div class="price co-price"><div class="price-top"><b>₹${price}</b>${was > price ? `<s>₹${was}</s><span class="save">${price ? 'Save ₹' + (was - price) : 'Free with code'}</span>` : ''}</div><small class="co-note">${esc(note)}</small></div>`;
+}
+// A one-line row that opens to show more ("Details").
+const coMore = (title, html) => `<details class="co-more"><summary>${ic('i-doc')}<span>${esc(title)}</span><em>Details</em>${ic('i-down', 'chev')}</summary><div class="co-more-body">${html}</div></details>`;
+// Pay bar: total on the left, the button on the right, one line of trust below.
+function coBar(total, button, paid, sub) {
+  return `<div class="co-bar"><div class="co-total"><small>${sub ? esc(sub) : 'Total'}</small><b>₹${total}</b></div>${button}</div>
+    ${paid ? `<p class="co-trust">${ic('i-shield')}<span>Secure payment by Razorpay · UPI, cards, net banking</span></p>${noRefund()}` : ''}`;
+}
+// Shown with every Pay button: a successful payment is not refunded.
 const noRefund = () => `<p class="no-refund">${ic('i-shield')}<span><b>Non-refundable.</b> Once paid, the amount is not refunded or exchanged.</span></p>`;
 
 // ═══ Payments (Razorpay Checkout) ═══
@@ -941,7 +983,7 @@ function saveCart() { try { localStorage.setItem(cartKey(), JSON.stringify(S.cus
 function cartItems(board) {
   const picked = S.cust.carts[board] || {};
   return NTCSyllabus.subjects(board, S.session.profile.class)
-    .map(s => { const chapters = s.chapters.filter(c => (picked[s.subject] || []).includes(c)); return { subject: s.subject, chapters, full: P.isFullMock(chapters.length, s.chapters.length) }; })
+    .map(s => { const chapters = s.chapters.filter(c => (picked[s.subject] || []).includes(c)); return { subject: s.subject, chapters, full: P.isFullMock(chapters.length, s.chapters.length), tnc: tncFree(s.subject) }; })
     .filter(i => i.chapters.length);
 }
 const cartCount = board => cartItems(board).reduce((n, i) => n + i.chapters.length, 0);
@@ -951,16 +993,16 @@ const shortMsg = list => `Add ${list.map(i => `${P.MODULE.minPerPaper - i.chapte
 // Cart bill: subjects with every chapter picked are Custom full mocks at a flat
 // price; all other chapters are priced together (₹199 × 4, then ₹150).
 function cartBill(board) {
-  const M = P.MODULE, items = cartItems(board), c = P.cartPrice(items.map(i => ({ count: i.chapters.length, full: i.full })));
+  const M = P.MODULE, items = cartItems(board), c = P.cartPrice(items.map(i => ({ count: i.chapters.length, full: i.full, tnc: i.tnc })));
   const first = Math.min(c.chapters, M.firstCount), rest = c.chapters - first;
-  return { ...c, first, rest, total: c.totalInr, save: (c.chapters * M.first - c.chapterInr) + (c.fullListInr - c.fullInr), full: items.filter(i => i.full) };
+  return { ...c, first, rest, total: c.totalInr, save: (c.chapters * M.first - c.chapterInr) + (c.fullListInr - c.fullInr), full: items.filter(i => i.full && !i.tnc), tnc: items.filter(i => i.tnc) };
 }
 // Banner under the chapter list: this subject is (or can become) a Custom full mock.
 function fullMockNote(c) {
   const list = NTCSyllabus.chapters(c.board, S.session.profile.class, c.subject), picked = (c.carts[c.board][c.subject] || []).length, M = P.MODULE;
   const listInr = P.modulePrice(list.length);
   if (!(listInr > M.fullMock)) return '';
-  const price = enrolled() ? '<b>Free</b>' : `<b>₹${M.fullMock}</b><s>₹${listInr}</s>`;
+  const price = tncFree(c.subject) ? '<b>Free</b>' : `<b>₹${M.fullMock}</b><s>₹${listInr}</s>`;
   return picked === list.length
     ? `<div class="fm-note on">${ic('i-check')}<span><b>Custom full mock</b> · all ${list.length} ${esc(c.subject)} chapters</span><span class="fm-price">${price}</span></div>`
     : `<div class="fm-note">${ic('i-spark')}<span>Pick all ${list.length} chapters for a <b>Custom full mock</b></span><span class="fm-price">${price}</span></div>`;
@@ -1012,21 +1054,47 @@ function packCard(p) {
 
 function viewPacks() {
   if (!packsEligible()) return `<section class="v">${emptyBlock('i-calendar', 'For Classes 9 to 12', 'Weekly mock packs are for Classes 9 to 12. Your chapter tests, full mocks and custom tests are on Home.')}</section>`;
+  const r = route();
+  if (r.subject) return viewPackSubject(r.subject);
   const owned = ownedPacks();
   if (!['packs', 'mine'].includes(S.packSeg)) S.packSeg = 'packs';
   const seg = S.packSeg;
   // The top bar already says "Mock tests": no big header card here.
-  const head = `<div class="seg" role="tablist"><button type="button" role="tab" data-pseg="packs" aria-selected="${seg === 'packs'}">All packs</button><button type="button" role="tab" data-pseg="mine" aria-selected="${seg === 'mine'}">My packs <i>${owned.length}</i></button></div>`;
+  const head = `<div class="seg" role="tablist"><button type="button" role="tab" data-pseg="packs" aria-selected="${seg === 'packs'}">All subjects</button><button type="button" role="tab" data-pseg="mine" aria-selected="${seg === 'mine'}">My packs <i>${owned.length}</i></button></div>`;
   let body = '';
   if (seg === 'mine') {
-    body = owned.length ? bySubject(owned)
-      : emptyBlock('i-calendar', 'No packs yet', 'Join a mock pack — your weekly mocks and their dates show up here.', '<button type="button" class="btn primary" data-pseg="packs">See all packs</button>');
+    body = owned.length ? `<div class="pack-list">${owned.map(packCard).join('')}</div>`
+      : emptyBlock('i-calendar', 'No packs yet', 'Join a mock pack — your weekly mocks and their dates show up here.', '<button type="button" class="btn primary" data-pseg="packs">See all subjects</button>');
   } else {
-    const sale = S.packages.filter(p => p.active);
-    body = `<p class="seg-hint">A full-syllabus mock every week · opens at the set time · teacher-approved</p>`
-      + (sale.length ? bySubject(sale) : emptyBlock('i-layers', 'Mock packs are on the way', `Weekly mock packs for Class ${S.session.profile.class} will appear here soon.`));
+    const sale = S.packages.filter(p => p.active || ownsPack(p.id));
+    body = sale.length ? `<p class="seg-hint">Pick a subject · a full-syllabus mock every week, teacher-approved</p>${packTiles(sale)}`
+      : emptyBlock('i-layers', 'Mock packs are on the way', `Weekly mock packs for Class ${S.session.profile.class} will appear here soon.`);
   }
   return `<section class="v v-custom v-packs">${head}${body}</section>`;
+}
+// One tile per subject (icon first), like Home: tap to see that subject's packs.
+function packTiles(list) {
+  const order = s => { const i = P.SUBJECTS.indexOf(s); return i < 0 ? 99 : i; };
+  const subs = [...new Set(list.map(p => p.subject))].sort((a, b) => order(a) - order(b) || a.localeCompare(b));
+  return `<div class="mk-grid">${subs.map((s, i) => { const g = list.filter(p => p.subject === s), from = Math.min(...g.map(p => p.priceInr)), joined = g.some(p => ownsPack(p.id));
+    return `<a class="mk-tile" href="#/packs/${encodeURIComponent(s)}" style="${tint(s)};--i:${i}"><span class="mk-ic">${subjIc(s)}</span><b>${esc(s)}</b>
+      <small>${plural(g.length, 'pack')} · from ₹${from}</small>${joined ? `<span class="mk-badge">${ic('i-check')}Joined</span>` : ''}</a>`; }).join('')}</div>`;
+}
+// A subject's pack types (e.g. 8 mocks and 4 mocks), with the better value marked.
+function viewPackSubject(subject) {
+  const list = S.packages.filter(p => p.subject === subject && (p.active || ownsPack(p.id))).sort((a, b) => b.schedule.length - a.schedule.length);
+  if (!list.length) return `<section class="v">${emptyBlock('i-calendar', 'No packs here yet', `${subject} mock packs will appear here soon.`, '<a class="btn primary" href="#/packs">All subjects</a>')}</section>`;
+  const per = p => Math.round(p.priceInr / Math.max(1, p.schedule.length)), best = list.length > 1 ? list.reduce((a, b) => per(b) < per(a) ? b : a) : null, p0 = S.session.profile;
+  return `<section class="v v-packs mk-sub" style="${tint(subject)}">
+    <div class="mk-head"><span class="subj-ic lg">${subjIc(subject)}</span><div><h2>${esc(subject)} mock packs</h2><p>Class ${esc(p0.class)}${p0.board ? ' · ' + esc(p0.board) : ''} · ${plural(list.length, 'type')}</p></div></div>
+    <div class="mk-types">${list.map((p, i) => { const own = ownsPack(p.id), n = p.schedule.length;
+      return `<button type="button" class="mk-type${own ? ' own' : ''}${best === p ? ' best' : ''}" data-pack="${esc(p.id)}" style="--i:${i}">
+        ${best === p && !own ? '<span class="mk-flag">Best value</span>' : own ? `<span class="mk-flag own">${ic('i-check')}Joined</span>` : ''}
+        <span class="mk-n"><b>${n}</b><small>mocks</small></span>
+        <span class="mk-info"><b>${esc(p.title)}</b><small>${esc(packWhen(p, true))} · starts ${esc(fmtDay(p.schedule[0]))}</small><small>Board pattern · teacher-approved</small></span>
+        <span class="mk-price"><b>₹${p.priceInr}</b><small>₹${per(p)}/mock</small></span></button>`; }).join('')}</div>
+    <p class="fine center">${ic('i-shield')}Secure payment by Razorpay · results within 24 hours</p>
+  </section>`;
 }
 
 // Packs organised by subject: subject chips on top (when there are several),
@@ -1067,12 +1135,12 @@ function customBuild() {
   const picked = (c.carts[c.board][c.subject]) || [];
   const chapters = NTCSyllabus.chapters(c.board, cls, c.subject);
   const boardTabs = P.customBoard(S.session.profile.board) ? '' : ['CBSE', 'CISCE'].map(bd => `<button type="button" role="tab" data-cboard="${bd}" aria-selected="${c.board === bd}">${NTCSyllabus.boardLabel(bd, cls)}${cartCount(bd) ? ` <i>${cartCount(bd)}</i>` : ''}</button>`).join('');
-  return `<div class="cm-price">${enrolled() ? ic('i-shield') + 'Free for TNC students · at least ' + M.minPerPaper + ' chapters per subject' : `${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · all chapters = Custom full mock ₹${M.fullMock}`}</div>
+  return `<div class="cm-price">${enrolled() ? ic('i-shield') + (tncFree(c.subject) ? `${esc(c.subject)} is free for you (TNC subject)` : `${esc(c.subject)} isn’t a TNC subject for you: ₹${M.first} a chapter`) + ' · at least ' + M.minPerPaper + ' chapters per subject' : `${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · all chapters = Custom full mock ₹${M.fullMock}`}</div>
     <div class="cm-pick">
       ${boardTabs ? `<div class="seg small" role="tablist" aria-label="Board">${boardTabs}</div>` : ''}
-      <div class="chips-scroll" role="tablist" aria-label="Subject">${subs.map(s => { const k = ((c.carts[c.board][s.subject]) || []).length; return `<button type="button" role="tab" class="chip-btn${s.subject === c.subject ? ' on' : ''}" data-csub="${esc(s.subject)}" aria-selected="${s.subject === c.subject}">${subjIc(s.subject)}${esc(s.subject)}${k ? `<i>${k}</i>` : ''}</button>`; }).join('')}</div>
+      <div class="chips-scroll" role="tablist" aria-label="Subject">${subs.map(s => { const k = ((c.carts[c.board][s.subject]) || []).length; return `<button type="button" role="tab" class="chip-btn${s.subject === c.subject ? ' on' : ''}" data-csub="${esc(s.subject)}" aria-selected="${s.subject === c.subject}">${subjIc(s.subject)}${esc(subjName(s.subject, cls))}${k ? `<i>${k}</i>` : ''}</button>`; }).join('')}</div>
     </div>
-    <div class="sec"><h3>${esc(c.subject)} · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</h3><button type="button" class="link" data-call>${picked.length === chapters.length ? 'Clear' : 'Select all'}</button></div>
+    <div class="sec"><h3>${esc(subjName(c.subject, cls))} · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</h3><button type="button" class="link" data-call>${picked.length === chapters.length ? 'Clear' : 'Select all'}</button></div>
     ${fullMockNote(c)}<ul class="rows picks" style="${tint(c.subject)}">${chapters.map((ch, i) => { const on = picked.includes(ch); return `<li><button type="button" class="row pick" data-ch="${i}" aria-pressed="${on}">
       <span class="row-ix">${String(i + 1).padStart(2, '0')}</span><span class="row-main"><b>${esc(ch)}</b></span><span class="tick" aria-hidden="true">${ic(on ? 'i-check' : 'i-plus')}</span></button></li>`; }).join('')}</ul>
     ${cartBarHtml(c)}`;
@@ -1081,7 +1149,7 @@ function cartBarHtml(c) {
   const n = cartCount(c.board), b = cartBill(c.board); if (!n) return '';
   const short = cartShort(c.board), papers = cartItems(c.board).length;
   const what = b.fullCount ? `${b.fullCount} full mock${b.fullCount === 1 ? '' : 's'}${b.chapters ? ' + ' + plural(b.chapters, 'chapter') : ''}` : plural(n, 'chapter');
-  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${what} · ${enrolled() ? 'Free' : '₹' + b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save && !enrolled() ? `You save ₹${b.save}` : `${papers} paper${papers === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
+  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${what} · ${b.total ? '₹' + b.total : 'Free'}</b><small>${short.length ? esc(shortMsg(short)) : b.save && b.total ? `You save ₹${b.save}` : `${papers} paper${papers === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
 }
 // Picking chapters updates only what changed (ticks, counts, cart bar): no full redraw, no blink.
 function syncPicks() {
@@ -1118,13 +1186,12 @@ function openPackage(id) {
     body = `<div class="pk-progress"><div><b>${done} of ${n} done</b><small>${nm ? (nm.key === 'open' ? `Mock ${nm.n} is open — start any time` : `Mock ${nm.n} opens ${esc(fmtShort(nm.at))}`) : 'All mocks taken — great work'}</small></div><span class="pk-meter"><i style="width:${n ? Math.round(done / n * 100) : 0}%"></i></span></div>${schedule}`;
   } else {
     const per = Math.round(p.priceInr / Math.max(1, n));
-    body = `<div class="price"><div class="price-top">${promo ? `<b>₹0</b><s>₹${p.priceInr}</s>` : `<b>₹${p.priceInr}</b>`}<small>${plural(n, 'mock')} · ₹${per} a mock</small></div>
-        <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Software-checked and approved by a TNC teacher within 24 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
-      ${p.description ? `<p class="instr">${esc(p.description)}</p>` : ''}
-      ${`${promoBox('pkg:' + id, !S.session.paymentsReady)}${promo ? `<button type="button" class="btn primary block" data-pjoin>${ic('i-unlock')}Join for ₹0</button>`
-          : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
-          : contactCard(`the "${p.title}" (${plural(n, 'mock')})`)}`}
-      ${schedule}`;
+    body = `${coPrice(promo ? 0 : p.priceInr, promo ? p.priceInr : 0, `${plural(n, 'mock')} · ₹${per} a mock`)}
+      ${coMore('What’s included · schedule', `<ul class="co-list"><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Software-checked, approved by a TNC teacher within 24 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul>${p.description ? `<p class="instr">${esc(p.description)}</p>` : ''}${schedule}`)}
+      ${promoBox('pkg:' + id, !S.session.paymentsReady)}
+      ${promo ? coBar(0, `<button type="button" class="btn primary" data-pjoin>${ic('i-unlock')}Join for ₹0</button>`, false)
+          : S.session.paymentsReady ? coBar(p.priceInr, `<button type="button" class="btn primary pay" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button>`, true)
+          : contactCard(`the "${p.title}" (${plural(n, 'mock')})`)}`;
   }
   openSheet(head + body, root => {
     root.querySelectorAll('[data-slot-test]').forEach(b => b.onclick = () => openTest(b.dataset.slotTest));
@@ -1223,21 +1290,22 @@ function openCart() {
   if (S.promo && S.cust && S.promo.target !== 'cart:' + S.cust.board) S.promo = null;
   const c = cust(), cls = String(S.session.profile.class), items = cartItems(c.board), n = cartCount(c.board), b = cartBill(c.board), M = P.MODULE, short = cartShort(c.board);
   if (!n) return closeSheet();
-  openSheet(`<div class="sh-head"><span class="sh-kicker">${ic('i-cart')}Your cart · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</span><h2 id="sheetTitle">Custom module test</h2></div>
-    <div class="cart-list">${items.map(it => `<div class="cg" style="${tint(it.subject)}"><div class="cg-h"><span class="subj-ic">${subjIc(it.subject)}</span>${esc(it.subject)}<small>${it.full ? `Custom full mock · all ${it.chapters.length}` : plural(it.chapters.length, 'chapter') + ' · 1 paper'}</small></div>
-      <ul>${it.full ? `<li><span>All ${it.chapters.length} chapters · full syllabus</span><button type="button" data-rmall="${esc(it.subject)}" aria-label="Remove ${esc(it.subject)}">${ic('i-x')}</button></li>`
-        : it.chapters.map(ch => `<li><span>${esc(ch)}</span><button type="button" data-rm="${esc(it.subject)}" data-rmch="${esc(ch)}" aria-label="Remove ${esc(ch)}">${ic('i-x')}</button></li>`).join('')}</ul></div>`).join('')}</div>
-    <div class="bill">${enrolled() ? `<div><span>${plural(n, 'chapter')}</span><b>Free · TNC student</b></div>` : `${b.full.map(it => `<div><span>Custom full mock · ${esc(it.subject)}</span><span><s>₹${P.modulePrice(it.chapters.length)}</s> ₹${M.fullMock}</span></div>`).join('')}${b.first ? `<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>` : ''}${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
+  const billHtml = `<div class="bill">${b.tnc.map(it => `<div><span>${esc(it.subject)} · TNC subject</span><b class="free">Free</b></div>`).join('')}${b.full.map(it => `<div><span>Custom full mock · ${esc(it.subject)}</span><span><s>₹${P.modulePrice(it.chapters.length)}</s> ₹${M.fullMock}</span></div>`).join('')}${b.first ? `<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>` : ''}${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}
       ${cartPromo() ? `<div class="save"><span>Promo ${esc(cartPromo())}</span><span>−₹${b.total}</span></div>` : ''}
-      <div class="total"><span>Total</span><span>${enrolled() || cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
-    ${enrolled() ? '' : cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
-    ${!enrolled() && b.chapters && b.chapters < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - b.chapters} more chapter${M.firstCount + 1 - b.chapters === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
+      <div class="total"><span>Total</span><span>${!b.total || cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>`;
+  const howHtml = `<ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>`;
+  const itemPrice = it => it.tnc ? '<b class="free">Free</b>' : it.full ? `<b>₹${M.fullMock}</b>` : '';
+  openSheet(`<div class="sh-head co-head"><span class="sh-kicker">${ic('i-cart')}Your cart · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</span><h2 id="sheetTitle">Custom module test</h2></div>
+    <div class="cart-list co-items">${items.map(it => `<details class="cg" style="${tint(it.subject)}"><summary class="cg-h"><span class="subj-ic">${subjIc(it.subject)}</span><span class="cg-name">${esc(subjName(it.subject, cls))}<small>${it.full ? `Custom full mock · all ${it.chapters.length}` : plural(it.chapters.length, 'chapter') + ' · 1 paper'}</small></span>${itemPrice(it)}${ic('i-down', 'chev')}</summary>
+      <ul>${it.full ? `<li><span>All ${it.chapters.length} chapters · full syllabus</span><button type="button" data-rmall="${esc(it.subject)}" aria-label="Remove ${esc(it.subject)}">${ic('i-x')}</button></li>`
+        : it.chapters.map(ch => `<li><span>${esc(ch)}</span><button type="button" data-rm="${esc(it.subject)}" data-rmch="${esc(ch)}" aria-label="Remove ${esc(ch)}">${ic('i-x')}</button></li>`).join('')}</ul></details>`).join('')}</div>
     ${cartOptions(c)}
-    <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>
-    ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
-      : enrolled() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Request my tests · free</button>`
-      : cartPromo() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Confirm order · ₹0</button>`
-      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+    ${b.total ? (cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)) : ''}
+    ${coMore('Price breakdown · how it works', billHtml + (b.total && b.chapters && b.chapters < M.firstCount + 1 ? `<p class="fine">Add ${M.firstCount + 1 - b.chapters} more chapter${M.firstCount + 1 - b.chapters === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : '') + howHtml)}
+    ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div>${coBar(b.total, `<button type="button" class="btn primary" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`, false)}`
+      : !b.total ? coBar(0, `<button type="button" class="btn primary" data-buy>${ic('i-unlock')}Request my tests · free</button>`, false)
+      : cartPromo() ? coBar(0, `<button type="button" class="btn primary" data-buy>${ic('i-unlock')}Confirm order · ₹0</button>`, false)
+      : S.session.paymentsReady ? coBar(b.total, `<button type="button" class="btn primary pay" data-buy>${ic('i-lock')}Pay ₹${b.total}</button>`, true, b.save ? `You save ₹${b.save}` : '')
       : contactCard(`a custom module test (${plural(n, 'chapter')}: ${items.map(i => i.subject).join(', ')})`)}`,
   root => {
     root.querySelectorAll('[data-rmall]').forEach(btn => btn.onclick = () => {
@@ -1327,11 +1395,11 @@ async function loadModules() {
   return S.modules;
 }
 async function buyModules(btn) {
-  const c = cust(), items = cartItems(c.board);
-  const done = busy(btn, enrolled() ? 'Requesting…' : cartPromo() ? 'Confirming…' : 'Opening payment…');
+  const c = cust(), items = cartItems(c.board), free = !cartBill(c.board).total;
+  const done = busy(btn, free ? 'Requesting…' : cartPromo() ? 'Confirming…' : 'Opening payment…');
   try {
     const promoCode = cartPromo();
-    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, level: P.levelOf(c.level), note: (c.note || '').trim(), ...(promoCode ? { promoCode } : {}) }), promoCode || enrolled() ? null : loadRazorpay()]);
+    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, level: P.levelOf(c.level), note: (c.note || '').trim(), ...(promoCode ? { promoCode } : {}) }), promoCode || free ? null : loadRazorpay()]);
     if (order.free) { S.promo = null; S.modules = [...(order.requests || []), ...S.modules]; return finishModules(order.promo ? `Promo applied · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours` : `Requested · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours`); }
     const rz = new window.Razorpay({
       key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,

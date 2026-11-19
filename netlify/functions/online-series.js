@@ -32,10 +32,11 @@
  *    'package-order'   { packageId, promoCode? } — join a mock pack (weekly
  *                      full-syllabus mocks): ₹0 with a promo code, otherwise a
  *                      Razorpay order for the pack price (TNC students pay too).
- *  TNC (enrolled) students: chapter-wise tests, full mocks and custom module
- *  tests are free; mock packs are paid (promo codes work for them there).
- *  Prices: chapter-wise ₹299 (regular ₹399) and full mock ₹499 (regular ₹699). Enrolled (TNC ID) students
- *  get every test free, so they can take them all and appear on the leaderboard.
+ *  TNC (enrolled) students: chapter-wise tests, full mocks and custom papers
+ *  are free only in the subjects they are enrolled in at the institute
+ *  (students/{uid}.subjects); every other subject is paid like any online
+ *  student. Mock packs are paid for everyone (promo codes work there).
+ *  Prices: chapter-wise ₹299 (regular ₹399) and full mock ₹499 (regular ₹699).
  *
  *  Students cannot write any of these records themselves: everything goes
  *  through the service account. Taking the test (start / submit) stays in
@@ -97,6 +98,8 @@ exports.handler = async function (event) {
     const [studentDoc, profileDoc] = await Promise.all([fsGet(projectId, sa, `students/${uid}`), fsGet(projectId, sa, `onlineStudents/${uid}`)]);
     const enrolled = !!studentDoc;
     const student = studentDoc ? decFields(studentDoc) : null;
+    // TNC students: their institute subjects are free; false for online students.
+    const enrolledSubjects = enrolled ? (Array.isArray(student.subjects) ? student.subjects : []) : false;
     let profile = profileDoc ? decFields(profileDoc) : null;
     // Anyone may create a password account with Firebase, so only enrolled
     // students (TNC ID) or a verified Google account can use the portal.
@@ -132,7 +135,7 @@ exports.handler = async function (event) {
         uid, enrolled, email,
         profile: profile ? publicProfile(profile) : { uid, email, name: '', profileComplete: false },
         unlocked: purchases.map(p => p.data.testId).filter(Boolean),
-        prices: online.prices(), listPrices: policy.LIST_PRICES, paymentsReady: online.paymentsReady(),
+        enrolledSubjects: enrolled ? enrolledSubjects : [], prices: online.prices(), listPrices: policy.LIST_PRICES, paymentsReady: online.paymentsReady(),
         freeMock: { allowance: free.allowance, usedCount: free.usedCount, left: free.left, claims: free.claims },
         razorpayKeyId: process.env.RAZORPAY_KEY_ID || '', serverNow: now
       });
@@ -157,7 +160,7 @@ exports.handler = async function (event) {
     if (body.action === 'claim-free') {
       const testId = String(body.testId || '');
       if (!/^[A-Za-z0-9_-]{6,80}$/.test(testId)) return bad(400, 'Invalid test');
-      if (enrolled) return bad(409, 'Every test is already free for you.');
+      if (enrolled) return bad(409, 'Your TNC subjects are already free for you; the free mock is for online students.');
       if (!profile || !profile.profileComplete) return bad(403, 'Complete your profile first.');
       const testDoc = await fsGet(projectId, sa, `offlineTests/${testId}`);
       if (!testDoc) return bad(404, 'This test is no longer available.');
@@ -238,8 +241,7 @@ exports.handler = async function (event) {
 
     // Promo codes (Google students): check, then use one on a test unlock.
     if (body.action === 'check-promo' || body.action === 'redeem-promo') {
-      // TNC students need no code for tests (all free); they can use one on a custom module.
-      if (enrolled) return bad(409, 'Chapter tests, full mocks and custom tests are already free for you.');
+      // TNC students may use codes too, for subjects they are not enrolled in.
       if (!profile || !profile.profileComplete) return bad(403, 'Complete your profile first.');
       let kind = 'custom', test = null, testId = '';
       if (body.kind !== 'custom' || body.action === 'redeem-promo') {
@@ -250,18 +252,19 @@ exports.handler = async function (event) {
         test = decFields(testDoc);
         if (test.series !== 'online' || test.isActive === false) return bad(409, 'This test is not available.');
         if (String(test.class) !== String(profile.class)) return bad(403, 'This test is for a different class.');
-        if (online.priceFor(test, false) === 0) return bad(409, 'This test is free — just start it.');
+        if (online.priceFor(test, enrolledSubjects) === 0) return bad(409, 'This test is free — just start it.');
         if (await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`)) return bad(409, 'You have already unlocked this test.', { unlocked: true });
         kind = policy.kindOf(test);
       }
       // What the code would pay for: the test's price, or the custom cart (when the app sends it).
       let use;
-      if (test) use = { valueInr: online.priceFor(test, false) };
+      if (test) use = { valueInr: online.priceFor(test, enrolledSubjects) };
       else if (Array.isArray(body.items) && body.items.length) {
         const own = policy.customBoard(profile.board);
         if (own && String(body.board || '') !== own) return bad(400, `Custom tests follow your ${syllabusName(own, profile.class)} syllabus.`);
-        const cart = online.checkModuleCart(String(body.board || ''), profile.class, body.items);
+        const cart = online.checkModuleCart(String(body.board || ''), profile.class, body.items, enrolledSubjects);
         if (!cart.ok) return bad(400, cart.error);
+        if (!cart.amountInr) return bad(409, 'These chapters are free for you — no code needed.');
         use = { chapters: cart.count, valueInr: cart.amountInr };
       }
       if (body.action === 'check-promo') {
@@ -295,18 +298,19 @@ exports.handler = async function (event) {
       // CBSE students order CBSE chapters only, ICSE students ICSE / ISC chapters only.
       const own = policy.customBoard(profile.board);
       if (own && board !== own) return bad(400, `Custom tests follow your ${syllabusName(own, profile.class)} syllabus.`);
-      const cart = online.checkModuleCart(board, profile.class, body.items);
+      const cart = online.checkModuleCart(board, profile.class, body.items, enrolledSubjects);
       if (!cart.ok) return bad(400, cart.error);
-      const amountPaise = enrolled ? 0 : cart.amountInr * 100;
+      // TNC students: papers in their enrolled subjects are free (tnc: true); the rest is charged.
+      const amountPaise = cart.amountInr * 100;
       // How hard the paper should be, and an optional note for the teacher.
       const level = policy.levelOf(body.level), note = policy.cleanNote(body.note);
       const order = { type: 'module', uid, class: String(profile.class), board, items: cart.items, chapterCount: cart.count, amountPaise, currency: 'INR', level, note,
         enrolled, studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || '',
         testName: `Custom module · ${cart.count} chapter${cart.count === 1 ? '' : 's'}`, subject: cart.items.map(i => i.subject).join(', '), createdAt: now };
-      if (enrolled) {   // TNC students: no payment, the papers are requested straight away
+      if (enrolled && !amountPaise) {   // TNC student, only enrolled subjects: no payment, papers requested straight away
         const orderId = 'free_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex') + uid.slice(0, 6);
         const writes = await online.createModuleRequests(projectId, sa, { ...order, orderId }, orderId, now);
-        await fsCommit(projectId, sa, [{ path: `onlineOrders/${orderId}`, data: { ...order, orderId, fullAmountPaise: cart.amountInr * 100, status: 'paid', paidAt: now, confirmedVia: 'free' } }, ...writes]);
+        await fsCommit(projectId, sa, [{ path: `onlineOrders/${orderId}`, data: { ...order, orderId, fullAmountPaise: policy.cartPrice(cart.items.map(i => ({ count: i.chapters.length, full: !!i.full }))).totalInr * 100, status: 'paid', paidAt: now, confirmedVia: 'free' } }, ...writes]);
         return ok({ ok: true, free: true, orderId, requests: writes.map(w => w.data) });
       }
       if (!(amountPaise > 0)) return bad(400, 'Your cart is empty.');
@@ -351,11 +355,11 @@ exports.handler = async function (event) {
       const test = decFields(testDoc);
       if (test.series !== 'online') return bad(404, 'This test is not part of the online series.');
       if (test.isActive === false) return bad(409, 'This test is closed.');
-      if (online.priceFor(test, enrolled) === 0) return bad(409, 'This test is free for you — just start it.');
+      if (online.priceFor(test, enrolledSubjects) === 0) return bad(409, 'This test is free for you — just start it.');
       if (String(test.class) !== String(profile.class)) return bad(403, 'This test is for a different class.');
       if (test.board && test.board !== profile.board) return bad(403, 'This test is for a different board.');
       if (await fsGet(projectId, sa, `onlinePurchases/${testId}__${uid}`)) return bad(409, 'You have already unlocked this test.', { unlocked: true });
-      const amountPaise = online.priceFor(test, enrolled) * 100;
+      const amountPaise = online.priceFor(test, enrolledSubjects) * 100;
       if (!(amountPaise > 0)) return bad(409, 'This test is free — just start it.');
       const orderId = await online.paymentOrder(projectId, sa, uid, testId, amountPaise, async () => {
         const order = await online.createRazorpayOrder(amountPaise, `ots_${Date.now().toString(36)}_${uid.slice(0, 8)}`, { uid, testId });
