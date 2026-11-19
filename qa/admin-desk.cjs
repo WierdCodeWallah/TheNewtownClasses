@@ -112,7 +112,7 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
       await page.click('#dkSheetClose'); await page.waitForSelector('#dkSheet', { state: 'hidden' });
       // Summary numbers match totals computed independently.
       const stats = await page.locator('#dkStats').innerText();
-      assert.match(stats, new RegExp((pendingTotal - 1) + '[^0-9]+Waiting')); assert.match(stats, /\d+\s+Overdue 48h/); assert.match(stats, new RegExp((summary.returned + 1) + '[^0-9]+Checked'));
+      assert.match(stats, new RegExp((pendingTotal - 1) + '[^0-9]+Waiting')); assert.match(stats, /\d+\s+Overdue 24h/); assert.match(stats, new RegExp((summary.returned + 1) + '[^0-9]+Checked'));
       // Students: one row per student; open one → their scripts → delete a record with typed confirmation.
       await page.click('[data-dk-tab=students]');
       assert.equal(await page.textContent('#dkN-students'), String(summary.students), 'one row per student');

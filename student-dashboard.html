@@ -1220,7 +1220,7 @@
       <!-- ═══════ OFFLINE TEST SERIES (pen & paper, AI-checked) ═══════ -->
       <div id="otsSection" style="display:none;">
         <section class="ots-hero ots-compact-guide" aria-labelledby="otsHeroTitle">
-          <div class="ots-guide-top"><h2 id="otsHeroTitle">Offline tests</h2><span class="ots-promise">Results within <b>48 hrs</b></span></div>
+          <div class="ots-guide-top"><h2 id="otsHeroTitle">Offline tests</h2><span class="ots-promise">Results within <b>24 hrs</b></span></div>
           <div class="ots-guide-main">
             <div class="ots-mini-scene" aria-hidden="true">
               <svg viewBox="0 0 120 76" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1231,12 +1231,12 @@
                 <g class="ots-scene ots-scene-4"><circle cx="30" cy="23" r="8" fill="#a7ecdf"/><path d="M30 34v17m0-13 19 5m-19 8-8 15m8-15 10 15" stroke="#a7ecdf" stroke-width="5" stroke-linecap="round"/><rect x="60" y="16" width="34" height="43" rx="4" fill="#fff7d5"/><path d="M67 24h20m-20 6h12" stroke="#8b9bad" stroke-width="2"/><path class="ots-check-stroke" d="m68 43 6 6 13-13" stroke="#13866e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>
               </svg>
             </div>
-            <div class="ots-guide-copy"><strong>Write. Upload. Improve.</strong><p>Download + timer → Write → Upload PDF/photos → Teacher checks.</p><span>Checked results within 48 hours of submission.</span></div>
+            <div class="ots-guide-copy"><strong>Write. Upload. Improve.</strong><p>Download + timer → Write → Upload PDF/photos → Teacher checks.</p><span>Checked results within 24 hours of submission.</span></div>
           </div>
           <div class="ots-retention-note">Checked PDFs, marks &amp; feedback: <b>saved permanently</b></div>
           <div class="ots-summary" id="otsSummary" aria-label="Your test progress"></div>
         </section>
-        <div class="ots-library-head"><nav class="ots-view-switch" aria-label="Offline test series sections"><button type="button" data-ots-view="tests" aria-pressed="true" onclick="otsSetView('tests')">Tests</button><button type="button" data-ots-view="results" aria-pressed="false" onclick="otsSetView('results')">Results</button></nav><h3 id="otsLibraryTitle" class="ots-library-caption">Subjects</h3><div class="ots-library-tools"><details class="ots-guide"><summary>How it works</summary><ol class="ots-journey" aria-label="How offline tests work"><li><span>01</span><strong>Download &amp; write</strong><small>The timer starts with your paper</small></li><li><span>02</span><strong>Upload answers</strong><small>One PDF or photos → PDF</small></li><li><span>03</span><strong>Results in 48 hours</strong><small>Checked PDF &amp; marks saved permanently</small></li></ol></details><button type="button" class="ots-refresh" onclick="otsLoad()" aria-label="Refresh tests and checked scripts"><span aria-hidden="true">↻</span><span class="ots-refresh-label">Refresh</span></button></div></div>
+        <div class="ots-library-head"><nav class="ots-view-switch" aria-label="Offline test series sections"><button type="button" data-ots-view="tests" aria-pressed="true" onclick="otsSetView('tests')">Tests</button><button type="button" data-ots-view="results" aria-pressed="false" onclick="otsSetView('results')">Results</button></nav><h3 id="otsLibraryTitle" class="ots-library-caption">Subjects</h3><div class="ots-library-tools"><details class="ots-guide"><summary>How it works</summary><ol class="ots-journey" aria-label="How offline tests work"><li><span>01</span><strong>Download &amp; write</strong><small>The timer starts with your paper</small></li><li><span>02</span><strong>Upload answers</strong><small>One PDF or photos → PDF</small></li><li><span>03</span><strong>Results in 24 hours</strong><small>Checked PDF &amp; marks saved permanently</small></li></ol></details><button type="button" class="ots-refresh" onclick="otsLoad()" aria-label="Refresh tests and checked scripts"><span aria-hidden="true">↻</span><span class="ots-refresh-label">Refresh</span></button></div></div>
         <nav class="ots-crumbs" id="otsCrumbs" aria-label="Offline test series navigation"></nav>
         <div id="otsBody"><div class="ots-empty">Loading…</div></div>
       </div>
@@ -2647,7 +2647,7 @@ renderCards();
           const pdf = NTCUploadcare.isFileUrl(r.answerSheetUrl) ? NTCUploadcare.deliveryUrl(r.answerSheetUrl) : '';
           const pdfNote = r.approvedAt ? 'Returned ' + new Date(r.approvedAt).toLocaleDateString('en-IN') : 'Saved permanently';
           return `<article class="ots-card ots-test-card ots-archive-card"><span class="k">${otsEsc(r.module)} · Class ${otsEsc(r.class)} · ${otsEsc(r.testDate)}</span><h3>${otsEsc(r.testName)}</h3><div class="meta"><span class="ots-chip ok">${r.score} / ${r.totalMarks} marks</span></div><p>${otsEsc(r.teacherName ? 'Checked by ' + r.teacherName : 'Teacher approved')}</p>${r.remark ? `<p>${otsEsc(r.remark)}</p>` : ''}<p class="ots-expiry-label">${otsEsc(pdfNote)} · Saved permanently</p><div class="act"><button type="button" class="ots-btn green" data-report="${otsEsc(r.reportId)}">View feedback</button>${pdf ? `<a class="ots-btn soft" href="${otsEsc(pdf)}" target="_blank" rel="noopener noreferrer" download>Checked PDF ↗</a>` : ''}</div></article>`;
-        }).join('') + '</div>' : '<div class="ots-empty">No checked scripts yet.<br>Your checked results arrive within 48 hours of submission.</div>';
+        }).join('') + '</div>' : '<div class="ots-empty">No checked scripts yet.<br>Your checked results arrive within 24 hours of submission.</div>';
         body.querySelectorAll('[data-report]').forEach(b => b.onclick = () => otsOpenReport(b.dataset.report));
         return;
       }
@@ -2939,7 +2939,7 @@ renderCards();
         const r = await otsApi({ action: 'submit', testId: ex.test.id, scriptPdfUrl: pdfInfo.url, pageUrls: pages });
         _ots.attempts[ex.test.id] = { ..._ots.attempts[ex.test.id], status: r.status };
         msg.className = 'ots-up-msg ok';
-        msg.textContent = '✅ Submitted! Your checked result will arrive within 48 hours and stays saved in Results permanently.' +
+        msg.textContent = '✅ Submitted! Your checked result will arrive within 24 hours and stays saved in Results permanently.' +
           (ex.test.hasAnswerKey ? ' Download the answer key from this test’s card.' : '') +
           (r.lateByMin > (ex.attempt.uploadGraceMin || 15) ? ' (Marked as late.)' : '');
         btn.textContent = 'Submitted ✓';

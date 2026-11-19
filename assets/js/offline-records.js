@@ -35,7 +35,7 @@
       if (score == null) score = n('aiScore');
     }
     const submittedAt = s('submittedAt');
-    const due = Date.parse(s('reviewDueAt')) || (Date.parse(submittedAt) ? Date.parse(submittedAt) + 2 * DAY : 0);
+    const due = Date.parse(s('reviewDueAt')) || (Date.parse(submittedAt) ? Date.parse(submittedAt) + DAY : 0);
     return {
       id: (doc.name || '').split('/').pop(), uid: s('uid'), testId: s('testId'),
       studentName: s('studentName') || 'Student', studentId: s('studentId'), section: s('studentSection'),

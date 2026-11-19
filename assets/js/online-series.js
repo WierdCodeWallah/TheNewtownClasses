@@ -564,7 +564,7 @@ function viewSubject(subject) {
         <span class="row-main"><b>${esc(t.testName)}</b><small>${fresh ? '<em>Unlocked · tap to start</em> · ' : ''}${esc(t.chapter)}${t.module && t.module !== 'Full chapter' ? ' · ' + esc(t.module) : ''} · ${t.totalMarks || '?'} marks · ${t.durationMin} min</small></span>
         ${pill(t, s)}</button></li>`; }).join('')}</ul>`
       : emptyBlock('i-doc', seg === 'mock' ? 'No full mocks yet' : 'No chapter tests yet', `${subject} ${seg === 'mock' ? 'full mock tests' : 'chapter-wise tests'} for Class ${p.class} will appear here.`))
-    : (results.length ? resultRows(results) : emptyBlock('i-results', 'No checked scripts yet', 'Checked results arrive within 48 hours of submitting.'));
+    : (results.length ? resultRows(results) : emptyBlock('i-results', 'No checked scripts yet', 'Checked results arrive within 24 hours of submitting.'));
   return `<section class="v v-subject" style="${tint(subject)}">
     <div class="subj-head">
       <span class="subj-ic lg">${subjIc(subject)}</span>
@@ -614,10 +614,10 @@ function viewResults() {
   const list = S.results.filter(r => !S.resultSubject || r.subject === S.resultSubject);
   return `<section class="v v-results">
     ${S.errors.results ? `<div class="banner err">${esc(S.errors.results)} <button type="button" class="link" data-refresh>Retry</button></div>` : ''}
-    ${pending.length ? `<div class="sec"><h3>Being checked</h3><span>${pending.length}</span></div><ul class="rows">${pending.map(t => `<li><button type="button" class="row" data-test="${esc(t.id)}"><span class="row-score wait">${ic('i-clock')}</span><span class="row-main"><b>${esc(t.testName)}</b><small>${esc(t.subject)} · results within 48 hours</small></span><span class="pill wait">In review</span></button></li>`).join('')}</ul>` : ''}
+    ${pending.length ? `<div class="sec"><h3>Being checked</h3><span>${pending.length}</span></div><ul class="rows">${pending.map(t => `<li><button type="button" class="row" data-test="${esc(t.id)}"><span class="row-score wait">${ic('i-clock')}</span><span class="row-main"><b>${esc(t.testName)}</b><small>${esc(t.subject)} · results within 24 hours</small></span><span class="pill wait">In review</span></button></li>`).join('')}</ul>` : ''}
     <div class="sec"><h3>Checked</h3><span>${S.results.length}</span></div>
     ${subs.length > 1 ? `<div class="chips-scroll"><button type="button" class="chip-btn${!S.resultSubject ? ' on' : ''}" data-rfilter="">All</button>${subs.map(s => `<button type="button" class="chip-btn${s === S.resultSubject ? ' on' : ''}" data-rfilter="${esc(s)}">${esc(s)}</button>`).join('')}</div>` : ''}
-    ${list.length ? resultRows(list) : emptyBlock('i-results', 'No checked scripts yet', 'Submit a test and your checked answer script appears here within 48 hours.')}
+    ${list.length ? resultRows(list) : emptyBlock('i-results', 'No checked scripts yet', 'Submit a test and your checked answer script appears here within 24 hours.')}
   </section>`;
 }
 
@@ -671,7 +671,7 @@ function openTest(id, mode) {
   else if (mode === 'unlocked') body = `<div class="celebrate">${ic('i-unlock')}<b>Test unlocked</b><p>It's yours. Start whenever you're ready — the timer begins only when you open the paper.</p></div>
     <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button>`;
   else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>${was(t)}${listOf(t) ? `<span class="save">Save ₹${listOf(t) - priceOf(t)}</span>` : ''}`}<small>One-time · this test</small></div>
-      <ul><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
+      <ul><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 24 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
     ${promoBox(t.id, !S.session.paymentsReady)}
     ${S.promo && S.promo.target === t.id ? `<button type="button" class="btn primary block" data-go="promo-redeem">${ic('i-unlock')}Unlock for ₹0</button>`
       : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-go="pay">${ic('i-lock')}Unlock for ₹${priceOf(t)}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
@@ -679,11 +679,11 @@ function openTest(id, mode) {
   else if (st.key === 'ready' && mode === 'confirm') body = `<div class="warn-box">${ic('i-clock')}<p><b>Your ${t.durationMin}-minute timer starts as soon as the paper opens.</b> It can't be paused. Keep pen, paper and your phone camera ready.</p></div>
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="start">Start now</button></div>`;
   else if (st.key === 'ready') body = `${kindOf(t) === 'custom' && t.module ? `<p class="instr"><b>Chapters:</b> ${esc(t.module)}</p>` : ''}${t.instructions ? `<p class="instr">${esc(t.instructions)}</p>` : ''}<ol class="how"><li>${ic('i-download')}<b>Download</b><small>Timer starts</small></li><li>${ic('i-pen')}<b>Write</b><small>On paper</small></li><li>${ic('i-camera')}<b>Upload</b><small>PDF or photos</small></li></ol>
-    <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button><p class="fine center">Software-checked · approved by a TNC teacher · results within 48 hours</p>`;
+    <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button><p class="fine center">Software-checked · approved by a TNC teacher · results within 24 hours</p>`;
   else if (st.key === 'started') body = `<div class="warn-box">${ic('i-clock')}<p>${st.left > 0 ? `<b>${fmtTime(st.left).replace(/:\d\d$/, '')} left.</b> Your timer kept running while you were away.` : `<b>Time's up.</b> Upload your answers now${st.late ? ' — it will be marked late' : ''}.`}</p></div>
     <button type="button" class="btn primary block" data-go="resume">${st.left > 0 ? 'Continue test' : 'Upload answers'}</button>`;
   else if (st.key === 'scheduled') body = `<div class="warn-box">${ic('i-clock')}<p><b>This mock opens on ${esc(fmtWhen(st.at))}.</b> Come back then — the paper and your timer start only when you open it.</p></div>`;
-  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>${keyButton(t)}`; }
+  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 24 hours</small></li></ol>${keyButton(t)}`; }
   else if (st.key === 'checked') { const r = st.result; body = r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>' + keyButton(t); }
   else body = '<p class="instr">This test is closed.</p>';
   openSheet(testHead(t) + body, root => {
@@ -1119,7 +1119,7 @@ function openPackage(id) {
   } else {
     const per = Math.round(p.priceInr / Math.max(1, n));
     body = `<div class="price"><div class="price-top">${promo ? `<b>₹0</b><s>₹${p.priceInr}</s>` : `<b>₹${p.priceInr}</b>`}<small>${plural(n, 'mock')} · ₹${per} a mock</small></div>
-        <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Software-checked and approved by a TNC teacher within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
+        <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Software-checked and approved by a TNC teacher within 24 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
       ${p.description ? `<p class="instr">${esc(p.description)}</p>` : ''}
       ${`${promoBox('pkg:' + id, !S.session.paymentsReady)}${promo ? `<button type="button" class="btn primary block" data-pjoin>${ic('i-unlock')}Join for ₹0</button>`
           : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
@@ -1232,8 +1232,7 @@ function openCart() {
       <div class="total"><span>Total</span><span>${enrolled() || cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
     ${enrolled() ? '' : cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
     ${!enrolled() && b.chapters && b.chapters < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - b.chapters} more chapter${M.firstCount + 1 - b.chapters === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
-    <div class="cm-opts"><span class="cm-lbl">Level</span><div class="seg small" role="radiogroup" aria-label="Paper level">${Object.entries(P.LEVELS).map(([k, l]) => `<button type="button" role="radio" data-level="${k}" aria-checked="${P.levelOf(c.level) === k}" aria-selected="${P.levelOf(c.level) === k}">${l}</button>`).join('')}</div>
-      <label class="cm-note"><span class="cm-lbl">Request for the teacher <i>optional</i></span><textarea id="cmNote" rows="2" maxlength="${P.NOTE_MAX}" placeholder="e.g. More numericals, include diagram questions">${esc(c.note || '')}</textarea></label></div>
+    ${cartOptions(c)}
     <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>
     ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
       : enrolled() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Request my tests · free</button>`
@@ -1249,14 +1248,56 @@ function openCart() {
       const cart = cust().carts[cust().board]; cart[btn.dataset.rm] = (cart[btn.dataset.rm] || []).filter(x => x !== btn.dataset.rmch); saveCart();
       render(); if (cartCount(cust().board)) openCart(); else closeSheet();
     });
-    root.querySelectorAll('[data-level]').forEach(b => b.onclick = () => {
-      cust().level = b.dataset.level; haptic(8);
-      root.querySelectorAll('[data-level]').forEach(x => { const on = x === b; x.setAttribute('aria-checked', String(on)); x.setAttribute('aria-selected', String(on)); });
-    });
-    const note = root.querySelector('#cmNote'); if (note) note.oninput = () => { cust().note = note.value.slice(0, P.NOTE_MAX); };
+    bindCartOptions(root);
     const buy = root.querySelector('[data-buy]'); if (buy && !buy.disabled) buy.onclick = () => buyModules(buy);
     bindPromo(root, 'cart:' + c.board, { kind: 'custom', board: c.board, items: cartItems(c.board) }, openCart);
   });
+}
+// Paper level + request for the teacher: two compact rows. Level opens a small
+// popup list (like a picker); the request row opens a text box in place.
+const LEVEL_INFO = { easy: 'Basics and direct questions', medium: 'Board-exam standard', high: 'Tough, application-based' };
+function cartOptions(c) {
+  const lv = P.levelOf(c.level), note = (c.note || '').trim();
+  return `<div class="cm-opts">
+    <button type="button" class="cm-row" id="cmLevelBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="cmLevelPop">
+      <span class="cm-ic lv-${lv}" id="cmLevelIc">${ic('i-layers')}</span><span class="cm-txt"><b>Paper level</b><small id="cmLevelHint">${esc(LEVEL_INFO[lv])}</small></span>
+      <span class="cm-val"><span id="cmLevelVal">${esc(P.LEVELS[lv])}</span>${ic('i-down', 'cm-caret')}</span></button>
+    <div class="cm-pop" id="cmLevelPop" role="listbox" aria-label="Paper level" hidden>${Object.entries(P.LEVELS).map(([k, l]) => `<button type="button" role="option" class="cm-opt" data-level="${k}" aria-selected="${k === lv}"><span class="lv-dot lv-${k}" aria-hidden="true"></span><span class="cm-txt"><b>${esc(l)}</b><small>${esc(LEVEL_INFO[k])}</small></span>${ic('i-check', 'cm-tick')}</button>`).join('')}</div>
+    <button type="button" class="cm-row" id="cmNoteBtn" aria-expanded="${!!note}" aria-controls="cmNoteBox">
+      <span class="cm-ic">${ic('i-pen')}</span><span class="cm-txt"><b>Request for the teacher</b><small id="cmNoteHint">${note ? esc(note) : 'Optional · e.g. more numericals'}</small></span>
+      <span class="cm-val"><span id="cmNoteVal">${note ? 'Edit' : 'Add'}</span>${ic('i-chev', 'cm-caret')}</span></button>
+    <div class="cm-notebox" id="cmNoteBox"${note ? '' : ' hidden'}><textarea id="cmNote" rows="2" maxlength="${P.NOTE_MAX}" aria-label="Request for the teacher" placeholder="e.g. More numericals, include diagram questions">${esc(c.note || '')}</textarea><small class="cm-count" id="cmNoteCount">${(c.note || '').length}/${P.NOTE_MAX}</small></div>
+  </div>`;
+}
+function bindCartOptions(root) {
+  const btn = root.querySelector('#cmLevelBtn'), pop = root.querySelector('#cmLevelPop'); if (!btn || !pop) return;
+  const close = () => {
+    if (pop.hidden) return; btn.setAttribute('aria-expanded', 'false'); pop.classList.remove('on');
+    setTimeout(() => { if (!pop.classList.contains('on')) pop.hidden = true; }, REDUCED.matches ? 0 : 160);
+  };
+  const open = () => { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); requestAnimationFrame(() => pop.classList.add('on')); (pop.querySelector('[aria-selected=true]') || pop.firstElementChild).focus({ preventScroll: true }); };
+  btn.onclick = () => (pop.hidden ? open() : close());
+  pop.querySelectorAll('[data-level]').forEach(o => o.onclick = () => {
+    const k = o.dataset.level; cust().level = k; haptic(8);
+    pop.querySelectorAll('[data-level]').forEach(x => x.setAttribute('aria-selected', String(x === o)));
+    root.querySelector('#cmLevelVal').textContent = P.LEVELS[k]; root.querySelector('#cmLevelHint').textContent = LEVEL_INFO[k];
+    root.querySelector('#cmLevelIc').className = 'cm-ic lv-' + k;
+    close(); btn.focus({ preventScroll: true });
+  });
+  // Tap outside or Escape closes the list (Escape doesn't close the whole sheet).
+  root.addEventListener('click', e => { if (!pop.hidden && !e.target.closest('#cmLevelPop, #cmLevelBtn')) close(); });
+  root.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { e.stopPropagation(); close(); btn.focus({ preventScroll: true }); } });
+  const nbtn = root.querySelector('#cmNoteBtn'), box = root.querySelector('#cmNoteBox'), note = root.querySelector('#cmNote');
+  nbtn.onclick = () => {
+    const show = box.hidden; box.hidden = !show; nbtn.setAttribute('aria-expanded', String(show));
+    if (show) { box.classList.remove('in'); void box.offsetWidth; box.classList.add('in'); note.focus({ preventScroll: false }); }
+  };
+  note.oninput = () => {
+    const v = note.value.slice(0, P.NOTE_MAX); cust().note = v;
+    root.querySelector('#cmNoteHint').textContent = v.trim() || 'Optional · e.g. more numericals';
+    root.querySelector('#cmNoteVal').textContent = v.trim() ? 'Edit' : 'Add';
+    root.querySelector('#cmNoteCount').textContent = `${v.length}/${P.NOTE_MAX}`;
+  };
 }
 const cartPromoRaw = () => S.promo && S.cust && S.promo.target === 'cart:' + S.cust.board ? S.promo : null;
 // Why an applied code no longer covers the cart (chapters added after applying it), or ''.
@@ -1531,12 +1572,12 @@ $('exUpSubmit').onclick = async () => {
     S.attempts[ex.test.id] = { ...S.attempts[ex.test.id], status: r.status || 'submitted', submittedAt: new Date().toISOString() };
     saveCache(); haptic(40);
     msg.className = 'up-msg ok';
-    msg.textContent = 'Submitted! Your checked script will be back within 48 hours.' + (r.lateByMin > (ex.attempt.uploadGraceMin || 15) ? ' (Marked as late.)' : '');
+    msg.textContent = 'Submitted! Your checked script will be back within 24 hours.' + (r.lateByMin > (ex.attempt.uploadGraceMin || 15) ? ' (Marked as late.)' : '');
     btn.textContent = 'Submitted';
     clearInterval(ex.timer);
     // With an answer key, reopen the test so the student can download it straight away.
     const t = ex.test;
-    setTimeout(() => { S.up.busy = false; closeUpload(() => { popLayer('exam', () => { toast('Submitted. Results within 48 hours.'); if (t.hasAnswerKey) openTest(t.id); refresh(); }); }); }, 1600);
+    setTimeout(() => { S.up.busy = false; closeUpload(() => { popLayer('exam', () => { toast('Submitted. Results within 24 hours.'); if (t.hasAnswerKey) openTest(t.id); refresh(); }); }); }, 1600);
     return;
   } catch (e) {
     msg.className = 'up-msg err';

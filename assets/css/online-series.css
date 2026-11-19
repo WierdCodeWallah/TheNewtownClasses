@@ -729,15 +729,38 @@ body:has(#sheet.on, #exam:not([hidden])) .tsx-toast.on { transform: translate(-5
 .score { padding: 12px; gap: 14px; }
 .score > div:last-child b { font-size: 19px; }
 .more-menu .dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--bad); vertical-align: middle; }
-/* Custom test: level + request for the teacher */
-.cm-opts { display: grid; gap: 10px; }
-.cm-lbl { font-size: 13px; font-weight: 600; color: var(--ink-2); }
-.cm-lbl i { font-style: normal; font-weight: 500; color: var(--ink-3); }
-.cm-opts .seg { margin-top: -4px; }
-.cm-note { display: grid; gap: 6px; }
-.cm-note textarea { width: 100%; min-height: 64px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; font: 500 16px/1.35 inherit; font-family: inherit; color: var(--ink); background: #fff; resize: vertical; }
-.cm-note textarea:focus { outline: 0; border-color: var(--brand-2); box-shadow: 0 0 0 4px rgba(26, 86, 219, .12); }
-.seg [role=radio][aria-checked=true] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(7, 29, 71, .12); }
+/* Custom test: level picker + request for the teacher (compact rows) */
+.cm-opts { position: relative; display: grid; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.cm-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 10px 12px; background: none; border: 0; text-align: left; color: var(--ink); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s ease; }
+.cm-row + .cm-pop + .cm-row, .cm-row + .cm-row { border-top: 1px solid var(--line-2); }
+.cm-row:active { background: #f6f8fc; }
+.cm-ic { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--brand-soft); color: var(--brand-2); }
+.cm-ic svg { width: 18px; height: 18px; }
+.cm-ic.lv-easy { background: var(--ok-soft); color: var(--ok); } .cm-ic.lv-medium { background: #fff4e0; color: #b26b00; } .cm-ic.lv-high { background: var(--bad-soft); color: var(--bad); }
+.cm-txt { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.cm-txt b { font-size: 14px; font-weight: 700; }
+.cm-txt small { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-val { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 13.5px; font-weight: 700; color: var(--brand-2); }
+.cm-caret { width: 16px; height: 16px; transition: transform .2s var(--ease); }
+#cmLevelBtn[aria-expanded=true] .cm-caret { transform: rotate(180deg); }
+#cmNoteBtn[aria-expanded=true] .cm-caret { transform: rotate(90deg); }
+.cm-pop { position: absolute; z-index: 5; top: 62px; left: 8px; right: 8px; padding: 6px; display: grid; gap: 2px; background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 18px 40px -12px rgba(7, 29, 71, .28); opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top center; transition: opacity .16s ease, transform .18s var(--ease); }
+.cm-pop.on { opacity: 1; transform: none; }
+.cm-opt { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.cm-opt:active, .cm-opt:focus-visible { background: #f3f6fb; outline: 0; }
+.cm-opt[aria-selected=true] { background: var(--brand-soft); }
+.lv-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; }
+.lv-dot.lv-easy { background: var(--ok); } .lv-dot.lv-medium { background: #e29400; } .lv-dot.lv-high { background: var(--bad); }
+.cm-tick { width: 18px; height: 18px; color: var(--brand-2); opacity: 0; }
+.cm-opt[aria-selected=true] .cm-tick { opacity: 1; }
+.cm-notebox { position: relative; padding: 0 12px 12px; }
+.cm-notebox.in { animation: sheetSwap .2s var(--ease) backwards; }
+.cm-notebox textarea { width: 100%; min-height: 72px; padding: 10px 12px 22px; border: 1.5px solid var(--line); border-radius: 12px; font: 500 16px/1.35 inherit; font-family: inherit; color: var(--ink); background: #fbfcfe; resize: none; }
+.cm-notebox textarea:focus { outline: 0; border-color: var(--brand-2); background: #fff; box-shadow: 0 0 0 4px rgba(26, 86, 219, .12); }
+.cm-count { position: absolute; right: 22px; bottom: 18px; font-size: 11px; color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) { .cm-pop, .cm-caret { transition: none; } .cm-notebox.in { animation: none; } }
+
 /* ── Payments: premium look, smooth motion, no blink ── */
 .tsx-sheet { transition: transform .32s cubic-bezier(.2, .9, .25, 1); will-change: transform; }
 .tsx-sheet-back { transition: background .28s ease; }

@@ -489,9 +489,18 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.locator('#sheet [data-rm]').first().click();
       await page.waitForFunction(() => /Total\s*₹796/.test(document.querySelector('.bill').textContent));
       // Level and a request for the teacher go with the order.
-      assert.equal(await page.getAttribute('[data-level=medium]', 'aria-checked'), 'true', 'Medium by default');
-      await page.click('[data-level=high]'); assert.equal(await page.getAttribute('[data-level=high]', 'aria-checked'), 'true');
-      await page.fill('#cmNote', 'More numericals please');
+      assert.equal((await page.textContent('#cmLevelVal')).trim(), 'Medium', 'Medium by default');
+      assert.equal(await page.isVisible('#cmLevelPop'), false, 'level list closed until tapped');
+      await page.click('#cmLevelBtn'); await page.waitForSelector('#cmLevelPop.on');
+      assert.equal(await page.locator('#cmLevelPop [role=option]').count(), 3);
+      await page.waitForTimeout(250); await shot(page, '21d-custom-level-picker-390');
+      await page.click('#cmLevelPop [data-level=high]'); await page.waitForSelector('#cmLevelPop', { state: 'hidden' });
+      assert.equal((await page.textContent('#cmLevelVal')).trim(), 'High'); assert.match(await page.textContent('#cmLevelHint'), /application-based/);
+      await page.click('#cmLevelBtn'); await page.waitForSelector('#cmLevelPop.on'); await page.keyboard.press('Escape');
+      await page.waitForSelector('#cmLevelPop', { state: 'hidden' }); assert.ok(await page.isVisible('#sheet.on'), 'Escape closes only the level list');
+      assert.equal(await page.isVisible('#cmNote'), false, 'request box opens on tap');
+      await page.click('#cmNoteBtn'); await page.fill('#cmNote', 'More numericals please');
+      assert.match(await page.textContent('#cmNoteHint'), /More numericals please/); assert.equal((await page.textContent('#cmNoteVal')).trim(), 'Edit');
       await noOverflow(page, 'custom cart options'); await shot(page, '21c-custom-level-note-390');
       await page.click('[data-buy]');
       await page.waitForSelector('#sheet', { state: 'hidden' });

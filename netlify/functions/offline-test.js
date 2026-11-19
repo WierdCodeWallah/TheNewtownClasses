@@ -390,7 +390,7 @@ exports.handler = async function (event) {
       const lateByMin = Math.max(0, Math.round((now - new Date(att.deadline)) / 60000));
       const usedMin = Math.max(0, Math.round((now - new Date(att.startedAt)) / 60000));
       const status = manual ? 'submitted' : 'checking';
-      const review = { reviewDueAt: new Date(now.getTime() + 2 * policy.DAY).toISOString() };
+      const review = { reviewDueAt: new Date(now.getTime() + policy.DAY).toISOString() };
       const submitted = { ...att, ...review, status, submittedAt: now.toISOString(), lateByMin, usedMin, scriptPdfUrl, pageUrls };
       const report = {
         attemptId, testId, uid, ...review,

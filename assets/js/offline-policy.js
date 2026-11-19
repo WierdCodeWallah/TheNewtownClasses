@@ -7,7 +7,7 @@
   function history(r) {
     return { reportId: r.attemptId || r.reportId, testName: r.testName || '', subject: r.subject || '', chapter: r.chapter || r.topic || 'General',
       module: r.module || 'Full chapter', class: r.studentClass || r.class || '', submittedAt: r.submittedAt,
-      reviewDueAt: iso(time(r.submittedAt) + 2 * DAY), status: r.status || 'submitted' };
+      reviewDueAt: iso(time(r.submittedAt) + DAY), status: r.status || 'submitted' };
   }
   function stats(historyRows, results) {
     const rows = new Map();

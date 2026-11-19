@@ -4109,7 +4109,7 @@
           ${r.lateByMin > 15 ? `<span class="ots-chip bad">Late ${r.lateByMin} min</span>` : ''}
           ${r.status === 'failed' ? `<span class="ots-chip bad" title="${otEsc(r.error)}">AI check failed</span>` : ''}
           ${r.status === 'approved' ? `<span class="ots-chip ok">Approved by ${otEsc(r.approvedByName)}</span>` : ''}
-          ${r.status !== 'approved' ? `<span class="ots-chip ${Date.now() > Date.parse(r.submittedAt) + 2 * NTCOfflinePolicy.DAY ? 'bad' : 'warn'}">48-hour promise · Due ${otEsc(new Date(r.reviewDueAt || Date.parse(r.submittedAt) + 2 * NTCOfflinePolicy.DAY).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}
+          ${r.status !== 'approved' ? `<span class="ots-chip ${Date.now() > Date.parse(r.submittedAt) + NTCOfflinePolicy.DAY ? 'bad' : 'warn'}">24-hour promise · Due ${otEsc(new Date(r.reviewDueAt || Date.parse(r.submittedAt) + NTCOfflinePolicy.DAY).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}
         </div></div><div>${right}</div></div>`;
     }).join('');
   }

@@ -268,7 +268,7 @@ function render() {
   shell();
   const sum = R().summary(S.reports);
   const counts = { inbox: inbox().length, requests: S.pendingRequests, packages: S.packages.length, done: done().length, papers: S.tests.length, students: sum.students };
-  $('dkStats').innerHTML = [[counts.inbox, 'Waiting', counts.inbox ? 'warn' : ''], [sum.overdue, 'Overdue 48h', sum.overdue ? 'bad' : ''], [counts.done, 'Checked', 'ok'], [sum.average == null ? '—' : sum.average + '%', 'Average', '']]
+  $('dkStats').innerHTML = [[counts.inbox, 'Waiting', counts.inbox ? 'warn' : ''], [sum.overdue, 'Overdue 24h', sum.overdue ? 'bad' : ''], [counts.done, 'Checked', 'ok'], [sum.average == null ? '—' : sum.average + '%', 'Average', '']]
     .map(([n, label, tone]) => `<div class="${tone}"><b>${esc(n)}</b><span>${label}</span></div>`).join('');
   Object.entries(counts).forEach(([k, n]) => { const el = $('dkN-' + k); el.textContent = n; el.classList.toggle('blink', (k === 'inbox' || k === 'requests') && n > 0); });
   document.querySelectorAll('[data-dk-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.dkTab === S.tab)));
