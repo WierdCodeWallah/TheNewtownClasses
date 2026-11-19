@@ -16,15 +16,19 @@
  *        Atomically saves the checked PDF to the report, attempt and results.
  *        An admin may pass onBehalfOf (a teacher uid): that teacher is shown as
  *        the checker, and offlineAudit/return_{attemptId} records the admin.
+ *        Without it an admin's return shows "TNC <Subject> Faculty".
  *    action 'delete-record' (admin) { attemptId }
  *        Permanently deletes one submission (report, attempt, result, history)
  *        and its uploaded scripts/checked PDF; logs offlineAudit/delete_{id}.
  *    action 'regrade' (staff)   { attemptId }
  *        Re-runs the AI check (e.g. after a failure).
+ *    action 'answer-key' (student) { testId }
+ *        After the student has submitted: the answer key PDF, when the admin
+ *        uploaded one for students (offlineTests.hasAnswerKey).
  *
  *  The question paper and the answer key live in offlineTestKeys/{testId}
  *  (staff-only), so students never see either before they press Start, and
- *  never see the answer key at all. Every write here uses the SERVICE
+ *  see an answer key only after submitting, and only one the admin shared. Every write here uses the SERVICE
  *  ACCOUNT, so a student cannot change their own timer or status.
  *
  *  Online Test Series (all-India, /test-series) tests are offlineTests with
@@ -42,6 +46,7 @@ const {
   request, verifyFirebaseIdToken, getServiceAccountAccessToken, fsGet, fsPatch, fsCommit, decFields
 } = require('./_google');
 const onlineSeries = require('./_online');
+const onlinePolicy = require('../../assets/js/online-policy');
 
 // Where a student's result and history live: the institute record for the
 // offline series, the online profile for the all-India online series.
@@ -83,7 +88,8 @@ async function sendResultEmail(projectId, sa, rep, score, remark, checkedScriptU
   if (!to.length) return [];
   const total = Number(rep.totalMarks) || 0, pct = total > 0 ? Math.round(score / total * 100) : null;
   const online = rep.series === 'online';
-  const link = online ? 'https://thenewtownclasses.com/test-series#/results' : 'https://thenewtownclasses.com/login/student';
+  // TNC students see online results on their own dashboard too.
+  const link = online && !rep.enrolled ? 'https://thenewtownclasses.com/test-series#/results' : 'https://thenewtownclasses.com/login/student';
   const name = rep.studentName || 'Your child';
   const subject = `${name}'s result: ${rep.testName || 'Test'} — ${score}/${total}`;
   const row = (k, v) => `<tr><td style="padding:6px 0;color:#64748b;font-size:14px">${escHtml(k)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;color:#0f172a;text-align:right">${escHtml(v)}</td></tr>`;
@@ -109,7 +115,9 @@ async function sendResultEmail(projectId, sa, rep, score, remark, checkedScriptU
 const bad = (status, msg) => ({ statusCode: status, headers: CORS, body: JSON.stringify({ error: msg }) });
 
 const MAX_PAGES = 25;
-const UPLOAD_GRACE_MIN = 15;   // time to scan & upload after the timer ends
+const UPLOAD_GRACE_MIN = 15;   // time to scan & upload after the timer ends (papers without their own)
+// New papers carry their own upload time (chapter-wise 10 min, full mock 20 min).
+const graceFor = test => { const n = parseInt(test && test.uploadGraceMin, 10); return n >= 5 && n <= 60 ? n : UPLOAD_GRACE_MIN; };
 const UC = { test: require('../../assets/js/uploadcare-config').isFileUrl };
 
 // Shared secret for the background grader, derived from the service account
@@ -183,7 +191,8 @@ exports.handler = async function (event) {
       if (rep.teacherUid !== uid && !callerIsAdmin) return bad(403, 'Only the assigned teacher can return this script.');
       // Admins may return a script in a chosen teacher's name; that teacher is
       // shown as the checker. The real actor goes to the admin-only audit log.
-      let actorUid = uid, actorName = (teacherDoc && decFields(teacherDoc).name) || 'Teacher';
+      // An admin's own return shows "TNC <Subject> Faculty", never a person.
+      let actorUid = uid, actorName = callerIsAdmin ? onlinePolicy.facultyName(rep.subject) : (teacherDoc && decFields(teacherDoc).name) || 'Teacher';
       if (body.onBehalfOf != null && body.onBehalfOf !== '') {
         const onBehalfOf = String(body.onBehalfOf);
         if (!callerIsAdmin) return bad(403, 'Only admins can return a script for another teacher.');
@@ -224,7 +233,7 @@ exports.handler = async function (event) {
           score, totalMarks: rep.totalMarks, pct: Math.round(score / rep.totalMarks * 100),
           testDate: (rep.submittedAt || now).slice(0, 10), remark: remark || (rep.series === 'online' ? 'Checked by TNC faculty' : 'Offline Test Series · Teacher checked'),
           // Online students see "TNC faculty", never the checker's name or ID (the report keeps it for admins).
-          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: rep.series === 'online' ? '' : actorUid, teacherName: rep.series === 'online' ? 'TNC faculty' : name,
+          answerSheetUrl: checkedScriptUrl, reviewMode: 'teacher', teacherUid: rep.series === 'online' ? '' : actorUid, teacherName: rep.series === 'online' ? onlinePolicy.facultyName(rep.subject) : name,
           studentUid: rep.uid, studentName: rep.studentName, studentId: rep.studentId, savedAt: now,
           submittedAt: rep.submittedAt, approvedAt: now
         } }
@@ -338,7 +347,7 @@ exports.handler = async function (event) {
         durationMin: duration,
         startedAt: now.toISOString(),
         deadline: new Date(now.getTime() + duration * 60000).toISOString(),
-        uploadGraceMin: UPLOAD_GRACE_MIN,
+        uploadGraceMin: graceFor(test),
         questionPdfUrl: key.questionPdfUrl,
         status: 'started'
       };
@@ -351,6 +360,17 @@ exports.handler = async function (event) {
         return ok({ ...decFields(existing), serverNow: new Date().toISOString() });
       }
       return ok({ ...rec, serverNow: now.toISOString() });
+    }
+
+    // The answer key, once this student has submitted (never while the timer
+    // runs), and only for papers the admin shared a key for.
+    if (action === 'answer-key') {
+      if (!att || att.status === 'started') return bad(409, 'Submit your answers first — the answer key opens after that.');
+      if (test.hasAnswerKey !== true) return bad(404, 'The answer key for this test is not available yet.');
+      const keyDoc = await fsGet(projectId, sa, `offlineTestKeys/${testId}`);
+      const answerPdfUrl = keyDoc ? decFields(keyDoc).answerPdfUrl : '';
+      if (!answerPdfUrl || !UC.test(answerPdfUrl)) return bad(404, 'The answer key for this test is not available yet.');
+      return ok({ answerPdfUrl });
     }
 
     if (action === 'submit') {

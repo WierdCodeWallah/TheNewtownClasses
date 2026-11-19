@@ -9,9 +9,11 @@
  *                      unlocked tests, price and whether payments are live.
  *                      Enrolled students get a profile copied from their
  *                      institute record and every test unlocked.
- *    'save-profile'    { profile } — the onboarding form (validated here).
+ *    'save-profile'    { profile } — the sign-up form (validated here). Only name, class, board,
+ *                      subjects, phone and guardian phone are required; the rest can
+ *                      be added later from Profile (detailsComplete says if all is filled).
  *    'create-order'    { testId } — a Razorpay order for one paid test
- *                      (chapter-wise ₹199, full mock ₹499).
+ *                      (chapter-wise ₹299, full mock ₹499).
  *    'verify-payment'  { orderId, paymentId, signature } — checks Razorpay's
  *                      signature and unlocks the test.
  *    'claim-free'      { testId } — online students get one free full mock on
@@ -19,7 +21,8 @@
  *                      never moved.
  *    'module-order'    { board, items:[{subject, chapters[]}] } — Custom module
  *                      test (Classes 7–12): ₹199 a chapter for the first 4,
- *                      ₹150 after (free for TNC students). Each subject
+ *                      ₹150 after, or ₹699 for a subject with every chapter picked (a
+ *                      Custom full mock); free for TNC students. Each subject
  *                      becomes a moduleRequests/{id} the team makes a paper for.
  *    'check-promo'     { code, testId } or { code, kind:'custom', board?, items? } — is the code
  *                      valid for this purchase? (100% off; nothing is used yet)
@@ -30,7 +33,7 @@
  *                      Razorpay order for the pack price (TNC students pay too).
  *  TNC (enrolled) students: chapter-wise tests, full mocks and custom module
  *  tests are free; mock packs are paid (promo codes work for them there).
- *  Prices: chapter-wise ₹199 and full mock ₹499. Enrolled (TNC ID) students
+ *  Prices: chapter-wise ₹299 (regular ₹399) and full mock ₹499 (regular ₹699). Enrolled (TNC ID) students
  *  get every test free, so they can take them all and appear on the leaderboard.
  *
  *  Students cannot write any of these records themselves: everything goes
@@ -39,7 +42,7 @@
  *
  *  ENV: FIREBASE_PROJECT_ID, FIREBASE_SERVICE_ACCOUNT,
  *       RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET (payments),
- *       ONLINE_CHAPTER_PRICE_INR / ONLINE_MOCK_PRICE_INR (optional; 199 / 499)
+ *       ONLINE_CHAPTER_PRICE_INR / ONLINE_MOCK_PRICE_INR (optional; 299 / 499)
  * ════════════════════════════════════════════════════
  */
 const crypto = require('crypto');
@@ -71,7 +74,7 @@ async function retryOnConflict(fn) {
 function publicProfile(p) {
   const keys = ['uid', 'onlineId', 'enrolled', 'provider', 'email', 'studentId', 'name', 'dob', 'gender', 'phone', 'class', 'board',
     'school', 'subjects', 'target', 'address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianEmail', 'guardianPhone',
-    'profileComplete', 'createdAt', 'photoUrl'];
+    'profileComplete', 'detailsComplete', 'createdAt', 'photoUrl'];
   return Object.fromEntries(keys.filter(k => p[k] !== undefined).map(k => [k, p[k]]));
 }
 
@@ -127,21 +130,23 @@ exports.handler = async function (event) {
         uid, enrolled, email,
         profile: profile ? publicProfile(profile) : { uid, email, name: '', profileComplete: false },
         unlocked: purchases.map(p => p.data.testId).filter(Boolean),
-        prices: online.prices(), paymentsReady: online.paymentsReady(),
+        prices: online.prices(), listPrices: policy.LIST_PRICES, paymentsReady: online.paymentsReady(),
         freeMock: { allowance: free.allowance, usedCount: free.usedCount, left: free.left, claims: free.claims },
         razorpayKeyId: process.env.RAZORPAY_KEY_ID || '', serverNow: now
       });
     }
 
     if (body.action === 'save-profile') {
-      const check = policy.validateProfile(body.profile, { enrolled });
+      // Quick start: name, class, board, subjects and the two phone numbers are
+      // enough to begin; the rest can be added later (detailsComplete tracks it).
+      const check = policy.validateProfile(body.profile, { enrolled, quick: true });
       if (!check.ok) return bad(400, Object.values(check.errors)[0], { fields: check.errors });
       const v = check.value;
       const base = profile || { uid, onlineId: policy.onlineId(uid), createdAt: now };
       const next = enrolled
         ? { ...base, ...v, name: base.name, class: base.class, board: base.board }   // institute keeps these
         : { ...base, ...v, enrolled: false, provider: 'google', email };
-      Object.assign(next, { uid, profileComplete: true, updatedAt: now, lastSeenAt: now });
+      Object.assign(next, { uid, profileComplete: true, detailsComplete: check.complete, updatedAt: now, lastSeenAt: now });
       await fsCommit(projectId, sa, [{ path: `onlineStudents/${uid}`, data: next }]);
       return ok({ ok: true, profile: publicProfile(next) });
     }
@@ -253,7 +258,7 @@ exports.handler = async function (event) {
       else if (Array.isArray(body.items) && body.items.length) {
         const cart = online.checkModuleCart(String(body.board || ''), profile.class, body.items);
         if (!cart.ok) return bad(400, cart.error);
-        use = { chapters: cart.count, valueInr: policy.modulePrice(cart.count) };
+        use = { chapters: cart.count, valueInr: cart.amountInr };
       }
       if (body.action === 'check-promo') {
         const check = await online.checkPromo(projectId, sa, body.code, kind, uid, use);
@@ -285,14 +290,14 @@ exports.handler = async function (event) {
       const board = String(body.board || '');
       const cart = online.checkModuleCart(board, profile.class, body.items);
       if (!cart.ok) return bad(400, cart.error);
-      const amountPaise = enrolled ? 0 : policy.modulePrice(cart.count) * 100;
+      const amountPaise = enrolled ? 0 : cart.amountInr * 100;
       const order = { type: 'module', uid, class: String(profile.class), board, items: cart.items, chapterCount: cart.count, amountPaise, currency: 'INR',
         enrolled, studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || '',
         testName: `Custom module · ${cart.count} chapter${cart.count === 1 ? '' : 's'}`, subject: cart.items.map(i => i.subject).join(', '), createdAt: now };
       if (enrolled) {   // TNC students: no payment, the papers are requested straight away
         const orderId = 'free_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex') + uid.slice(0, 6);
         const writes = await online.createModuleRequests(projectId, sa, { ...order, orderId }, orderId, now);
-        await fsCommit(projectId, sa, [{ path: `onlineOrders/${orderId}`, data: { ...order, orderId, fullAmountPaise: policy.modulePrice(cart.count) * 100, status: 'paid', paidAt: now, confirmedVia: 'free' } }, ...writes]);
+        await fsCommit(projectId, sa, [{ path: `onlineOrders/${orderId}`, data: { ...order, orderId, fullAmountPaise: cart.amountInr * 100, status: 'paid', paidAt: now, confirmedVia: 'free' } }, ...writes]);
         return ok({ ok: true, free: true, orderId, requests: writes.map(w => w.data) });
       }
       if (!(amountPaise > 0)) return bad(400, 'Your cart is empty.');

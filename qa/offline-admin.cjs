@@ -140,9 +140,11 @@ async function openPortal(browser, origin, role, file, width, ctx = { docs: repo
     if (url.pathname === '/.netlify/functions/offline-test') {
       const body = req.postDataJSON(); ctx.calls.push(body);
       if (body.action === 'return-script') {
-        // Mirror the server: the chosen teacher becomes the checker.
+        // Mirror the server: a chosen teacher becomes the checker; otherwise the
+        // admin's return shows "TNC <Subject> Faculty".
         const i = docs.findIndex(d => d.name.endsWith('/offlineReports/' + body.attemptId));
-        const teacher = TEACHERS.find(t => t.uid === body.onBehalfOf);
+        const subject = (docs[i].fields.subject && docs[i].fields.subject.stringValue) || '';
+        const teacher = TEACHERS.find(t => t.uid === body.onBehalfOf) || { uid: 'admin-uid', name: 'TNC ' + subject + ' Faculty' };
         const f = docs[i].fields;
         docs[i] = { ...docs[i], fields: { ...f, status: field('approved'), score: field(body.score), checkedScriptUrl: field(body.checkedScriptUrl), teacherRemark: field(body.remark),
           approvedByName: field(teacher.name), approvedByUid: field(teacher.uid), approvedAt: field(new Date().toISOString()) } };

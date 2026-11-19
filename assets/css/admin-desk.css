@@ -224,3 +224,13 @@
 /* WhatsApp-to-parent button on checked scripts */
 .dk-btn.wa { width: 100%; justify-content: center; background: #e9f9ef; border-color: #b9ebcb; color: #127a3a; }
 .dk-btn.wa:hover { background: #dcf5e6; }
+/* New paper: hidden fields stay hidden (labels are display:grid), fixed paper format, answer key box */
+.dk-sheet [hidden] { display: none !important; }
+.dk-format { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 12px; background: #eef4ff; color: var(--brand2); font-size: 13.5px; line-height: 1.4; }
+.dk-format svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.dk-format b { color: var(--ink); }
+.dk-format s { color: var(--ink3); font-weight: 500; }
+.dk-keybox { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.dk-keybox > b { font-size: 14px; }
+.dk-keybox > small { font-size: 12.5px; color: var(--ink3); margin-top: -6px; }
+.dk-keybox .dk-actions:empty { display: none; }

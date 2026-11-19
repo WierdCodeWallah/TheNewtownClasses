@@ -64,7 +64,8 @@ const webhookSignatureOk = (rawBody, signature) => !!process.env.RAZORPAY_WEBHOO
 // Marks an order paid and unlocks its test. Safe to call twice (checkout
 // handler and webhook can both arrive): a second call changes nothing.
 // Check a cart of chapters against the syllabus. items: [{ subject, chapters[] }].
-// Returns { ok, error, items (clean, syllabus order), count }.
+// Returns { ok, error, items (clean, syllabus order; full: every chapter of the
+// subject → a Custom full mock), count, amountInr (before the TNC discount) }.
 function checkModuleCart(board, cls, items) {
   if (!policy.MODULE.classes.includes(String(cls))) return { ok: false, error: 'Custom module tests are for Classes 7 to 12.' };
   if (!['CBSE', 'CISCE'].includes(board)) return { ok: false, error: 'Choose CBSE or ICSE / ISC.' };
@@ -79,12 +80,12 @@ function checkModuleCart(board, cls, items) {
     if (![...picked].every(c => book.includes(c))) return { ok: false, error: `Some ${subject} chapters are not in the ${syllabus.boardLabel(board, cls)} syllabus. Refresh and try again.` };
     const chapters = book.filter(c => picked.has(c));
     if (chapters.length && chapters.length < policy.MODULE.minPerPaper) return { ok: false, error: `Pick at least ${policy.MODULE.minPerPaper} chapters for ${subject}.` };
-    if (chapters.length) clean.push({ subject, chapters });
+    if (chapters.length) clean.push({ subject, chapters, ...(policy.isFullMock(chapters.length, book.length) ? { full: true } : {}) });
   }
   const count = clean.reduce((n, it) => n + it.chapters.length, 0);
   if (!count) return { ok: false, error: 'Add at least one chapter.' };
   if (count > policy.MODULE.maxChapters) return { ok: false, error: `You can add up to ${policy.MODULE.maxChapters} chapters at a time.` };
-  return { ok: true, items: clean, count };
+  return { ok: true, items: clean, count, amountInr: policy.cartPrice(clean.map(it => ({ count: it.chapters.length, full: !!it.full }))).totalInr };
 }
 
 // One request per subject in the order: the team makes that paper.
@@ -92,14 +93,19 @@ function checkModuleCart(board, cls, items) {
 async function createModuleRequests(projectId, sa, order, orderId, now) {
   const writes = [];
   const due = new Date(Date.parse(now) + policy.MODULE.readyHours * 3600000).toISOString();
-  for (const it of order.items || []) {
+  const items = order.items || [];
+  // Each paper's share of what was paid: a full mock is worth its flat price,
+  // the other chapters split the per-chapter total.
+  const values = policy.paperValues(items.map(it => ({ count: it.chapters.length, full: !!it.full })));
+  const valueSum = values.reduce((a, b) => a + b, 0);
+  for (const [i, it] of items.entries()) {
     const id = `${orderId}_${policy.subjectKey(it.subject)}`;
     if (await fsGet(projectId, sa, `moduleRequests/${id}`)) continue;
-    const share = order.chapterCount ? Math.round((order.amountPaise || 0) * it.chapters.length / order.chapterCount) : 0;
+    const share = valueSum ? Math.round((order.amountPaise || 0) * values[i] / valueSum) : 0;
     writes.push({ path: `moduleRequests/${id}`, currentDocument: { exists: false }, data: {
       id, orderId, uid: order.uid, studentName: order.studentName || '', onlineId: order.onlineId || '', enrolled: !!order.enrolled, phone: order.phone || '',
       class: String(order.class || ''), board: order.board, boardLabel: syllabus.boardLabel(order.board, order.class),
-      subject: it.subject, chapters: it.chapters, chapterCount: it.chapters.length, amountPaise: share,
+      subject: it.subject, chapters: it.chapters, chapterCount: it.chapters.length, full: !!it.full, amountPaise: share,
       status: 'requested', testId: '', createdAt: now, dueAt: due, readyAt: '' } });
   }
   return writes;

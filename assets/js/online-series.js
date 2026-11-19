@@ -42,6 +42,9 @@ const S = {
 const now = () => Date.now() + S.offset;
 const enrolled = () => !!(S.session && S.session.enrolled);
 const priceOf = t => P.priceFor(t, S.session && S.session.prices, enrolled());
+// Regular price shown struck through (0 when there is none, e.g. free or TNC).
+const listOf = t => P.listPriceFor(t, S.session && S.session.prices, S.session && S.session.listPrices, enrolled());
+const was = t => { const l = listOf(t); return l ? `<s>₹${l}</s>` : ''; };
 const kindOf = t => P.kindOf(t);
 // One free full mock per online student, on any subject they choose.
 const freeLeft = () => (S.session && S.session.freeMock && S.session.freeMock.left) || 0;
@@ -310,7 +313,7 @@ function refresh() {
       else S.errors.results = results.reason.message;
       if (boards.status === 'fulfilled') S.boards = Object.fromEntries(boards.value.map(b => [b.subject, b]));
       if (modules.status === 'fulfilled') S.modules = modules.value;
-      if (packs.status === 'fulfilled') S.packages = packs.value.map(normalisePack).filter(p => (!p.board || !session.profile.board || p.board === session.profile.board) && (p.active || ownsPack(p.id)));
+      if (packs.status === 'fulfilled') S.packages = packs.value.map(normalisePack).filter(p => (!p.board || !session.profile.board || p.board === session.profile.board) && (ownsPack(p.id) || (p.active && P.subjectAllowed(p.subject, session.profile.board, session.profile.class))));
       saveCache();
       if (document.body.dataset.screen !== 'app') show('app');
       render();
@@ -329,7 +332,8 @@ function normaliseTest(d) {
   return { id: d.id, testName: d.testName || 'Test', subject: d.subject || 'General', chapter: d.chapter || 'General', module: d.module || 'Full chapter',
     totalMarks: Number(d.totalMarks) || 0, durationMin: Number(d.durationMin) || 60, instructions: d.instructions || '',
     gradingMode: d.gradingMode || 'teacher', isActive: d.isActive !== false, isFree: d.isFree === true, board: d.board || '', createdAt: d.createdAt || '',
-    kind: d.kind || '', forUid: d.forUid || '', requestId: d.requestId || '', packageId: d.packageId || '', slot: Number(d.slot) || 0, releaseAt: d.releaseAt || '' };
+    kind: d.kind || '', forUid: d.forUid || '', requestId: d.requestId || '', packageId: d.packageId || '', slot: Number(d.slot) || 0, releaseAt: d.releaseAt || '',
+    hasAnswerKey: d.hasAnswerKey === true, full: d.full === true };
 }
 function normalisePack(d) {
   return { id: d.id, title: d.title || `${d.subject} mock pack`, class: String(d.class || ''), board: d.board || '', subject: d.subject || 'General', schedule: Array.isArray(d.schedule) ? d.schedule : [],
@@ -344,7 +348,10 @@ function normaliseResult(r) {
 }
 
 // ═══ Derived data ═══
-const visibleTests = () => S.tests.filter(t => t.isActive || S.attempts[t.id]);
+// CBSE up to Class 10 sees Science (not Physics / Chemistry / Biology); ICSE sees
+// the three sciences (not Science). A paper the student already took stays.
+const boardOk = subject => !S.session || P.subjectAllowed(subject, S.session.profile.board, S.session.profile.class);
+const visibleTests = () => S.tests.filter(t => S.attempts[t.id] || (t.isActive && (kindOf(t) === 'custom' || boardOk(t.subject))));
 const resultFor = t => S.results.find(r => r.testId === t.id);
 function stateOf(t) {
   const a = S.attempts[t.id];
@@ -361,7 +368,7 @@ function stateOf(t) {
 }
 const byOrder = (a, b) => (b.isFree - a.isFree) || a.createdAt.localeCompare(b.createdAt) || a.testName.localeCompare(b.testName, undefined, { numeric: true });
 function subjects() {
-  const set = new Set([...visibleTests().map(t => t.subject), ...((S.session.profile.subjects) || [])]);
+  const set = new Set([...visibleTests().map(t => t.subject), ...((S.session.profile.subjects) || []).filter(boardOk)]);
   const order = s => { const i = P.SUBJECTS.indexOf(s); return i < 0 ? 99 : i; };
   return [...set].sort((a, b) => order(a) - order(b) || a.localeCompare(b)).map(name => {
     const tests = visibleTests().filter(t => t.subject === name && !['custom', 'package'].includes(kindOf(t)));
@@ -394,9 +401,10 @@ function openMore() {
     <div class="menu more-menu">
       ${item('#/ranks', 'i-trophy', 'Leaderboard', rank ? `Your best: #${rank.rank} in ${esc(rank.subject || '')}` : 'All-India ranks by subject', r.name === 'ranks')}
       ${packsEligible() ? item('#/packs', 'i-calendar', 'Mock packs', 'A full-syllabus mock every week', r.name === 'packs') : ''}
-      ${item('#/me', 'i-user', 'Profile', esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
+      ${item('#/me', 'i-user', 'Profile', S.session.profile.detailsComplete === false && !enrolled() ? 'Add your remaining details' : esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
       <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span><b>Help on WhatsApp</b><small>Payments, papers, anything else</small></span>${ic('i-chev', 'chev')}</a>
       <a href="tel:${CONTACT.tel}">${ic('i-phone')}<span><b>Call us</b><small>${esc(CONTACT.show)}</small></span>${ic('i-chev', 'chev')}</a>
+      <a href="/">${ic('i-home')}<span><b>TNC home page</b><small>thenewtownclasses.com</small></span>${ic('i-chev', 'chev')}</a>
     </div>`, root => root.querySelectorAll('[data-more-go]').forEach(a => a.onclick = e => {
       e.preventDefault(); const h = a.getAttribute('href');
       closeSheet(() => { if (location.hash !== h) location.hash = h; });
@@ -470,7 +478,7 @@ function bindView(root) {
 // ═══ Views ═══
 function pill(t, st) {
   switch (st.key) {
-    case 'locked': return `<span class="pill lock">${ic('i-lock')}₹${priceOf(t)}</span>`;
+    case 'locked': return `<span class="pill lock">${ic('i-lock')}₹${priceOf(t)}${was(t)}</span>`;
     case 'ready': return st.why === 'free' && !['custom', 'package'].includes(kindOf(t)) ? '<span class="pill free">Free</span>' : `<span class="pill go">${ic('i-play')}Start</span>`;
     case 'started': return `<span class="pill warn">${ic('i-clock')}${st.left > 0 ? Math.ceil(st.left / 60000) + 'm left' : 'Upload'}</span>`;
     case 'review': return '<span class="pill wait">In review</span>';
@@ -532,8 +540,8 @@ function viewSubject(subject) {
   const shown = seg === 'mock' ? mocks : chapters;
   const hint = seg === 'results' ? ''
     : enrolled() ? 'Chapter-wise tests and full mocks are free for TNC students'
-    : seg === 'mock' ? `₹${priceOf({ kind: 'mock' })} per full mock${freeLeft() ? ` · ${freeMocks(freeLeft())} left — use on any subject` : ''}`
-    : `₹${priceOf({ kind: 'chapter' })} per chapter test`;
+    : seg === 'mock' ? `₹${priceOf({ kind: 'mock' })} per full mock${listOf({ kind: 'mock' }) ? ` (regular ₹${listOf({ kind: 'mock' })})` : ''}${freeLeft() ? ` · ${freeMocks(freeLeft())} left — use on any subject` : ''}`
+    : `₹${priceOf({ kind: 'chapter' })} per chapter test${listOf({ kind: 'chapter' }) ? ` (regular ₹${listOf({ kind: 'chapter' })})` : ''}`;
   const rows = seg !== 'results'
     ? (shown.length ? `<ul class="rows">${shown.map((t, i) => { const s = stateOf(t), fresh = t.id === S.justUnlocked && s.key === 'ready'; return `<li><button type="button" class="row${fresh ? ' fresh' : ''}" data-test="${esc(t.id)}">
         <span class="row-ix">${fresh ? ic('i-unlock') : String(i + 1).padStart(2, '0')}</span>
@@ -562,7 +570,7 @@ function resultRows(list) {
 }
 
 function viewRanks() {
-  const names = [...new Set([...subjects().filter(s => s.count).map(s => s.name), ...Object.keys(S.boards)])];
+  const names = [...new Set([...subjects().filter(s => s.count).map(s => s.name), ...Object.keys(S.boards).filter(boardOk)])];
   if (!names.length) return `<section class="v">${emptyBlock('i-trophy', 'Leaderboard opens soon', 'Take a test — once it is checked you join the all-India ranking for your class.')}</section>`;
   if (!names.includes(S.rankSubject)) S.rankSubject = names.find(n => S.boards[n]) || names[0];
   const subject = S.rankSubject, st = standing(subject), b = st.board, cls = S.session.profile.class;
@@ -606,7 +614,7 @@ function viewProfile() {
     ['Address', [['Address', p.address], ['City', p.city], ['State', p.state], ['PIN code', p.pincode]]],
     ['Parent / guardian', [['Name', p.guardianName], ['Relation', p.guardianRelation], ['Mobile', p.guardianPhone], ['Email', p.guardianEmail]]]
   ].map(([title, rows]) => [title, rows.map(([k, v]) => row(k, v)).join('')]).filter(([, html]) => html);
-  const missing = enrolled() && !p.guardianPhone;
+  const missing = enrolled() && !p.guardianPhone, later = !enrolled() && p.detailsComplete === false;
   return `<section class="v v-me">
     <div class="me-card">
       <span class="avatar lg">${esc(initials(p.name))}</span>
@@ -614,10 +622,12 @@ function viewProfile() {
       <span class="plan${enrolled() ? ' pro' : ''}">${enrolled() ? ic('i-shield') + 'TNC student' : ic('i-spark') + 'Online'}</span>
     </div>
     ${missing ? `<button type="button" class="banner info" data-act="edit">${ic('i-edit')}<span>Add your address and guardian details</span>${ic('i-chev', 'chev')}</button>` : ''}
+    ${later ? `<button type="button" class="banner info" data-act="edit">${ic('i-edit')}<span><b>Complete your profile</b><small>Date of birth, school, address and guardian details — needed for certificates</small></span>${ic('i-chev', 'chev')}</button>` : ''}
     <div class="groups">${groups.map(([title, html], i) => `<details class="group"${i === 0 ? ' open' : ''}><summary>${esc(title)}${ic('i-down', 'chev')}</summary><div class="kvs">${html}</div></details>`).join('')}</div>
     <div class="menu">
       <button type="button" data-act="edit">${ic('i-edit')}<span>Edit details</span>${ic('i-chev', 'chev')}</button>
       <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span>Help on WhatsApp</span>${ic('i-chev', 'chev')}</a>
+      <a href="/">${ic('i-home')}<span>TNC home page</span>${ic('i-chev', 'chev')}</a>
       <button type="button" class="danger" data-act="signout">${ic('i-out')}<span>Sign out</span></button>
     </div>
     <p class="fine center">${esc(p.email || '')}</p>
@@ -632,7 +642,7 @@ function confirmSignOut() {
 // ═══ Test sheet: details, unlock, start ═══
 function testHead(t) {
   return `<div class="sh-head" style="${tint(t.subject)}"><span class="sh-kicker">${subjIc(t.subject)}${esc(t.subject)} · ${esc(t.chapter)}</span><h2 id="sheetTitle">${esc(t.testName)}</h2>
-    <div class="facts"><span class="kind">${kindOf(t) === 'mock' ? 'Full mock' : kindOf(t) === 'custom' ? 'Custom module' : kindOf(t) === 'package' ? 'Pack mock' + (/^Mock [0-9]/.test(t.module) ? ' · ' + esc(t.module.slice(5)) : '') : 'Chapter-wise'}</span><span>${ic('i-doc')}${t.totalMarks || '?'} marks</span><span>${ic('i-clock')}${t.durationMin} min</span>${t.module && t.module !== 'Full chapter' && kindOf(t) !== 'custom' ? `<span>${esc(t.module)}</span>` : ''}${t.isFree ? '<span class="free">Free test</span>' : ''}</div></div>`;
+    <div class="facts"><span class="kind">${kindOf(t) === 'mock' ? 'Full mock' : kindOf(t) === 'custom' ? (t.full ? 'Custom full mock' : 'Custom module') : kindOf(t) === 'package' ? 'Pack mock' + (/^Mock [0-9]/.test(t.module) ? ' · ' + esc(t.module.slice(5)) : '') : 'Chapter-wise'}</span><span>${ic('i-doc')}${t.totalMarks || '?'} marks</span><span>${ic('i-clock')}${t.durationMin} min</span>${t.module && t.module !== 'Full chapter' && kindOf(t) !== 'custom' ? `<span>${esc(t.module)}</span>` : ''}${t.isFree ? '<span class="free">Free test</span>' : ''}</div></div>`;
 }
 function openTest(id, mode) {
   const t = S.tests.find(x => x.id === id);
@@ -644,7 +654,7 @@ function openTest(id, mode) {
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="claim">Use free mock</button></div>`;
   else if (mode === 'unlocked') body = `<div class="celebrate">${ic('i-unlock')}<b>Test unlocked</b><p>It's yours. Start whenever you're ready — the timer begins only when you open the paper.</p></div>
     <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button>`;
-  else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>`}<small>One-time · this test</small></div>
+  else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>${was(t)}`}<small>One-time · this test</small></div>
       <ul><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
     ${promoBox(t.id, !S.session.paymentsReady)}
     ${S.promo && S.promo.target === t.id ? `<button type="button" class="btn primary block" data-go="promo-redeem">${ic('i-unlock')}Unlock for ₹0</button>`
@@ -657,8 +667,8 @@ function openTest(id, mode) {
   else if (st.key === 'started') body = `<div class="warn-box">${ic('i-clock')}<p>${st.left > 0 ? `<b>${fmtTime(st.left).replace(/:\d\d$/, '')} left.</b> Your timer kept running while you were away.` : `<b>Time's up.</b> Upload your answers now${st.late ? ' — it will be marked late' : ''}.`}</p></div>
     <button type="button" class="btn primary block" data-go="resume">${st.left > 0 ? 'Continue test' : 'Upload answers'}</button>`;
   else if (st.key === 'scheduled') body = `<div class="warn-box">${ic('i-clock')}<p><b>This mock opens on ${esc(fmtWhen(st.at))}.</b> Come back then — the paper and your timer start only when you open it.</p></div>`;
-  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>`; }
-  else if (st.key === 'checked') { const r = st.result; body = r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>'; }
+  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `${keyButton(t)}<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>`; }
+  else if (st.key === 'checked') { const r = st.result; body = (r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>') + keyButton(t); }
   else body = '<p class="instr">This test is closed.</p>';
   openSheet(testHead(t) + body, root => {
     const go = root.querySelectorAll('[data-go]');
@@ -672,9 +682,22 @@ function openTest(id, mode) {
       else if (a === 'free-confirm') openTest(t.id, 'free-confirm');
       else if (a === 'claim') claimFree(t, b);
       else if (a === 'promo-redeem') redeemPromo(t, b);
+      else if (a === 'key') downloadKey(t, b);
     });
     if (st.key === 'locked') { bindPromo(root, t.id, { testId: t.id }, () => openTest(t.id)); if (S.session.paymentsReady) loadRazorpay().catch(() => {}); }
   });
+}
+// After submitting, the answer key (when the team shared one) — the server
+// checks the submission before handing it out.
+const keyButton = t => t.hasAnswerKey ? `<button type="button" class="btn ghost block key-btn" data-go="key">${ic('i-download')}Download answer key</button>` : '';
+async function downloadKey(t, btn) {
+  const done = busy(btn, 'Opening answer key…');
+  try {
+    const r = await fn('offline-test', { action: 'answer-key', testId: t.id });
+    const url = NTCUploadcare.deliveryUrl(r.answerPdfUrl);
+    try { await NTCOfflineFiles.downloadPdf(url, t.testName + '_answer_key.pdf'); } catch (_) { window.open(url, '_blank', 'noopener'); }
+  } catch (e) { toast(e.message, 'err'); }
+  finally { done(); }
 }
 function resultBody(r) {
   const pct = pctOf(r);
@@ -885,15 +908,29 @@ function saveCart() { try { localStorage.setItem(cartKey(), JSON.stringify(S.cus
 function cartItems(board) {
   const picked = S.cust.carts[board] || {};
   return NTCSyllabus.subjects(board, S.session.profile.class)
-    .map(s => ({ subject: s.subject, chapters: s.chapters.filter(c => (picked[s.subject] || []).includes(c)) })).filter(i => i.chapters.length);
+    .map(s => { const chapters = s.chapters.filter(c => (picked[s.subject] || []).includes(c)); return { subject: s.subject, chapters, full: P.isFullMock(chapters.length, s.chapters.length) }; })
+    .filter(i => i.chapters.length);
 }
 const cartCount = board => cartItems(board).reduce((n, i) => n + i.chapters.length, 0);
 // Subjects in the cart with too few chapters for a paper (minimum 2 each).
 const cartShort = board => cartItems(board).filter(i => i.chapters.length < P.MODULE.minPerPaper);
 const shortMsg = list => `Add ${list.map(i => `${P.MODULE.minPerPaper - i.chapters.length} more ${i.subject}`).join(', ')} chapter${list.length === 1 && P.MODULE.minPerPaper - list[0].chapters.length === 1 ? '' : 's'} · min ${P.MODULE.minPerPaper} per paper`;
-function bill(n) {
-  const M = P.MODULE, first = Math.min(n, M.firstCount), rest = n - first, total = P.modulePrice(n);
-  return { first, rest, total, save: n * M.first - total };
+// Cart bill: subjects with every chapter picked are Custom full mocks at a flat
+// price; all other chapters are priced together (₹199 × 4, then ₹150).
+function cartBill(board) {
+  const M = P.MODULE, items = cartItems(board), c = P.cartPrice(items.map(i => ({ count: i.chapters.length, full: i.full })));
+  const first = Math.min(c.chapters, M.firstCount), rest = c.chapters - first;
+  return { ...c, first, rest, total: c.totalInr, save: (c.chapters * M.first - c.chapterInr) + (c.fullListInr - c.fullInr), full: items.filter(i => i.full) };
+}
+// Banner under the chapter list: this subject is (or can become) a Custom full mock.
+function fullMockNote(c) {
+  const list = NTCSyllabus.chapters(c.board, S.session.profile.class, c.subject), picked = (c.carts[c.board][c.subject] || []).length, M = P.MODULE;
+  const listInr = P.modulePrice(list.length);
+  if (!(listInr > M.fullMock)) return '';
+  const price = enrolled() ? '<b>Free</b>' : `<b>₹${M.fullMock}</b><s>₹${listInr}</s>`;
+  return picked === list.length
+    ? `<div class="fm-note on">${ic('i-check')}<span><b>Custom full mock</b> · all ${list.length} ${esc(c.subject)} chapters</span><span class="fm-price">${price}</span></div>`
+    : `<div class="fm-note">${ic('i-spark')}<span>Pick all ${list.length} chapters for a <b>Custom full mock</b></span><span class="fm-price">${price}</span></div>`;
 }
 
 // ═══ Test packs: weekly mock packs + custom tests + what the student owns ═══
@@ -975,7 +1012,7 @@ function customMineRows(mods) {
   return `<ul class="rows">${mods.map(m => {
     const t = m.testId && S.tests.find(x => x.id === m.testId), st = t && stateOf(t);
     return `<li><button type="button" class="row" data-cmod="${esc(m.id)}" style="${tint(m.subject)}"><span class="subj-ic">${subjIc(m.subject)}</span>
-      <span class="row-main"><b>${esc(m.subject)} · ${plural(m.chapterCount, 'chapter')}</b><small>${t ? esc((m.chapters || []).slice(0, 2).join(', ')) + (m.chapterCount > 2 ? ` +${m.chapterCount - 2}` : '') : 'Ready by ' + esc(fmtWhen(m.dueAt))}</small></span>
+      <span class="row-main"><b>${esc(m.subject)} · ${m.full ? 'Custom full mock' : plural(m.chapterCount, 'chapter')}</b><small>${t ? esc((m.chapters || []).slice(0, 2).join(', ')) + (m.chapterCount > 2 ? ` +${m.chapterCount - 2}` : '') : 'Ready by ' + esc(fmtWhen(m.dueAt))}</small></span>
       ${t ? pill(t, st) : '<span class="pill wait">Preparing</span>'}</button></li>`; }).join('')}</ul>`;
 }
 
@@ -983,23 +1020,24 @@ function customBuild() {
   if (!moduleEligible()) return emptyBlock('i-layers', 'For Classes 7 to 12', 'Custom module tests are for Classes 7 to 12.');
   const c = cust(), cls = String(S.session.profile.class), subs = NTCSyllabus.subjects(c.board, cls), M = P.MODULE;
   if (!subs.some(s => s.subject === c.subject)) c.subject = subs[0].subject;
-  const n = cartCount(c.board), b = bill(n), picked = (c.carts[c.board][c.subject]) || [];
+  const picked = (c.carts[c.board][c.subject]) || [];
   const chapters = NTCSyllabus.chapters(c.board, cls, c.subject);
   const boardTabs = ['CBSE', 'CISCE'].map(bd => `<button type="button" role="tab" data-cboard="${bd}" aria-selected="${c.board === bd}">${NTCSyllabus.boardLabel(bd, cls)}${cartCount(bd) ? ` <i>${cartCount(bd)}</i>` : ''}</button>`).join('');
-  return `<div class="cm-price">${enrolled() ? ic('i-shield') + 'Free for TNC students · at least ' + M.minPerPaper + ' chapters per subject' : `${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · at least ${M.minPerPaper} chapters per subject`}</div>
+  return `<div class="cm-price">${enrolled() ? ic('i-shield') + 'Free for TNC students · at least ' + M.minPerPaper + ' chapters per subject' : `${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · all chapters = Custom full mock ₹${M.fullMock}`}</div>
     <div class="cm-pick">
       <div class="seg small" role="tablist" aria-label="Board">${boardTabs}</div>
       <div class="chips-scroll" role="tablist" aria-label="Subject">${subs.map(s => { const k = ((c.carts[c.board][s.subject]) || []).length; return `<button type="button" role="tab" class="chip-btn${s.subject === c.subject ? ' on' : ''}" data-csub="${esc(s.subject)}" aria-selected="${s.subject === c.subject}">${subjIc(s.subject)}${esc(s.subject)}${k ? `<i>${k}</i>` : ''}</button>`; }).join('')}</div>
     </div>
     <div class="sec"><h3>${esc(c.subject)} · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</h3><button type="button" class="link" data-call>${picked.length === chapters.length ? 'Clear' : 'Select all'}</button></div>
-    <ul class="rows picks" style="${tint(c.subject)}">${chapters.map((ch, i) => { const on = picked.includes(ch); return `<li><button type="button" class="row pick" data-ch="${i}" aria-pressed="${on}">
+    ${fullMockNote(c)}<ul class="rows picks" style="${tint(c.subject)}">${chapters.map((ch, i) => { const on = picked.includes(ch); return `<li><button type="button" class="row pick" data-ch="${i}" aria-pressed="${on}">
       <span class="row-ix">${String(i + 1).padStart(2, '0')}</span><span class="row-main"><b>${esc(ch)}</b></span><span class="tick" aria-hidden="true">${ic(on ? 'i-check' : 'i-plus')}</span></button></li>`; }).join('')}</ul>
     ${cartBarHtml(c)}`;
 }
 function cartBarHtml(c) {
-  const n = cartCount(c.board), b = bill(n); if (!n) return '';
-  const short = cartShort(c.board);
-  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${plural(n, 'chapter')} · ${enrolled() ? 'Free' : '₹' + b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save && !enrolled() ? `You save ₹${b.save}` : `${cartItems(c.board).length} paper${cartItems(c.board).length === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
+  const n = cartCount(c.board), b = cartBill(c.board); if (!n) return '';
+  const short = cartShort(c.board), papers = cartItems(c.board).length;
+  const what = b.fullCount ? `${b.fullCount} full mock${b.fullCount === 1 ? '' : 's'}${b.chapters ? ' + ' + plural(b.chapters, 'chapter') : ''}` : plural(n, 'chapter');
+  return `<div class="cart-bar${short.length ? ' short' : ''}" role="region" aria-label="Cart"><div><b>${what} · ${enrolled() ? 'Free' : '₹' + b.total}</b><small>${short.length ? esc(shortMsg(short)) : b.save && !enrolled() ? `You save ₹${b.save}` : `${papers} paper${papers === 1 ? '' : 's'}`}</small></div><button type="button" class="btn" data-cart${short.length ? ' disabled aria-disabled="true"' : ''}>${ic('i-cart')}Review</button></div>`;
 }
 // Picking chapters updates only what changed (ticks, counts, cart bar): no full redraw, no blink.
 function syncPicks() {
@@ -1012,6 +1050,10 @@ function syncPicks() {
   root.querySelectorAll('[data-csub]').forEach(el => count(el, ((c.carts[c.board][el.dataset.csub]) || []).length));
   root.querySelectorAll('[data-cboard]').forEach(el => count(el, cartCount(el.dataset.cboard)));
   const all = root.querySelector('[data-call]'); if (all) all.textContent = picked.length === list.length ? 'Clear' : 'Select all';
+  const note = root.querySelector('.fm-note'), noteHtml = fullMockNote(c);
+  if (note && note.outerHTML !== noteHtml) { if (noteHtml) note.outerHTML = noteHtml; else note.remove(); }
+  else if (!note && noteHtml) { const host = root.querySelector('.rows.picks'); if (host) host.insertAdjacentHTML('beforebegin', noteHtml); }
+  if (!REDUCED.matches && picked.length === list.length && noteHtml) { const on = root.querySelector('.fm-note.on'); if (on && !note?.classList.contains('on')) on.classList.add('pop'); }
   const old = root.querySelector('.cart-bar'), html = cartBarHtml(c);
   if (old && html) old.outerHTML = html; else if (old) old.remove(); else if (html) { const host = root.querySelector('.rows.picks'); if (host) host.insertAdjacentHTML('afterend', html); }
   const bar = root.querySelector('.cart-bar [data-cart]'); if (bar) bar.onclick = openCart;
@@ -1134,16 +1176,17 @@ function bindCustom(root) {
 
 function openCart() {
   if (S.promo && S.cust && S.promo.target !== 'cart:' + S.cust.board) S.promo = null;
-  const c = cust(), cls = String(S.session.profile.class), items = cartItems(c.board), n = cartCount(c.board), b = bill(n), M = P.MODULE, short = cartShort(c.board);
+  const c = cust(), cls = String(S.session.profile.class), items = cartItems(c.board), n = cartCount(c.board), b = cartBill(c.board), M = P.MODULE, short = cartShort(c.board);
   if (!n) return closeSheet();
   openSheet(`<div class="sh-head"><span class="sh-kicker">${ic('i-cart')}Your cart · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</span><h2 id="sheetTitle">Custom module test</h2></div>
-    <div class="cart-list">${items.map(it => `<div class="cg" style="${tint(it.subject)}"><div class="cg-h"><span class="subj-ic">${subjIc(it.subject)}</span>${esc(it.subject)}<small>${plural(it.chapters.length, 'chapter')} · 1 paper</small></div>
-      <ul>${it.chapters.map(ch => `<li><span>${esc(ch)}</span><button type="button" data-rm="${esc(it.subject)}" data-rmch="${esc(ch)}" aria-label="Remove ${esc(ch)}">${ic('i-x')}</button></li>`).join('')}</ul></div>`).join('')}</div>
-    <div class="bill">${enrolled() ? `<div><span>${plural(n, 'chapter')}</span><b>Free · TNC student</b></div>` : `<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
+    <div class="cart-list">${items.map(it => `<div class="cg" style="${tint(it.subject)}"><div class="cg-h"><span class="subj-ic">${subjIc(it.subject)}</span>${esc(it.subject)}<small>${it.full ? `Custom full mock · all ${it.chapters.length}` : plural(it.chapters.length, 'chapter') + ' · 1 paper'}</small></div>
+      <ul>${it.full ? `<li><span>All ${it.chapters.length} chapters · full syllabus</span><button type="button" data-rmall="${esc(it.subject)}" aria-label="Remove ${esc(it.subject)}">${ic('i-x')}</button></li>`
+        : it.chapters.map(ch => `<li><span>${esc(ch)}</span><button type="button" data-rm="${esc(it.subject)}" data-rmch="${esc(ch)}" aria-label="Remove ${esc(ch)}">${ic('i-x')}</button></li>`).join('')}</ul></div>`).join('')}</div>
+    <div class="bill">${enrolled() ? `<div><span>${plural(n, 'chapter')}</span><b>Free · TNC student</b></div>` : `${b.full.map(it => `<div><span>Custom full mock · ${esc(it.subject)}</span><span><s>₹${P.modulePrice(it.chapters.length)}</s> ₹${M.fullMock}</span></div>`).join('')}${b.first ? `<div><span>${b.first} × ₹${M.first}</span><span>₹${b.first * M.first}</span></div>` : ''}${b.rest ? `<div><span>${b.rest} × ₹${M.rest}</span><span>₹${b.rest * M.rest}</span></div>` : ''}${b.save ? `<div class="save"><span>You save</span><span>−₹${b.save}</span></div>` : ''}`}
       ${cartPromo() ? `<div class="save"><span>Promo ${esc(cartPromo())}</span><span>−₹${b.total}</span></div>` : ''}
       <div class="total"><span>Total</span><span>${enrolled() || cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
     ${enrolled() ? '' : cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
-    ${!enrolled() && n < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - n} more chapter${M.firstCount + 1 - n === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
+    ${!enrolled() && b.chapters && b.chapters < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - b.chapters} more chapter${M.firstCount + 1 - b.chapters === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
     <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>
     ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
       : enrolled() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Request my tests · free</button>`
@@ -1151,6 +1194,10 @@ function openCart() {
       : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
       : contactCard(`a custom module test (${plural(n, 'chapter')}: ${items.map(i => i.subject).join(', ')})`)}`,
   root => {
+    root.querySelectorAll('[data-rmall]').forEach(btn => btn.onclick = () => {
+      cust().carts[cust().board][btn.dataset.rmall] = []; saveCart();
+      render(); if (cartCount(cust().board)) openCart(); else closeSheet();
+    });
     root.querySelectorAll('[data-rm]').forEach(btn => btn.onclick = () => {
       const cart = cust().carts[cust().board]; cart[btn.dataset.rm] = (cart[btn.dataset.rm] || []).filter(x => x !== btn.dataset.rmch); saveCart();
       render(); if (cartCount(cust().board)) openCart(); else closeSheet();
@@ -1163,7 +1210,7 @@ const cartPromoRaw = () => S.promo && S.cust && S.promo.target === 'cart:' + S.c
 // Why an applied code no longer covers the cart (chapters added after applying it), or ''.
 function cartPromoMiss() {
   const p = cartPromoRaw(); if (!p) return '';
-  const l = p.limits || {}, n = cartCount(S.cust.board), total = bill(n).total;
+  const l = p.limits || {}, n = cartCount(S.cust.board), total = cartBill(S.cust.board).total;
   if (l.maxChapters && n > l.maxChapters) return `${p.code} covers up to ${plural(l.maxChapters, 'chapter')} — remove ${n - l.maxChapters} to use it.`;
   if (l.maxValueInr && total > l.maxValueInr) return `${p.code} covers up to ₹${l.maxValueInr} — this cart is ₹${total}.`;
   return '';
@@ -1171,7 +1218,7 @@ function cartPromoMiss() {
 const cartPromo = () => { const p = cartPromoRaw(); return p && !cartPromoMiss() ? p.code : ''; };
 
 function openModuleSheet(m) {
-  openSheet(`<div class="sh-head" style="${tint(m.subject)}"><span class="sh-kicker">${subjIc(m.subject)}${esc(m.subject)} · Class ${esc(m.class)} ${esc(m.boardLabel || '')}</span><h2 id="sheetTitle">Custom module test</h2>
+  openSheet(`<div class="sh-head" style="${tint(m.subject)}"><span class="sh-kicker">${subjIc(m.subject)}${esc(m.subject)} · Class ${esc(m.class)} ${esc(m.boardLabel || '')}</span><h2 id="sheetTitle">${m.full ? 'Custom full mock' : 'Custom module test'}</h2>
       <div class="facts"><span class="kind">${plural(m.chapterCount, 'chapter')}</span><span>${ic('i-clock')}Ready by ${esc(fmtWhen(m.dueAt))}</span></div></div>
     <ol class="track"><li class="done">${ic('i-check')}<b>Ordered</b><small>${esc(fmtWhen(m.createdAt))}</small></li><li class="now">${ic('i-pen')}<b>Making your paper</b><small>TNC faculty are setting it</small></li><li>${ic('i-play')}<b>Ready to start</b><small>You'll see it here</small></li></ol>
     <div class="cg"><div class="cg-h">Chapters</div><ul>${(m.chapters || []).map(ch => `<li><span>${esc(ch)}</span></li>`).join('')}</ul></div>`);
@@ -1431,10 +1478,12 @@ $('exUpSubmit').onclick = async () => {
     S.attempts[ex.test.id] = { ...S.attempts[ex.test.id], status: r.status || 'submitted', submittedAt: new Date().toISOString() };
     saveCache(); haptic(40);
     msg.className = 'up-msg ok';
-    msg.textContent = 'Submitted! Your checked script will be back within 48 hours.' + (r.lateByMin > 15 ? ' (Marked as late.)' : '');
+    msg.textContent = 'Submitted! Your checked script will be back within 48 hours.' + (r.lateByMin > (ex.attempt.uploadGraceMin || 15) ? ' (Marked as late.)' : '');
     btn.textContent = 'Submitted';
     clearInterval(ex.timer);
-    setTimeout(() => { S.up.busy = false; closeUpload(() => { popLayer('exam', () => { toast('Submitted. Results within 48 hours.'); refresh(); }); }); }, 1600);
+    // With an answer key, reopen the test so the student can download it straight away.
+    const t = ex.test;
+    setTimeout(() => { S.up.busy = false; closeUpload(() => { popLayer('exam', () => { toast('Submitted. Results within 48 hours.'); if (t.hasAnswerKey) openTest(t.id); refresh(); }); }); }, 1600);
     return;
   } catch (e) {
     msg.className = 'up-msg err';
@@ -1455,6 +1504,10 @@ const OB_STEPS = [
   { title: 'Your studies', sub: 'We show papers for your class and board.', fields: ['class', 'board', 'school', 'subjects', 'target'] },
   { title: 'Address & guardian', sub: 'For results, certificates and important updates.', fields: ['address', 'city', 'state', 'pincode', 'guardianName', 'guardianRelation', 'guardianPhone', 'guardianEmail'] }
 ];
+// Sign-up asks only what is needed to start; everything else can be added later from Profile.
+const QUICK_STEP = { title: 'Quick start', sub: 'Just these to begin — add school, address and the rest any time from Profile.', fields: ['name', 'phone', 'class', 'board', 'subjects', 'guardianPhone'] };
+const obSteps = () => (S.ob && S.ob.quick ? [QUICK_STEP] : OB_STEPS);
+const stepFields = () => { const f = obSteps()[S.ob.step].fields; return f.includes('city') ? f.concat(['pincode']) : f; };
 const draftKey = () => 'ntc-online:draft:' + S.user.uid;
 function startOnboarding(editing) {
   const p = S.session.profile || {};
@@ -1463,7 +1516,7 @@ function startOnboarding(editing) {
   const base = { name: p.name || (S.user.displayName || ''), dob: p.dob || '', gender: p.gender || '', phone: p.phone || '', class: p.class || '', board: p.board || '',
     school: p.school || '', subjects: p.subjects || [], target: p.target || '', address: p.address || '', city: p.city || '', state: p.state || '', pincode: p.pincode || '',
     guardianName: p.guardianName || '', guardianRelation: p.guardianRelation || '', guardianPhone: p.guardianPhone || '', guardianEmail: p.guardianEmail || '' };
-  S.ob = { step: 0, editing, data: !editing && draft ? { ...base, ...draft } : base, errors: {} };
+  S.ob = { step: 0, editing, quick: !editing, data: !editing && draft ? { ...base, ...draft } : base, errors: {} };
   show('onboard'); renderOb();
 }
 function chips(name, options, multi, labels) {
@@ -1484,7 +1537,7 @@ function field(name) {
     case 'class': return locked ? `<div class="locked-row">${ic('i-shield')}Class ${esc(d.class)} · ${esc(d.board || '')} <small>from your TNC record</small></div>` : group('Class', chips('class', P.CLASSES, false, c => 'Class ' + c));
     case 'board': return locked ? '' : group('Board', chips('board', P.BOARDS));
     case 'school': return text('School name', 'autocomplete="organization" maxlength="120" placeholder="e.g. Delhi Public School, Newtown"');
-    case 'subjects': return group('Subjects', chips('subjects', P.SUBJECTS, true, s => s === 'Computer' ? 'Computer Science' : s));
+    case 'subjects': return `<div data-f="subjects">${group('Subjects', chips('subjects', P.subjectsFor(d.board, d.class), true, s => s === 'Computer' ? 'Computer Science' : s))}${subjectHint(d)}</div>`;
     case 'target': return group('Preparing for', chips('target', P.TARGETS), true);
     case 'address': return text('Address', 'autocomplete="street-address" maxlength="200" placeholder="House / flat, street, area"');
     case 'city': return `<div class="fl-pair"><div>${text('City / town', 'autocomplete="address-level2" maxlength="60"')}</div><div>${(() => { const e = `<small class="fe" data-err="pincode">${esc(S.ob.errors.pincode || '')}</small>`; return `<label class="fl${S.ob.errors.pincode ? ' bad' : ''}"><span>PIN code</span><input name="pincode" value="${esc(d.pincode)}" inputmode="numeric" autocomplete="postal-code" /></label>${e}`; })()}</div></div>`;
@@ -1497,20 +1550,27 @@ function field(name) {
     default: return '';
   }
 }
+// CBSE: one Science paper up to Class 10; ICSE / ISC: Physics, Chemistry, Biology.
+function subjectHint(d) {
+  const b = String(d.board || '').toUpperCase(), c = parseInt(d.class, 10) || 0;
+  const t = b === 'CBSE' && c && c <= 10 ? 'CBSE up to Class 10 has one Science paper.' : b === 'ICSE' ? 'ICSE / ISC has Physics, Chemistry and Biology as separate papers.' : !b || !c ? 'Choose your class and board to see your subjects.' : '';
+  return t ? `<p class="ob-hint">${esc(t)}</p>` : '';
+}
 function renderOb() {
-  const step = OB_STEPS[S.ob.step], n = S.ob.step + 1;
+  const steps = obSteps(), step = steps[S.ob.step], n = S.ob.step + 1;
   $('obTitle').textContent = step.title; $('obSub').textContent = step.sub;
-  $('obStep').textContent = `${n}/${OB_STEPS.length}`;
-  $('obBar').style.transform = `scaleX(${n / OB_STEPS.length})`;
-  $('obBody').innerHTML = step.fields.map(field).join('');
-  $('obNext').textContent = n === OB_STEPS.length ? (S.ob.editing ? 'Save details' : 'Finish') : 'Continue';
+  $('obStep').textContent = steps.length > 1 ? `${n}/${steps.length}` : '';
+  $('obBar').style.transform = `scaleX(${n / steps.length})`;
+  $('obBody').innerHTML = step.fields.map(field).join('')
+    + (S.ob.quick ? '<button type="button" class="link ob-more" data-ob-full>Add all my details now</button>' : '');
+  $('obNext').textContent = S.ob.quick ? 'Start my tests' : n === steps.length ? (S.ob.editing ? 'Save details' : 'Finish') : 'Continue';
   $('obBack').setAttribute('aria-label', S.ob.step === 0 && !S.ob.editing ? 'Use a different account' : 'Back');
   $('obErr').textContent = '';
   $('obBody').scrollTop = 0;
 }
 function readOb() {
   const d = S.ob.data, form = $('obForm');
-  OB_STEPS[S.ob.step].fields.concat(S.ob.step === 2 ? ['pincode'] : []).forEach(name => {
+  stepFields().forEach(name => {
     const els = form.querySelectorAll(`[name="${name}"]`);
     if (!els.length) return;
     if (name === 'subjects') d.subjects = [...els].filter(e => e.checked).map(e => e.value);
@@ -1519,7 +1579,20 @@ function readOb() {
   });
   try { if (!S.ob.editing) localStorage.setItem(draftKey(), JSON.stringify(d)); } catch (_) {}
 }
-$('obForm').addEventListener('change', () => { readOb(); });
+$('obForm').addEventListener('change', e => {
+  readOb();
+  // Class or board changed: keep only that board's subjects and redraw the subject chips in place.
+  if (['class', 'board'].includes(e.target.name)) {
+    const d = S.ob.data, box = $('obBody').querySelector('[data-f="subjects"]');
+    d.subjects = (d.subjects || []).filter(x => P.subjectAllowed(x, d.board, d.class));
+    if (box) box.outerHTML = field('subjects');
+    try { if (!S.ob.editing) localStorage.setItem(draftKey(), JSON.stringify(d)); } catch (_) {}
+  }
+});
+$('obForm').addEventListener('click', e => {
+  if (!e.target.closest('[data-ob-full]')) return;
+  readOb(); S.ob.quick = false; S.ob.step = 0; S.ob.errors = {}; renderOb();
+});
 $('obForm').addEventListener('input', e => {
   // Digits only; a pasted "+91 98765 43210" or "098765 43210" keeps its 10 digits.
   if (e.target.name === 'phone' || e.target.name === 'guardianPhone') { let d = e.target.value.replace(/\D/g, ''); if (d.length > 10) d = d.replace(/^(91|0)/, ''); e.target.value = d.slice(0, 10); }
@@ -1529,21 +1602,22 @@ $('obForm').addEventListener('input', e => {
 $('obBack').onclick = () => {
   readOb();
   if (S.ob.step > 0) { S.ob.step--; renderOb(); return; }
+  if (!S.ob.editing && !S.ob.quick) { S.ob.quick = true; S.ob.errors = {}; renderOb(); return; }   // back to the quick page
   if (S.ob.editing) { show('app'); render(); return; }
   signOutNow();
 };
 $('obForm').onsubmit = async e => {
   e.preventDefault(); readOb();
-  const check = P.validateProfile(S.ob.data, { enrolled: enrolled() });
-  const stepFields = OB_STEPS[S.ob.step].fields.concat(S.ob.step === 2 ? ['pincode'] : []);
-  S.ob.errors = Object.fromEntries(Object.entries(check.errors).filter(([k]) => stepFields.includes(k)));
+  // Only the quick-start fields are required; anything else filled in must be valid.
+  const check = P.validateProfile(S.ob.data, { enrolled: enrolled(), quick: true }), here = stepFields();
+  S.ob.errors = Object.fromEntries(Object.entries(check.errors).filter(([k]) => here.includes(k)));
   if (Object.keys(S.ob.errors).length) {
     renderOb(); haptic(30);
     const first = $('obBody').querySelector('.bad input, .bad select, .bad'); if (first && first.focus) first.focus();
     return;
   }
-  if (S.ob.step < OB_STEPS.length - 1) { S.ob.step++; S.ob.errors = {}; renderOb(); return; }
-  if (!check.ok) { const k = Object.keys(check.errors)[0]; S.ob.step = OB_STEPS.findIndex(s => s.fields.includes(k) || (k === 'pincode' && s.fields.includes('city'))); S.ob.errors = check.errors; renderOb(); return; }
+  if (S.ob.step < obSteps().length - 1) { S.ob.step++; S.ob.errors = {}; renderOb(); return; }
+  if (!check.ok) { const k = Object.keys(check.errors)[0]; S.ob.step = Math.max(0, obSteps().findIndex(s => s.fields.includes(k) || (k === 'pincode' && s.fields.includes('city')))); S.ob.errors = check.errors; renderOb(); return; }
   const done = busy($('obNext'), 'Saving…');
   try {
     const res = await fn('online-series', { action: 'save-profile', profile: S.ob.data });
@@ -1551,7 +1625,7 @@ $('obForm').onsubmit = async e => {
     const editing = S.ob.editing, classChanged = S.session.profile.class !== res.profile.class;
     S.session.profile = res.profile; S.ob = null;
     if (editing && !classChanged) { saveCache(); show('app'); render(); toast('Details saved.'); }
-    else { show('boot'); bootMessage(''); await refresh(); toast(editing ? 'Details saved.' : `Welcome, ${firstName()}! Pick a subject for your free mock test.`); }
+    else { show('boot'); bootMessage(''); await refresh(); toast(editing ? 'Details saved.' : `Welcome, ${firstName()}! Pick a subject for your free mock test.${res.profile.detailsComplete ? '' : ' Add the rest of your details any time from Profile.'}`); }
   } catch (err) {
     $('obErr').textContent = err.message;
     if (err.data && err.data.fields) { S.ob.errors = err.data.fields; }

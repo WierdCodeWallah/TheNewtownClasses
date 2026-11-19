@@ -48,8 +48,8 @@ const ok = r => r.status === 200;
   t = await timed('orders', () => Promise.all(range(300).map(i => api({ idToken: 'g:s' + i, action: 'create-order', testId: 'cchap01' }))));
   assert.ok(t.r.every(ok), 'all 300 orders created');
   assert.equal(new Set(t.r.map(x => x.body.orderId)).size, 300, 'each student gets their own order');
-  assert.ok(t.r.every(x => x.body.amountPaise === 19900), 'price always set by the server');
-  lines.push('300 students start a ₹199 payment at once → 300 separate orders, all ₹199');
+  assert.ok(t.r.every(x => x.body.amountPaise === 29900), 'price always set by the server');
+  lines.push('300 students start a ₹299 payment at once → 300 separate orders, all ₹299');
 
   // 3. 100 students race for a promo code with 10 uses.
   db.set('promoCodes/RACE10', { code: 'RACE10', scope: 'all', maxUses: 10, uses: 0, oncePerStudent: true, active: true });
@@ -76,7 +76,7 @@ const ok = r => r.status === 200;
   // 5. One payment confirmed 10× by the phone and 10× by the webhook at the same time.
   const order = t.r && (await api({ idToken: 'g:s300', action: 'create-order', testId: 'cchapx00' })).body;
   const payId = 'pay_Race000001', sig = sign(order.orderId, payId);
-  const payload = { event: 'payment.captured', payload: { payment: { entity: { id: payId, order_id: order.orderId, amount: 19900, currency: 'INR', status: 'captured' } } } };
+  const payload = { event: 'payment.captured', payload: { payment: { entity: { id: payId, order_id: order.orderId, amount: 29900, currency: 'INR', status: 'captured' } } } };
   t = await timed('confirm', () => Promise.all([...range(10).map(() => api({ idToken: 'g:s300', action: 'verify-payment', orderId: order.orderId, paymentId: payId, signature: sig })), ...range(10).map(() => hook(payload))]));
   assert.ok(t.r.every(ok), 'every confirmation answers OK (no 500s)');
   assert.ok(db.has('onlinePurchases/cchapx00__s300'), 'unlocked'); assert.equal(db.get('onlineOrders/' + order.orderId).status, 'paid');
@@ -97,7 +97,7 @@ const ok = r => r.status === 200;
   lines.push('One student double-taps "Join for ₹0" on a pack 5× → joined once, code used once');
 
   // 8. 300 students start and submit at once (TNC-free chapter tests via a direct unlock).
-  range(300).forEach(i => db.set('onlinePurchases/cchapx01__s' + i, { uid: 's' + i, testId: 'cchapx01', amountPaise: 19900 }));
+  range(300).forEach(i => db.set('onlinePurchases/cchapx01__s' + i, { uid: 's' + i, testId: 'cchapx01', amountPaise: 29900 }));
   t = await timed('start', () => Promise.all(range(300).map(i => ot({ idToken: 'g:s' + i, action: 'start', testId: 'cchapx01' }))));
   assert.ok(t.r.every(ok), 'all 300 started');
   const script = 'https://ucarecdn.com/22222222-2222-2222-2222-222222222222/';

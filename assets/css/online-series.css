@@ -687,3 +687,25 @@ body:has(#sheet.on, #exam:not([hidden])) .tsx-toast.on { transform: translate(-5
   .chk-steps li { animation: none !important; }
 }
 
+/* Struck-through regular prices, answer key, Custom full mock */
+.pill s { font-size: 11px; font-weight: 600; opacity: .62; margin-left: 2px; }
+.bill s { color: var(--ink-3); font-weight: 500; margin-right: 4px; }
+.key-btn { margin-bottom: 10px; }
+.fm-note { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 11px 14px; border-radius: 14px; border: 1.5px dashed #c9d6ee; background: #f6f9ff; color: var(--ink-2, #3b4a66); font-size: 13.5px; line-height: 1.35; }
+.fm-note > svg { width: 18px; height: 18px; flex: none; color: var(--brand); }
+.fm-note > span:first-of-type { flex: 1; min-width: 0; }
+.fm-price { display: flex; align-items: baseline; gap: 6px; flex: none; white-space: nowrap; }
+.fm-price b { font-size: 16px; color: var(--brand-deep); }
+.fm-price s { font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
+.fm-note.on { border-style: solid; border-color: #9fd8bf; background: var(--ok-soft); color: var(--ok); }
+.fm-note.on > svg { color: var(--ok); }
+.fm-note.pop { animation: fmPop .35s cubic-bezier(.2, .9, .3, 1.3); }
+@keyframes fmPop { from { transform: scale(.96); } to { transform: none; } }
+/* Quick start, board-aware subjects, finish profile later, back to home */
+.ob-hint { margin: 6px 2px 0; font-size: 12.5px; color: var(--ink-3); }
+.ob-more { align-self: center; min-height: 44px; padding: 0 12px; }
+.banner span b, .banner span small { display: block; }
+.banner span small { font-weight: 500; font-size: 12px; opacity: .85; margin-top: 2px; }
+.au-home { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--brand-2); text-decoration: none; }
+.au-home svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+@media (min-width: 960px) { .au-home { color: #cfe0ff; } }

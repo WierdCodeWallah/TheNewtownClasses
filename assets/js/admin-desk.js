@@ -2,7 +2,9 @@
      To check  answer scripts students uploaded, oldest first. Open one →
                download the script → upload the checked PDF + marks → send back.
      Checked   everything already returned (marks, feedback, PDFs).
-     Papers    every question paper; publish a new one, close or reopen.
+     Papers    every question paper; publish a new one, close or reopen, add
+               the answer key students can download after they submit.
+               Students always see "TNC <Subject> Faculty", never a teacher.
      Students  who wrote how many tests, with averages; open one for their scripts.
      To make   everything you have to create: Custom module requests (chapters
                listed, unlocks for that student only) and mock-pack mocks due
@@ -17,6 +19,27 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const R = () => window.NTCOfflineRecords, F = () => window.NTCOfflineFiles, U = () => window.NTCUploadcare, P = () => window.NTCOnlinePolicy;
 const phone = () => matchMedia('(max-width:700px)').matches;
+const faculty = subject => P().facultyName(subject);
+const KEY_LABEL = 'Answer key PDF (optional)';
+const fileField = (id, label) => `<label class="dk-file dk-full" id="${id}Box"><input type="file" id="${id}" accept="application/pdf,.pdf">${I.up}<span id="${id}Name">${label}</span></label>`;
+// A chosen file keeps its role in view ("Answer key · key.pdf") so two pickers never look alike.
+function bindFile(id, label) {
+  const role = /answer key/i.test(label) ? 'Answer key' : 'Question paper';
+  $(id).onchange = e => { const f = e.target.files[0]; $(id + 'Name').textContent = f ? `${role} · ${f.name}` : label; $(id + 'Box').classList.toggle('has', !!f); };
+}
+// Upload time after the timer for papers whose length the admin sets (custom papers): 90 min → 10, 180 min → 20.
+const graceForMins = m => Math.min(30, Math.max(10, Math.round(m / 9)));
+// Paper format line: marks · time + upload time (· price for online papers).
+function formatLine(kind, online) {
+  const f = P().paperFor(kind), price = P().priceFor({ kind }), list = P().listPriceFor({ kind });
+  return `${I.clock}<span><b>${f.marks} marks · ${f.durationMin} min</b> + ${f.graceMin} min to upload${online ? ` · ₹${price}${list ? ` <s>₹${list}</s>` : ''} · free for TNC students` : ''}</span>`;
+}
+// Reads and uploads the optional answer key PDF; '' when none was chosen.
+async function uploadKey(file, say) {
+  if (!file) return '';
+  say('Reading the answer key…'); await F().validateReadablePdf(file);
+  return F().upload(file, p => say(`Uploading answer key… ${Math.round(p * 100)}%`));
+}
 const HOUR = 3600000;
 const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const I = {
@@ -30,7 +53,7 @@ const I = {
 };
 
 let ctx = null, bound = false, pollTimer = 0;
-const S = { loaded: false, loading: false, reports: [], tests: [], teachers: [], requests: [], packages: [], pendingRequests: 0, pendingCustom: 0, pendingSlots: 0, tab: 'inbox', q: '', series: '', cls: '', subject: '', page: 0, sheet: null, sending: false, opener: null };
+const S = { loaded: false, loading: false, reports: [], tests: [], requests: [], packages: [], pendingRequests: 0, pendingCustom: 0, pendingSlots: 0, tab: 'inbox', q: '', series: '', cls: '', subject: '', page: 0, sheet: null, sending: false, opener: null };
 
 // ── Network ──
 const base = () => `https://firestore.googleapis.com/v1/projects/${ctx.config.projectId}/databases/(default)/documents`;
@@ -73,11 +96,10 @@ async function pendingCount(collectionId, status) {
 }
 async function loadAll() {
   const headers = await auth(), key = ctx.config.apiKey, list = url => window.PortalUI.fetchList(url, { headers });
-  const [reports, tests, keys, teachers, requests, packages] = await Promise.all([
+  const [reports, tests, keys, requests, packages] = await Promise.all([
     list(R().listUrl(ctx.config.projectId, key)),
     list(`${base()}/offlineTests?key=${key}&pageSize=300`),
-    list(`${base()}/offlineTestKeys?key=${key}&pageSize=300&mask.fieldPaths=questionPdfUrl`).catch(() => ({ documents: [] })),
-    list(`${base()}/teachers?key=${key}&pageSize=300&mask.fieldPaths=name`).catch(() => ({ documents: [] })),
+    list(`${base()}/offlineTestKeys?key=${key}&pageSize=300&mask.fieldPaths=questionPdfUrl&mask.fieldPaths=answerPdfUrl`).catch(() => ({ documents: [] })),
     list(`${base()}/moduleRequests?key=${key}&pageSize=300`).catch(() => ({ documents: [] })),
     list(`${base()}/mockPackages?key=${key}&pageSize=300`).catch(() => ({ documents: [] }))
   ]);
@@ -88,14 +110,15 @@ async function loadAll() {
   S.requests = (requests.documents || []).map(d => { const f = d.fields || {}, o = { id: d.name.split('/').pop() }; for (const k in f) o[k] = f[k].arrayValue ? (f[k].arrayValue.values || []).map(v => v.stringValue || '') : (f[k].stringValue ?? f[k].booleanValue ?? (f[k].integerValue != null ? Number(f[k].integerValue) : f[k].doubleValue)); return o; });
   recountMake();
   const papers = Object.fromEntries((keys.documents || []).map(d => [d.name.split('/').pop(), U().deliveryUrl(str(d.fields || {}, 'questionPdfUrl'))]));
+  const answerKeys = Object.fromEntries((keys.documents || []).map(d => [d.name.split('/').pop(), U().deliveryUrl(str(d.fields || {}, 'answerPdfUrl'))]));
   S.reports = (reports.documents || []).map(d => R().parse(d)).filter(r => r.scriptPdfUrl);
   S.tests = (tests.documents || []).map(d => { const f = d.fields || {}, id = d.name.split('/').pop(), online = str(f, 'series') === 'online';
     return { id, name: str(f, 'testName') || 'Test', class: str(f, 'class') || '—', board: str(f, 'board'), subject: window.PortalUI.subject(str(f, 'subject')), chapter: str(f, 'chapter') || 'General', module: str(f, 'module') || 'Full chapter',
       totalMarks: Number((f.totalMarks && (f.totalMarks.doubleValue ?? f.totalMarks.integerValue)) || 0), durationMin: Number((f.durationMin && f.durationMin.integerValue) || 0),
       teacher: str(f, 'teacherName') || '—', teacherUid: str(f, 'teacherUid'), isActive: !f.isActive || f.isActive.booleanValue !== false, createdAt: str(f, 'createdAt'),
-      series: online ? 'Online' : 'Offline', kind: online ? P().kindOf({ kind: str(f, 'kind'), chapter: str(f, 'chapter'), testName: str(f, 'testName') }) : '', paper: papers[id] || '', forUid: str(f, 'forUid'), packageId: str(f, 'packageId'), slot: Number((f.slot && f.slot.integerValue) || 0), releaseAt: str(f, 'releaseAt') }; })
+      series: online ? 'Online' : 'Offline', kind: online ? P().kindOf({ kind: str(f, 'kind'), chapter: str(f, 'chapter'), testName: str(f, 'testName') }) : str(f, 'kind'), paper: papers[id] || '',
+      answerKey: answerKeys[id] || '', hasAnswerKey: !!(f.hasAnswerKey && f.hasAnswerKey.booleanValue), uploadGraceMin: Number((f.uploadGraceMin && f.uploadGraceMin.integerValue) || 0), forUid: str(f, 'forUid'), packageId: str(f, 'packageId'), slot: Number((f.slot && f.slot.integerValue) || 0), releaseAt: str(f, 'releaseAt') }; })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  S.teachers = (teachers.documents || []).map(d => ({ uid: d.name.split('/').pop(), name: str(d.fields || {}, 'name') || 'Teacher' })).sort((a, b) => a.name.localeCompare(b.name));
   S.loaded = true;
 }
 
@@ -131,7 +154,7 @@ function due(r) {
   return `<span class="dk-pill ${left < 12 * HOUR ? 'warn' : ''}">Due in ${Math.max(1, Math.round(left / HOUR))}h</span>`;
 }
 const day = v => { const d = new Date(v || ''); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
-const kindLabel = t => t.series === 'Online' ? (t.kind === 'mock' ? 'Online · Full mock' : t.kind === 'custom' ? 'Online · Custom' : t.kind === 'package' ? 'Online · Pack mock' : 'Online · Chapter-wise') : 'Offline';
+const kindLabel = t => t.series === 'Online' ? (t.kind === 'mock' ? 'Online · Full mock' : t.kind === 'custom' ? 'Online · Custom' : t.kind === 'package' ? 'Online · Pack mock' : 'Online · Chapter-wise') : t.kind === 'mock' ? 'Offline · Full mock' : t.kind === 'chapter' ? 'Offline · Chapter-wise' : 'Offline';
 // ── Mock packs: weekly mocks; a slot without a paper is "to make" from 7 days out,
 // and counts in the blinking reminder from PACK_REMIND_DAYS (3) days before it opens.
 const DAYMS = 86400000;
@@ -288,7 +311,7 @@ function rowHtml(tab, r, counts) {
   if (tab === 'requests') {
     if (r.type === 'slot') return open(r.id, Date.parse(r.at) < Date.now() ? ' overdue' : '', `<span class="dk-av paper">${I.cal}</span>`, `Mock ${r.n} of ${r.pkg.schedule.length}`, esc(`Pack · opens ${when(r.at)}`), slotPill(r));
     const late = r.status === 'requested' && Date.parse(r.dueAt) < Date.now();
-    return open(r.id, late ? ' overdue' : '', person(r.studentName), esc(r.studentName || 'Student'), esc(`Custom · ${plural(r.chapterCount, 'chapter')} · ${ago(r.createdAt)}`),
+    return open(r.id, late ? ' overdue' : '', person(r.studentName), esc(r.studentName || 'Student'), esc(`${r.full ? 'Custom full mock' : 'Custom'} · ${plural(r.chapterCount, 'chapter')} · ${ago(r.createdAt)}`),
       r.status === 'requested' ? due(r) : '<span class="dk-pill ok">Sent</span>');
   }
   if (tab === 'students') {
@@ -393,17 +416,17 @@ function openScript(id, opener) {
     return;
   }
   const busyCheck = ['checking', 'grading'].includes(r.status);
-  const teacherOptions = S.teachers.map(t => `<option value="${esc(t.uid)}"${t.uid === r.assignedTeacherUid ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+  const graceMin = ((S.tests.find(t => t.id === r.testId) || {}).uploadGraceMin) || 15;
   openSheet(r.test, r.overdue ? 'Overdue · check now' : 'Check & send back', `${facts}
-    ${r.lateByMin > 15 ? `<p class="dk-note warn">Submitted ${r.lateByMin} minutes late.</p>` : ''}
+    ${r.lateByMin > graceMin ? `<p class="dk-note warn">Submitted ${r.lateByMin} minutes late.</p>` : ''}
     <ol class="dk-steps">
       <li><span>1</span><div><b>Download the answer script</b><small>Opens as ${esc(fileName(r))}</small>
         <button type="button" class="dk-btn" id="dkDownload">${I.down}<span>Download script</span></button></div></li>
       <li><span>2</span><div><b>Upload the checked script</b><small>One PDF with your marking</small>
         <label class="dk-file" id="dkFileBox"><input type="file" id="dkChecked" accept="application/pdf,.pdf">${I.up}<span id="dkFileName">Choose checked PDF</span></label></div></li>
       <li><span>3</span><div><b>Marks &amp; feedback</b>
-        <div class="dk-grid"><label>Marks (out of ${esc(r.totalMarks)})<input type="number" id="dkScore" min="0" max="${esc(r.totalMarks)}" step="0.5" inputmode="decimal" placeholder="e.g. ${Math.round(r.totalMarks * 0.8)}"></label>
-          <label>Shown as checked by<select id="dkTeacher"><option value="">Choose teacher</option>${teacherOptions}</select></label></div>
+        <div class="dk-grid"><label class="dk-full">Marks (out of ${esc(r.totalMarks)})<input type="number" id="dkScore" min="0" max="${esc(r.totalMarks)}" step="0.5" inputmode="decimal" placeholder="e.g. ${Math.round(r.totalMarks * 0.8)}"></label></div>
+        <small>The student sees it as checked by ${esc(faculty(r.subject))}.</small>
         <label class="dk-full">Feedback for the student (optional)<textarea id="dkRemark" rows="2" maxlength="3000" placeholder="What went well, what to fix next time"></textarea></label></div></li>
     </ol>
     <p class="dk-msg" id="dkMsg" role="status"></p>${deleteBlock(r)}
@@ -415,11 +438,10 @@ function openScript(id, opener) {
 }
 async function sendBack(r) {
   if (S.sending) return;
-  const msg = $('dkMsg'), btn = $('dkSend'), file = $('dkChecked').files[0], raw = $('dkScore').value.trim(), score = Number(raw), teacher = $('dkTeacher').value;
+  const msg = $('dkMsg'), btn = $('dkSend'), file = $('dkChecked').files[0], raw = $('dkScore').value.trim(), score = Number(raw);
   const say = (t, cls) => { msg.textContent = t; msg.className = 'dk-msg' + (cls ? ' ' + cls : ''); };
   if (!file) return say('Choose the checked script PDF first.', 'bad');
   if (raw === '' || !Number.isFinite(score) || score < 0 || score > r.totalMarks) return say(`Enter marks between 0 and ${r.totalMarks}.`, 'bad');
-  if (!teacher) return say('Choose the teacher shown as the checker.', 'bad');
   S.sending = true; btn.disabled = true;
   try {
     say('Reading the PDF…'); await F().validateReadablePdf(file);
@@ -427,9 +449,9 @@ async function sendBack(r) {
     if (!S.sheet.url) S.sheet.url = await F().upload(file, p => say(`Uploading checked script… ${Math.round(p * 100)}%`));
     say('Sending to the student…');
     const remark = $('dkRemark').value.trim();
-    const sent = await api({ action: 'return-script', attemptId: r.id, checkedScriptUrl: S.sheet.url, score, remark, onBehalfOf: teacher });
+    const sent = await api({ action: 'return-script', attemptId: r.id, checkedScriptUrl: S.sheet.url, score, remark });
     Object.assign(r, { status: 'approved', stage: 'returned', stageLabel: 'Returned', score, pct: r.totalMarks > 0 ? Math.round(score / r.totalMarks * 100) : null, remark, overdue: false,
-      checkedScriptUrl: U().deliveryUrl(S.sheet.url), approvedAt: new Date().toISOString(), teacher: (S.teachers.find(t => t.uid === teacher) || {}).name || r.assignedTeacher });
+      checkedScriptUrl: U().deliveryUrl(S.sheet.url), approvedAt: new Date().toISOString(), teacher: faculty(r.subject) });
     S.sheet = null; S.sending = false;
     closeSheet(); render(); setBadge(inbox().length);
     const mailed = (sent && sent.emailed) || [];
@@ -460,30 +482,32 @@ function openRequest(id, opener) {
     <div class="dk-chapters"><b>Chapters to cover</b><ol>${(r.chapters || []).map(c => `<li>${esc(c)}</li>`).join('')}</ol></div>`;
   if (r.status !== 'requested') {
     const t = S.tests.find(x => x.id === r.testId);
-    openSheet(`Custom · ${r.subject}`, 'Paper sent', `${facts}<div class="dk-actions">${t && t.paper ? `<a class="dk-btn" href="${esc(t.paper)}" target="_blank" rel="noopener">${I.doc}<span>Question paper</span></a>` : ''}</div>`, opener);
+    openSheet(`${r.full ? 'Custom full mock' : 'Custom'} · ${r.subject}`, 'Paper sent', `${facts}<div class="dk-actions">${t && t.paper ? `<a class="dk-btn" href="${esc(t.paper)}" target="_blank" rel="noopener">${I.doc}<span>Question paper</span></a>` : ''}</div>`, opener);
     return;
   }
-  const opt = list => list.map(t => `<option value="${esc(t.uid)}">${esc(t.name)}</option>`).join('');
-  openSheet(`Custom · ${r.subject}`, Date.parse(r.dueAt) < Date.now() ? 'Overdue · make the paper' : 'Make the paper', `${facts}
+  // Every chapter of the subject → a Custom full mock: full-mock marks and time.
+  const fm = r.full ? P().paperFor('mock') : null;
+  openSheet(`${r.full ? 'Custom full mock' : 'Custom'} · ${r.subject}`, Date.parse(r.dueAt) < Date.now() ? 'Overdue · make the paper' : 'Make the paper', `${facts}
     <div class="dk-form">
-      <label class="dk-full">Publish as teacher<select id="dkrTeacher"><option value="">Choose teacher</option>${opt(S.teachers)}</select><small>The student sees this teacher's name.</small></label>
-      <label class="dk-full">Test name<input id="dkrName" maxlength="120" value="${esc('Custom module · ' + r.subject)}"></label>
-      <label>Maximum marks<input id="dkrMarks" type="number" min="1" max="500" inputmode="numeric" placeholder="${r.chapterCount * 10}"></label>
-      <label>Time (minutes)<input id="dkrTime" type="number" min="5" max="600" inputmode="numeric" placeholder="${Math.min(180, 30 + r.chapterCount * 15)}"></label>
+      <label class="dk-full">Test name<input id="dkrName" maxlength="120" value="${esc((r.full ? 'Custom full mock · ' : 'Custom module · ') + r.subject)}"></label>
+      <label>Maximum marks<input id="dkrMarks" type="number" min="1" max="500" inputmode="numeric" ${fm ? `value="${fm.marks}"` : `placeholder="${r.chapterCount * 10}"`}></label>
+      <label>Time (minutes)<input id="dkrTime" type="number" min="5" max="600" inputmode="numeric" ${fm ? `value="${fm.durationMin}"` : `placeholder="${Math.min(180, 30 + r.chapterCount * 15)}"`}></label>
       <label class="dk-full">Instructions (optional)<input id="dkrNote" maxlength="500" placeholder="e.g. Attempt all questions"></label>
-      <label class="dk-file dk-full" id="dkrFileBox"><input type="file" id="dkrFile" accept="application/pdf,.pdf">${I.up}<span id="dkrFileName">Choose question paper PDF</span></label>
+      ${fileField('dkrFile', 'Choose question paper PDF')}
+      ${fileField('dkrKey', KEY_LABEL)}
+      <p class="dk-fine dk-full">The student sees it from ${esc(faculty(r.subject))} and gets extra minutes to upload after the timer (10 for 90 min, 20 for 3 hours).</p>
     </div>
     <p class="dk-msg" id="dkMsg" role="status"></p>
     <div class="dk-actions sticky"><button type="button" class="dk-btn" data-dk-close>Cancel</button><button type="button" class="dk-btn primary" id="dkrSend">${I.send}<span>Send paper to student</span></button></div>`, opener);
-  $('dkrFile').onchange = e => { const f = e.target.files[0]; $('dkrFileName').textContent = f ? f.name : 'Choose question paper PDF'; $('dkrFileBox').classList.toggle('has', !!f); };
+  bindFile('dkrFile', 'Choose question paper PDF'); bindFile('dkrKey', KEY_LABEL);
   $('dkrSend').onclick = () => publishCustom(r);
 }
 async function publishCustom(r) {
   if (S.sending) return;
   const v = id => ($(id).value || '').trim(), msg = $('dkMsg'), btn = $('dkrSend');
   const say = (t, cls) => { msg.textContent = t; msg.className = 'dk-msg' + (cls ? ' ' + cls : ''); };
-  const teacher = S.teachers.find(t => t.uid === v('dkrTeacher')), name = v('dkrName'), marks = parseFloat(v('dkrMarks')), mins = parseInt(v('dkrTime'), 10), file = $('dkrFile').files[0];
-  if (!teacher) return say('Choose the teacher this paper is published as.', 'bad');
+  const name = v('dkrName'), marks = parseFloat(v('dkrMarks')), mins = parseInt(v('dkrTime'), 10), file = $('dkrFile').files[0], keyFile = $('dkrKey').files[0];
+  const teacher = { uid: '', name: faculty(r.subject) };
   if (!name) return say('Give the test a name.', 'bad');
   if (!(marks > 0 && marks <= 500) || !(mins >= 5 && mins <= 600)) return say('Marks must be 1–500 and time 5–600 minutes.', 'bad');
   if (!file) return say('Choose the question paper PDF.', 'bad');
@@ -498,22 +522,23 @@ async function publishCustom(r) {
     const id = 'otc' + Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
     say('Reading the PDF…'); await F().validateReadablePdf(file);
     const url = await F().upload(file, p => say(`Uploading question paper… ${Math.round(p * 100)}%`));
+    const keyUrl = await uploadKey(keyFile, say);
     say('Sending to the student…');
     const now = new Date().toISOString(), s = x => ({ stringValue: x });
     const chapters = (r.chapters || []).join('; ').slice(0, 900);
     await commit([
-      { path: `offlineTestKeys/${id}`, currentDocument: { exists: false }, fields: { questionPdfUrl: s(url), answerPdfUrl: s(''), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) } },
-      { path: `offlineTests/${id}`, currentDocument: { exists: false }, fields: { testName: s(name), class: s(String(r.class)), board: s(''), subject: s(r.subject), chapter: s('Custom module'), module: s(chapters),
-      totalMarks: { doubleValue: marks }, durationMin: { integerValue: String(mins) }, instructions: s(v('dkrNote')), gradingMode: s('teacher'),
-      series: s('online'), kind: s('custom'), isFree: { booleanValue: false }, forUid: s(r.uid), requestId: s(r.id),
+      { path: `offlineTestKeys/${id}`, currentDocument: { exists: false }, fields: { questionPdfUrl: s(url), answerPdfUrl: s(keyUrl), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) } },
+      { path: `offlineTests/${id}`, currentDocument: { exists: false }, fields: { testName: s(name), class: s(String(r.class)), board: s(''), subject: s(r.subject), chapter: s(r.full ? 'Custom full mock' : 'Custom module'), module: s(chapters),
+      totalMarks: { doubleValue: marks }, durationMin: { integerValue: String(mins) }, uploadGraceMin: { integerValue: String(graceForMins(mins)) }, instructions: s(v('dkrNote')), gradingMode: s('teacher'),
+      series: s('online'), kind: s('custom'), isFree: { booleanValue: false }, forUid: s(r.uid), requestId: s(r.id), hasAnswerKey: { booleanValue: !!keyUrl }, ...(r.full ? { full: { booleanValue: true } } : {}),
       teacherUid: s(teacher.uid), teacherName: s(teacher.name), isActive: { booleanValue: true }, createdAt: s(now) } },
       { path: `moduleRequests/${r.id}`, currentDocument: { updateTime: request.updateTime }, mask: ['status', 'testId', 'readyAt', 'teacherName'], fields: { status: s('ready'), testId: s(id), readyAt: s(now), teacherName: s(teacher.name) } },
       { path: `offlineAudit/publish_${id}`, currentDocument: { exists: false }, fields: { action: s('publish-custom'), testId: s(id), requestId: s(r.id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(teacher.uid), onBehalfOfName: s(teacher.name), at: s(now) } }
     ]);
     Object.assign(r, { status: 'ready', testId: id, readyAt: now, teacherName: teacher.name });
     recountMake();
-    S.tests.unshift({ id, name, class: String(r.class), board: '', subject: window.PortalUI.subject(r.subject), chapter: 'Custom module', module: chapters, totalMarks: marks, durationMin: mins,
-      teacher: teacher.name, teacherUid: teacher.uid, isActive: true, createdAt: now, series: 'Online', kind: 'custom', paper: U().deliveryUrl(url) });
+    S.tests.unshift({ id, name, class: String(r.class), board: '', subject: window.PortalUI.subject(r.subject), chapter: r.full ? 'Custom full mock' : 'Custom module', module: chapters, totalMarks: marks, durationMin: mins, uploadGraceMin: graceForMins(mins),
+      teacher: teacher.name, teacherUid: teacher.uid, isActive: true, createdAt: now, series: 'Online', kind: 'custom', paper: U().deliveryUrl(url), answerKey: keyUrl ? U().deliveryUrl(keyUrl) : '', hasAnswerKey: !!keyUrl });
     S.sending = false;
     closeSheet(); render(); setBadge(inbox().length);
     toast(`Paper sent to ${r.studentName} · it's unlocked for them now`);
@@ -596,44 +621,42 @@ function openSlot(pid, n, opener) {
   const p = S.packages.find(x => x.id === pid); if (!p) return;
   const s = packSlots(p).find(x => x.n === n); if (!s) return;
   if (s.t) return openPack(pid, opener);
-  const opt = list => list.map(t => `<option value="${esc(t.uid)}">${esc(t.name)}</option>`).join('');
   openSheet(`${p.subject} · Mock ${n} of ${p.schedule.length}`, Date.parse(s.at) < Date.now() ? 'Overdue · upload now' : 'Upload this mock', `<dl class="dk-facts">${fact('Pack', p.title)}${fact('Class', 'Class ' + p.class + (p.board ? ' · ' + p.board : ''))}${fact('Opens', when(s.at))}${fact('Students see', 'Mock ' + n + ' of ' + p.schedule.length)}</dl>
     <div class="dk-form">
-      <label class="dk-full">Publish as teacher<select id="dksTeacher"><option value="">Choose teacher</option>${opt(S.teachers)}</select></label>
       <label class="dk-full">Test name<input id="dksName" maxlength="120" value="${esc(window.PortalUI.subject(p.subject) + ' full mock ' + n)}"></label>
-      <label>Maximum marks<input id="dksMarks" type="number" min="1" max="500" inputmode="numeric" placeholder="80"></label>
-      <label>Time (minutes)<input id="dksTime" type="number" min="5" max="600" inputmode="numeric" placeholder="180"></label>
+      <p class="dk-format dk-full">${formatLine('mock', false)}</p>
       <label>Opens on<input id="dksDate" type="date" value="${ist.date(s.at)}"></label>
       <label>At<input id="dksAt" type="time" value="${ist.time(s.at)}"></label>
       <label class="dk-full">Instructions (optional)<input id="dksNote" maxlength="500" placeholder="e.g. Attempt all questions"></label>
-      <label class="dk-file dk-full" id="dksFileBox"><input type="file" id="dksFile" accept="application/pdf,.pdf">${I.up}<span id="dksFileName">Choose question paper PDF</span></label>
+      ${fileField('dksFile', 'Choose question paper PDF')}
+      ${fileField('dksKey', KEY_LABEL)}
     </div>
-    <p class="dk-fine">Students in the pack can start it from the opening time. Changing the date here moves only this mock.</p>
+    <p class="dk-fine">Students in the pack can start it from the opening time and see it from ${esc(faculty(p.subject))}. Changing the date here moves only this mock.</p>
     <p class="dk-msg" id="dkMsg" role="status"></p>
     <div class="dk-actions sticky"><button type="button" class="dk-btn" data-dk-close>Cancel</button><button type="button" class="dk-btn primary" id="dksSend">${I.send}<span>Upload mock</span></button></div>`, opener);
-  $('dksFile').onchange = e => { const f = e.target.files[0]; $('dksFileName').textContent = f ? f.name : 'Choose question paper PDF'; $('dksFileBox').classList.toggle('has', !!f); };
+  bindFile('dksFile', 'Choose question paper PDF'); bindFile('dksKey', KEY_LABEL);
   $('dksSend').onclick = () => publishSlot(p, n);
 }
 async function publishSlot(p, n) {
   if (S.sending) return;
   const v = id => ($(id).value || '').trim(), msg = $('dkMsg'), btn = $('dksSend');
   const say = (t, cls) => { msg.textContent = t; msg.className = 'dk-msg' + (cls ? ' ' + cls : ''); };
-  const teacher = S.teachers.find(t => t.uid === v('dksTeacher')), name = v('dksName'), marks = parseFloat(v('dksMarks')), mins = parseInt(v('dksTime'), 10), file = $('dksFile').files[0];
+  const fm = P().paperFor('mock'), marks = fm.marks, mins = fm.durationMin;
+  const name = v('dksName'), file = $('dksFile').files[0], keyFile = $('dksKey').files[0], teacher = { uid: '', name: faculty(p.subject) };
   const releaseAt = new Date(`${v('dksDate')}T${v('dksAt') || '10:00'}:00+05:30`).toISOString();
-  if (!teacher) return say('Choose the teacher this mock is published as.', 'bad');
   if (!name) return say('Give the mock a name.', 'bad');
-  if (!(marks > 0 && marks <= 500) || !(mins >= 5 && mins <= 600)) return say('Marks must be 1–500 and time 5–600 minutes.', 'bad');
   if (!file) return say('Choose the question paper PDF.', 'bad');
   S.sending = true; btn.disabled = true;
   try {
     say('Reading the PDF…'); await F().validateReadablePdf(file);
     const url = await F().upload(file, pr => say(`Uploading question paper… ${Math.round(pr * 100)}%`));
+    const keyUrl = await uploadKey(keyFile, say);
     say('Publishing…');
     const id = 'otp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), now = new Date().toISOString(), s = x => ({ stringValue: x });
-    await patch(`offlineTestKeys/${id}`, { questionPdfUrl: s(url), answerPdfUrl: s(''), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) });
+    await patch(`offlineTestKeys/${id}`, { questionPdfUrl: s(url), answerPdfUrl: s(keyUrl), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) });
     await patch(`offlineTests/${id}`, { testName: s(name), class: s(String(p.class)), board: s(p.board || ''), subject: s(p.subject), chapter: s('Full syllabus'), module: s(`Mock ${n} of ${p.schedule.length}`),
-      totalMarks: { doubleValue: marks }, durationMin: { integerValue: String(mins) }, instructions: s(v('dksNote')), gradingMode: s('teacher'),
-      series: s('online'), kind: s('package'), isFree: { booleanValue: false }, packageId: s(p.id), slot: { integerValue: String(n) }, releaseAt: s(releaseAt),
+      totalMarks: { doubleValue: marks }, durationMin: { integerValue: String(mins) }, uploadGraceMin: { integerValue: String(fm.graceMin) }, instructions: s(v('dksNote')), gradingMode: s('teacher'),
+      series: s('online'), kind: s('package'), isFree: { booleanValue: false }, packageId: s(p.id), slot: { integerValue: String(n) }, releaseAt: s(releaseAt), hasAnswerKey: { booleanValue: !!keyUrl },
       teacherUid: s(teacher.uid), teacherName: s(teacher.name), isActive: { booleanValue: true }, createdAt: s(now) });
     if (releaseAt !== p.schedule[n - 1]) {
       const schedule = p.schedule.slice(); schedule[n - 1] = releaseAt;
@@ -641,8 +664,8 @@ async function publishSlot(p, n) {
       p.schedule = schedule;
     }
     patch(`offlineAudit/publish_${id}`, { action: s('publish-pack-mock'), testId: s(id), packageId: s(p.id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(teacher.uid), onBehalfOfName: s(teacher.name), at: s(now) }).catch(() => {});
-    S.tests.unshift({ id, name, class: String(p.class), board: p.board || '', subject: window.PortalUI.subject(p.subject), chapter: 'Full syllabus', module: `Mock ${n} of ${p.schedule.length}`, totalMarks: marks, durationMin: mins,
-      teacher: teacher.name, teacherUid: teacher.uid, isActive: true, createdAt: now, series: 'Online', kind: 'package', paper: U().deliveryUrl(url), packageId: p.id, slot: n, releaseAt });
+    S.tests.unshift({ id, name, class: String(p.class), board: p.board || '', subject: window.PortalUI.subject(p.subject), chapter: 'Full syllabus', module: `Mock ${n} of ${p.schedule.length}`, totalMarks: marks, durationMin: mins, uploadGraceMin: fm.graceMin,
+      teacher: teacher.name, teacherUid: teacher.uid, isActive: true, createdAt: now, series: 'Online', kind: 'package', paper: U().deliveryUrl(url), answerKey: keyUrl ? U().deliveryUrl(keyUrl) : '', hasAnswerKey: !!keyUrl, packageId: p.id, slot: n, releaseAt });
     recountMake(); S.sending = false;
     closeSheet(); render(); setBadge(inbox().length);
     toast(`Mock ${n} uploaded · opens ${when(releaseAt)}`);
@@ -669,8 +692,15 @@ async function parentPhone(r) {
 function openPaper(id, opener) {
   const t = S.tests.find(x => x.id === id); if (!t) return;
   const mine = S.reports.filter(r => r.testId === t.id), pending = mine.filter(r => r.stage !== 'returned').length;
-  openSheet(t.name, t.isActive ? 'Live paper' : 'Closed paper', `<dl class="dk-facts">${fact('Class', 'Class ' + t.class + (t.board ? ' · ' + t.board : ''))}${fact('Subject', t.subject)}${fact('Chapter', t.chapter)}${fact('Type', kindLabel(t) + (t.series === 'Online' ? ' · ₹' + P().priceFor({ kind: t.kind }) : ''))}
-      ${fact('Marks', t.totalMarks)}${fact('Time', t.durationMin + ' min')}${fact('Teacher', t.teacher)}${fact('Published', day(t.createdAt))}${fact('Submitted', mine.length)}${fact('To check', pending)}</dl>
+  const price = t.series === 'Online' && ['chapter', 'mock'].includes(t.kind) ? ' · ₹' + P().priceFor({ kind: t.kind }) : '';
+  const keyNote = t.hasAnswerKey ? 'Students download it after they submit.' : t.answerKey ? 'Kept private: only teachers see it.' : 'No answer key yet.';
+  openSheet(t.name, t.isActive ? 'Live paper' : 'Closed paper', `<dl class="dk-facts">${fact('Class', 'Class ' + t.class + (t.board ? ' · ' + t.board : ''))}${fact('Subject', t.subject)}${fact('Chapter', t.chapter)}${fact('Type', kindLabel(t) + price)}
+      ${fact('Marks', t.totalMarks)}${fact('Time', t.durationMin + ' min + ' + (t.uploadGraceMin || 15) + ' to upload')}${fact('Shown as', t.teacher)}${fact('Published', day(t.createdAt))}${fact('Submitted', mine.length)}${fact('To check', pending)}</dl>
+    <div class="dk-keybox"><b>Answer key</b><small id="dkKeyNote">${esc(keyNote)}</small>
+      <div class="dk-actions">${t.answerKey ? `<a class="dk-btn" href="${esc(t.answerKey)}" target="_blank" rel="noopener">${I.doc}<span>Open key</span></a>` : ''}
+        ${t.answerKey && !t.hasAnswerKey ? `<button type="button" class="dk-btn" id="dkKeyShare">${I.send}<span>Share with students</span></button>` : ''}</div>
+      ${fileField('dkKeyNew', t.answerKey ? 'Replace answer key PDF' : 'Add answer key PDF')}
+      <button type="button" class="dk-btn primary" id="dkKeySave" hidden>${I.up}<span>Save answer key</span></button></div>
     <p class="dk-msg" id="dkMsg" role="status"></p>
     <div class="dk-actions">${t.paper ? `<a class="dk-btn" href="${esc(t.paper)}" target="_blank" rel="noopener">${I.doc}<span>Question paper</span></a>` : ''}
       ${mine.length ? `<button type="button" class="dk-btn" id="dkPaperScripts">${I.inbox}<span>See scripts</span></button>` : ''}
@@ -678,6 +708,28 @@ function openPaper(id, opener) {
     <p class="dk-fine">${t.isActive ? 'Closing hides the paper from students who have not started it. Submitted scripts and results are kept.' : 'Reopening makes the paper available to students again.'}</p>`, opener);
   const scripts = $('dkPaperScripts');
   if (scripts) scripts.onclick = () => { S.tab = pending ? 'inbox' : 'done'; S.q = t.name; S.page = 0; closeSheet(); $('dkSearch').value = t.name; render(); };
+  const say = (m, cls) => { $('dkMsg').textContent = m; $('dkMsg').className = 'dk-msg' + (cls ? ' ' + cls : ''); };
+  const label = t.answerKey ? 'Replace answer key PDF' : 'Add answer key PDF';
+  $('dkKeyNew').addEventListener('change', e => { $('dkKeyNewName').textContent = e.target.files[0] ? 'Answer key · ' + e.target.files[0].name : label; $('dkKeyNewBox').classList.toggle('has', !!e.target.files[0]); $('dkKeySave').hidden = !e.target.files[0]; });
+  // Answer keys added here are shared with students (after they submit).
+  const share = async (url, b) => {
+    if (S.sending) return; S.sending = true; b.disabled = true;
+    try {
+      if (url) await patch(`offlineTestKeys/${t.id}`, { answerPdfUrl: { stringValue: url } });
+      await patch(`offlineTests/${t.id}`, { hasAnswerKey: { booleanValue: true } });
+      if (url) t.answerKey = U().deliveryUrl(url);
+      t.hasAnswerKey = true; S.sending = false;
+      toast('Answer key saved · students can download it after they submit'); openPaper(t.id, opener);
+    } catch (err) { S.sending = false; b.disabled = false; say((err.message || 'Could not save.') + ' Try again.', 'bad'); }
+  };
+  $('dkKeySave').onclick = async e => {
+    const b = e.currentTarget, file = $('dkKeyNew').files[0]; if (!file || S.sending) return;
+    b.disabled = true;
+    let url = '';
+    try { url = await uploadKey(file, say); } catch (err) { b.disabled = false; return say((err.message || 'Could not upload.') + ' Try again.', 'bad'); }
+    say('Saving…'); share(url, b);
+  };
+  const shareBtn = $('dkKeyShare'); if (shareBtn) shareBtn.onclick = e => share('', e.currentTarget);
   $('dkToggle').onclick = async e => {
     const b = e.currentTarget; b.disabled = true;
     try { await patch(`offlineTests/${t.id}`, { isActive: { booleanValue: !t.isActive } }); t.isActive = !t.isActive; closeSheet(); render(); toast(t.isActive ? 'Paper reopened' : 'Paper closed'); }
@@ -687,55 +739,68 @@ function openPaper(id, opener) {
 
 function openPublish() {
   const opt = (list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('');
-  const chapters = [...new Set(S.tests.map(t => t.chapter))].sort();
+  const chapters = [...new Set(S.tests.filter(t => !['mock', 'package', 'custom'].includes(t.kind)).map(t => t.chapter))].sort();
   openSheet('New question paper', 'Publish', `<div class="dk-form">
-      <label class="dk-full">Publish as teacher<select id="dkpTeacher"><option value="">Choose teacher</option>${S.teachers.map(t => `<option value="${esc(t.uid)}">${esc(t.name)}</option>`).join('')}</select><small>Students see this teacher's name.</small></label>
       <label>Series<select id="dkpSeries">${opt([['online', 'Online · all-India'], ['offline', 'Offline · enrolled']], 'online')}</select></label>
-      <label id="dkpKindBox">Type<select id="dkpKind">${opt([['chapter', 'Chapter-wise · ₹199'], ['mock', 'Full mock · ₹499']], 'chapter')}</select></label>
+      <label>Type<select id="dkpKind">${opt([['chapter', 'Chapter-wise'], ['mock', 'Full mock']], 'chapter')}</select></label>
+      <p class="dk-format dk-full" id="dkpFormat" aria-live="polite"></p>
       <label>Class<select id="dkpClass">${opt([['', 'Select'], ...['6', '7', '8', '9', '10', '11', '12'].map(c => [c, 'Class ' + c])], '')}</select></label>
       <label>Subject<select id="dkpSubject">${opt([['', 'Select'], ['Physics', 'Physics'], ['Chemistry', 'Chemistry'], ['Mathematics', 'Mathematics'], ['Biology', 'Biology'], ['Science', 'Science'], ['Computer', 'Computer Science'], ['English', 'English']], '')}</select></label>
-      <label class="dk-full">Chapter<input id="dkpChapter" list="dkpChapters" maxlength="120" placeholder="e.g. Electricity, or Full syllabus" autocomplete="off"><datalist id="dkpChapters">${chapters.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></label>
+      <label class="dk-full" id="dkpChapterBox">Chapter<input id="dkpChapter" list="dkpChapters" maxlength="120" placeholder="e.g. Electricity" autocomplete="off"><datalist id="dkpChapters">${chapters.map(c => `<option value="${esc(c)}"></option>`).join('')}</datalist></label>
       <label>Test name<input id="dkpName" maxlength="120" placeholder="e.g. Chapter test 1"></label>
       <label>Part (optional)<input id="dkpPart" maxlength="100" placeholder="e.g. Part 1"></label>
-      <label>Maximum marks<input id="dkpMarks" type="number" min="1" max="500" inputmode="numeric" placeholder="40"></label>
-      <label>Time (minutes)<input id="dkpTime" type="number" min="5" max="600" inputmode="numeric" placeholder="90"></label>
       <label>Board<select id="dkpBoard">${opt([['', 'All boards'], ['CBSE', 'CBSE only'], ['ICSE', 'ICSE / ISC only']], '')}</select></label>
       <label>Instructions (optional)<input id="dkpNote" maxlength="500" placeholder="e.g. Attempt all questions"></label>
-      <label class="dk-file dk-full" id="dkpFileBox"><input type="file" id="dkpFile" accept="application/pdf,.pdf">${I.up}<span id="dkpFileName">Choose question paper PDF</span></label>
+      ${fileField('dkpFile', 'Choose question paper PDF')}
+      ${fileField('dkpKey', KEY_LABEL)}
+      <p class="dk-fine dk-full" id="dkpBy"></p>
     </div>
     <p class="dk-msg" id="dkMsg" role="status"></p>
     <div class="dk-actions sticky"><button type="button" class="dk-btn" data-dk-close>Cancel</button><button type="button" class="dk-btn primary" id="dkPublish">${I.send}<span>Publish paper</span></button></div>`, $('dkNew'));
-  $('dkpSeries').onchange = e => { $('dkpKindBox').hidden = e.target.value !== 'online'; };
-  $('dkpFile').onchange = e => { const f = e.target.files[0]; $('dkpFileName').textContent = f ? f.name : 'Choose question paper PDF'; $('dkpFileBox').classList.toggle('has', !!f); };
+  const v = id => ($(id).value || '').trim();
+  const sync = () => {
+    const kind = v('dkpKind') === 'mock' ? 'mock' : 'chapter', sub = v('dkpSubject');
+    $('dkpFormat').innerHTML = formatLine(kind, v('dkpSeries') === 'online');
+    $('dkpChapterBox').hidden = kind === 'mock';
+    $('dkpName').placeholder = kind === 'mock' ? 'e.g. Full mock 1' : 'e.g. Chapter test 1';
+    // Test Series shows CBSE (up to Class 10) only Science, and ICSE only Physics / Chemistry / Biology.
+    const cls = v('dkpClass'), board = v('dkpBoard'), online = v('dkpSeries') === 'online';
+    const hide = !online || !sub || !cls ? '' : ['CBSE', ''].includes(board) && !P().subjectAllowed(sub, 'CBSE', cls) ? ' CBSE students up to Class 10 see Science instead, so on Test Series only ICSE and other boards get this paper.'
+      : ['ICSE', ''].includes(board) && !P().subjectAllowed(sub, 'ICSE', cls) ? ' ICSE students see Physics, Chemistry and Biology instead, so on Test Series ICSE students don’t get this paper.' : '';
+    $('dkpBy').textContent = `Students see this paper from ${sub ? faculty(sub) : 'TNC <Subject> Faculty'}. They can download the answer key only after they submit.${hide}`;
+  };
+  ['dkpSeries', 'dkpKind', 'dkpSubject', 'dkpClass', 'dkpBoard'].forEach(id => { $(id).onchange = sync; });
+  sync();
+  bindFile('dkpFile', 'Choose question paper PDF'); bindFile('dkpKey', KEY_LABEL);
   $('dkPublish').onclick = publish;
 }
 async function publish() {
   if (S.sending) return;
   const v = id => ($(id).value || '').trim(), msg = $('dkMsg'), btn = $('dkPublish');
   const say = (t, cls) => { msg.textContent = t; msg.className = 'dk-msg' + (cls ? ' ' + cls : ''); };
-  const teacher = S.teachers.find(t => t.uid === v('dkpTeacher')), series = v('dkpSeries') === 'offline' ? 'offline' : 'online', kind = v('dkpKind') === 'mock' ? 'mock' : 'chapter';
-  const cls = v('dkpClass'), subject = v('dkpSubject'), chapter = v('dkpChapter'), name = v('dkpName'), marks = parseFloat(v('dkpMarks')), mins = parseInt(v('dkpTime'), 10), file = $('dkpFile').files[0];
-  if (!teacher) return say('Choose the teacher this paper is published as.', 'bad');
-  if (!cls || !subject || !chapter || !name) return say('Fill class, subject, chapter and test name.', 'bad');
-  if (!(marks > 0 && marks <= 500) || !(mins >= 5 && mins <= 600)) return say('Marks must be 1–500 and time 5–600 minutes.', 'bad');
+  const series = v('dkpSeries') === 'offline' ? 'offline' : 'online', kind = v('dkpKind') === 'mock' ? 'mock' : 'chapter', f = P().paperFor(kind);
+  const cls = v('dkpClass'), subject = v('dkpSubject'), chapter = kind === 'mock' ? 'Full syllabus' : v('dkpChapter'), name = v('dkpName'), file = $('dkpFile').files[0], keyFile = $('dkpKey').files[0];
+  const part = v('dkpPart') || (kind === 'mock' ? 'Full mock' : 'Full chapter'), teacherName = faculty(subject);
+  if (!cls || !subject || !chapter || !name) return say(kind === 'mock' ? 'Fill class, subject and test name.' : 'Fill class, subject, chapter and test name.', 'bad');
   if (!file) return say('Choose the question paper PDF.', 'bad');
   S.sending = true; btn.disabled = true;
   try {
     say('Reading the PDF…'); await F().validateReadablePdf(file);
     const url = await F().upload(file, p => say(`Uploading question paper… ${Math.round(p * 100)}%`));
+    const keyUrl = await uploadKey(keyFile, say);
     say('Publishing…');
     const id = 'ots' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), now = new Date().toISOString(), s = x => ({ stringValue: x });
-    await patch(`offlineTestKeys/${id}`, { questionPdfUrl: s(url), answerPdfUrl: s(''), testName: s(name), teacherUid: s(teacher.uid), createdAt: s(now) });
-    await patch(`offlineTests/${id}`, { testName: s(name), class: s(cls), board: s(v('dkpBoard')), subject: s(subject), chapter: s(chapter), module: s(v('dkpPart') || 'Full chapter'),
-      totalMarks: { doubleValue: marks }, durationMin: { integerValue: String(mins) }, instructions: s(v('dkpNote')), gradingMode: s('teacher'),
-      series: s(series), isFree: { booleanValue: false }, ...(series === 'online' ? { kind: s(kind) } : {}),
-      teacherUid: s(teacher.uid), teacherName: s(teacher.name), isActive: { booleanValue: true }, createdAt: s(now) });
-    patch(`offlineAudit/publish_${id}`, { action: s('publish-test'), testId: s(id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(teacher.uid), onBehalfOfName: s(teacher.name), at: s(now) }).catch(() => {});
-    S.tests.unshift({ id, name, class: cls, board: v('dkpBoard'), subject: window.PortalUI.subject(subject), chapter, module: v('dkpPart') || 'Full chapter', totalMarks: marks, durationMin: mins, teacher: teacher.name, teacherUid: teacher.uid,
-      isActive: true, createdAt: now, series: series === 'online' ? 'Online' : 'Offline', kind: series === 'online' ? kind : '', paper: U().deliveryUrl(url) });
+    await patch(`offlineTestKeys/${id}`, { questionPdfUrl: s(url), answerPdfUrl: s(keyUrl), testName: s(name), teacherUid: s(''), createdAt: s(now) });
+    await patch(`offlineTests/${id}`, { testName: s(name), class: s(cls), board: s(v('dkpBoard')), subject: s(subject), chapter: s(chapter), module: s(part),
+      totalMarks: { doubleValue: f.marks }, durationMin: { integerValue: String(f.durationMin) }, uploadGraceMin: { integerValue: String(f.graceMin) }, instructions: s(v('dkpNote')), gradingMode: s('teacher'),
+      series: s(series), isFree: { booleanValue: false }, kind: s(kind), hasAnswerKey: { booleanValue: !!keyUrl },
+      teacherUid: s(''), teacherName: s(teacherName), isActive: { booleanValue: true }, createdAt: s(now) });
+    patch(`offlineAudit/publish_${id}`, { action: s('publish-test'), testId: s(id), byAdminUid: s(ctx.uid), onBehalfOfUid: s(''), onBehalfOfName: s(teacherName), at: s(now) }).catch(() => {});
+    S.tests.unshift({ id, name, class: cls, board: v('dkpBoard'), subject: window.PortalUI.subject(subject), chapter, module: part, totalMarks: f.marks, durationMin: f.durationMin, uploadGraceMin: f.graceMin, teacher: teacherName, teacherUid: '',
+      isActive: true, createdAt: now, series: series === 'online' ? 'Online' : 'Offline', kind, paper: U().deliveryUrl(url), answerKey: keyUrl ? U().deliveryUrl(keyUrl) : '', hasAnswerKey: !!keyUrl });
     S.sending = false; S.tab = 'papers'; S.page = 0;
     closeSheet(); render();
-    toast(`“${name}” is live for Class ${cls} ${subject}`);
+    toast(`“${name}” is live for Class ${cls} ${subject}${keyUrl ? ' · answer key added' : ''}`);
   } catch (e) {
     S.sending = false; btn.disabled = false;
     say((e.message || 'Could not publish.') + ' Nothing was published — try again.', 'bad');

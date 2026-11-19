@@ -3,17 +3,25 @@
    Pure functions only: no network, no storage. */
 (function (root) {
   'use strict';
-  // Chapter-wise tests ₹199, full mock tests ₹499. A test marked free costs nothing.
-  const PRICES = { chapter: 199, mock: 499 };
+  // Chapter-wise tests ₹299, full mock tests ₹499. A test marked free costs nothing.
+  const PRICES = { chapter: 299, mock: 499 };
+  // Regular prices, shown struck through next to the price above.
+  const LIST_PRICES = { chapter: 399, mock: 699 };
   const KINDS = { chapter: 'Chapter-wise test', mock: 'Full mock test' };
   const PRICE_INR = PRICES.mock;
+  // Fixed paper format per type: marks, writing time, and the extra minutes to
+  // scan and upload the answers after the timer ends.
+  const PAPER = { chapter: { marks: 40, durationMin: 90, graceMin: 10 }, mock: { marks: 80, durationMin: 180, graceMin: 20 } };
+  const paperFor = kind => PAPER[kind === 'mock' || kind === 'package' ? 'mock' : 'chapter'];
   // Online students get one free full mock on a subject they choose.
   // Enrolled TNC students get every test free, so no free-mock claim is needed.
   const FREE_MOCKS = { online: 1, enrolled: 0 };
   // Custom module tests (Classes 7–12): the student picks chapters; the team
   // makes one paper per subject. ₹199 a chapter for the first 4, ₹150 after.
   // minPerPaper: each subject's paper needs at least 2 chapters (one chapter = a chapter-wise test).
-  const MODULE = { classes: ['7', '8', '9', '10', '11', '12'], first: 199, firstCount: 4, rest: 150, maxChapters: 40, readyHours: 24, minPerPaper: 2 };
+  // Picking every chapter of a subject makes that paper a Custom full mock at
+  // a flat fullMock price (when that is cheaper than its chapters).
+  const MODULE = { classes: ['7', '8', '9', '10', '11', '12'], first: 199, firstCount: 4, rest: 150, maxChapters: 40, readyHours: 24, minPerPaper: 2, fullMock: 699 };
   // Mock packs: a set of full-syllabus mocks, one a week at a fixed day and time.
   // Each pack has its own price (e.g. 8 mocks ₹3199, 4 mocks ₹1699); presets below.
   const PACK_PRESETS = [{ mocks: 8, priceInr: 3199 }, { mocks: 4, priceInr: 1699 }];
@@ -25,13 +33,31 @@
     if (!Number.isFinite(start)) return [];
     return Array.from({ length: Math.max(0, Math.min(52, Number(count) || 0)) }, (_, i) => new Date(start + i * 7 * 86400000).toISOString());
   }
-  // Price of a custom-module cart. TNC students order free (the server charges ₹0);
-  // pass enrolled = true to get 0.
+  // Price of n chapters at the per-chapter rate. TNC students order free (the
+  // server charges ₹0); pass enrolled = true to get 0.
   function modulePrice(count, enrolled) {
     if (enrolled) return 0;
     const n = Math.max(0, Math.floor(Number(count) || 0));
     const a = Math.min(n, MODULE.firstCount);
     return a * MODULE.first + (n - a) * MODULE.rest;
+  }
+  // A subject's paper is a Custom full mock when every chapter is picked and
+  // the flat price is lower than paying for its chapters.
+  const isFullMock = (picked, inBook) => Number(inBook) > 0 && Number(picked) === Number(inBook) && modulePrice(inBook) > MODULE.fullMock;
+  // Whole cart: papers [{ count, full }]. Full mocks cost MODULE.fullMock each;
+  // every other chapter is priced together at the per-chapter rate.
+  // listInr is what the full mocks' chapters would cost (shown struck through).
+  function cartPrice(papers, enrolled) {
+    const list = Array.isArray(papers) ? papers : [];
+    const full = list.filter(p => p && p.full), chapters = list.filter(p => p && !p.full).reduce((n, p) => n + (Number(p.count) || 0), 0);
+    const chapterInr = modulePrice(chapters), fullInr = full.length * MODULE.fullMock;
+    const listInr = full.reduce((n, p) => n + modulePrice(p.count), 0);
+    return { totalInr: enrolled ? 0 : chapterInr + fullInr, chapters, chapterInr, fullCount: full.length, fullInr, fullListInr: listInr };
+  }
+  // Each paper's share of a cart's price (for the per-subject request records).
+  function paperValues(papers) {
+    const list = Array.isArray(papers) ? papers : [], c = cartPrice(list);
+    return list.map(p => p.full ? MODULE.fullMock : c.chapters ? c.chapterInr * (Number(p.count) || 0) / c.chapters : 0);
   }
   const CLASSES = ['7', '8', '9', '10', '11', '12'];
   const BOARDS = ['CBSE', 'ICSE', 'State Board', 'Other'];
@@ -45,17 +71,36 @@
     'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
     'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'];
 
+  // Subjects by board: CBSE studies one combined Science up to Class 10 and
+  // Physics / Chemistry / Biology from Class 11; ICSE / ISC always studies
+  // Physics, Chemistry and Biology separately (no combined Science). Other
+  // boards: Science up to Class 10, the three sciences at any class.
+  const PCB = ['Physics', 'Chemistry', 'Biology'];
+  function subjectAllowed(subject, board, cls) {
+    const b = String(board || '').toUpperCase(), c = parseInt(cls, 10) || 0;
+    if (subject === 'Science') return b === 'ICSE' ? false : !(c >= 11);
+    if (PCB.includes(subject)) return !(b === 'CBSE' && c && c <= 10);
+    return true;
+  }
+  const subjectsFor = (board, cls) => SUBJECTS.filter(s => subjectAllowed(s, board, cls));
+  // Needed to start; the rest of the form can be filled in later from Profile.
+  const QUICK_FIELDS = ['name', 'class', 'board', 'subjects', 'phone', 'guardianPhone'];
+
   const clean = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
   const phone = v => { const d = String(v == null ? '' : v).replace(/\D/g, '').replace(/^(91|0)(?=[6-9]\d{9}$)/, ''); return d; };
 
   // Every field the onboarding form collects. `enrolled` students keep the
   // class/board/name the institute holds; they may update contact details.
+  // opts.quick: only QUICK_FIELDS are required; any other field may be left
+  // empty (but must be valid when filled). `complete` says whether every
+  // field of the full form is filled in.
   function validateProfile(input, opts) {
     const o = opts || {}, x = input || {}, errors = {};
     const v = {
       name: clean(x.name, 80), dob: clean(x.dob, 10), gender: clean(x.gender, 20), phone: phone(x.phone),
       class: clean(x.class, 3), board: clean(x.board, 20), school: clean(x.school, 120),
-      subjects: (Array.isArray(x.subjects) ? x.subjects : []).map(s => clean(s, 30)).filter((s, i, a) => SUBJECTS.includes(s) && a.indexOf(s) === i),
+      subjects: (Array.isArray(x.subjects) ? x.subjects : []).map(s => clean(s, 30)).filter((s, i, a) => SUBJECTS.includes(s) && a.indexOf(s) === i)
+        .filter(s => subjectAllowed(s, clean(x.board, 20), clean(x.class, 3))),
       target: clean(x.target, 20),
       address: clean(x.address, 200), city: clean(x.city, 60), state: clean(x.state, 60), pincode: String(x.pincode == null ? '' : x.pincode).replace(/\D/g, '').slice(0, 6),
       guardianName: clean(x.guardianName, 80), guardianRelation: clean(x.guardianRelation, 20), guardianPhone: phone(x.guardianPhone),
@@ -83,7 +128,9 @@
     need('guardianPhone', /^[6-9]\d{9}$/.test(v.guardianPhone), 'Enter a 10-digit mobile number.');
     // Optional: results are emailed here when a checked script is sent back.
     need('guardianEmail', !v.guardianEmail || /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(v.guardianEmail), 'Enter a valid email, or leave it empty.');
-    return { ok: !Object.keys(errors).length, value: v, errors };
+    const complete = !Object.keys(errors).length;
+    if (o.quick) Object.keys(errors).forEach(k => { const val = v[k]; if (!QUICK_FIELDS.includes(k) && (val === '' || val == null)) delete errors[k]; });
+    return { ok: !Object.keys(errors).length, value: v, errors, complete };
   }
 
   // Short public label for a student who is not enrolled at the institute.
@@ -109,6 +156,14 @@
     if (enrolled || k === 'custom' || k === 'package') return 0;   // paid for by the module order / the pack
     return Number(p[k]) || PRICES[k];
   }
+
+  // Struck-through regular price for a paid chapter-wise test or full mock, or 0.
+  function listPriceFor(t, prices, listPrices, enrolled) {
+    const k = kindOf(t), price = priceFor(t, prices, enrolled), list = Number((listPrices || LIST_PRICES)[k]) || 0;
+    return price > 0 && list > price ? list : 0;
+  }
+  // TNC faculty name shown to students instead of a teacher's name.
+  const facultyName = subject => 'TNC ' + ({ Computer: 'Computer Science', Maths: 'Mathematics' }[clean(subject, 40)] || clean(subject, 40) || 'Subject') + ' Faculty';
 
   // Average percentage per student over their checked tests in one class +
   // subject. rows: [{ uid, name, score, totalMarks, approvedAt }].
@@ -141,8 +196,8 @@
     return 1 + scores.filter(s => s > avg).length;
   }
 
-  const api = { PRICE_INR, PRICES, KINDS, FREE_MOCKS, MODULE, modulePrice, PACK_PRESETS, PACK_REMIND_DAYS, PACK_CLASSES, packSchedule, kindOf, priceFor, CLASSES, BOARDS, SUBJECTS, TARGETS, GENDERS, RELATIONS, STATES,
-    validateProfile, onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
+  const api = { PRICE_INR, PRICES, LIST_PRICES, PAPER, paperFor, KINDS, FREE_MOCKS, MODULE, modulePrice, isFullMock, cartPrice, paperValues, listPriceFor, facultyName, PACK_PRESETS, PACK_REMIND_DAYS, PACK_CLASSES, packSchedule, kindOf, priceFor, CLASSES, BOARDS, SUBJECTS, TARGETS, GENDERS, RELATIONS, STATES,
+    validateProfile, QUICK_FIELDS, subjectAllowed, subjectsFor, onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NTCOnlinePolicy = api;
 })(typeof window === 'undefined' ? null : window);

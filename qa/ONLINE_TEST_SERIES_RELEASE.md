@@ -206,7 +206,7 @@ Check: `node qa/admin-desk.cjs` (Playwright; 320 / 390 / 1440 px).
    add to Netlify environment variables
    - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
    - `RAZORPAY_WEBHOOK_SECRET` (any long random string)
-   - optional `ONLINE_CHAPTER_PRICE_INR` / `ONLINE_MOCK_PRICE_INR` (defaults 199 / 499)
+   - optional `ONLINE_CHAPTER_PRICE_INR` / `ONLINE_MOCK_PRICE_INR` (defaults 299 / 499)
 
    Until the keys are set, students see "Payments open soon"; free mocks and TNC IDs still work.
    For local testing with Netlify Dev, put the **test-mode** keys in a `.env` file in the project

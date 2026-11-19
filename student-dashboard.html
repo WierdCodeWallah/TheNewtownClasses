@@ -2496,6 +2496,13 @@ renderCards();
       return data;
     }
 
+    // Same rule as NTCOnlinePolicy.kindOf: older tests without a kind count as
+    // full mocks when named that way.
+    function otsKind(f) {
+      const k = f.kind?.stringValue || '';
+      if (['mock', 'chapter', 'custom', 'package'].includes(k)) return k;
+      return /full\s*syllabus|mock/i.test(`${f.chapter?.stringValue || ''} ${f.testName?.stringValue || ''}`) ? 'mock' : 'chapter';
+    }
     function otsAttemptState(t) {
       const a = _ots.attempts[t.id];
       if (!a) return { key: 'new' };
@@ -2524,12 +2531,17 @@ renderCards();
           } while (pageToken);
           return documents;
         }
-        const [testLoad, resultLoad, historyLoad] = await Promise.allSettled([list('offlineTests'), list(`students/${user.uid}/offlineResults`), list(`students/${user.uid}/offlineHistory`)]);
+        // Online Test Series papers (series 'online') are open to TNC students
+        // too, free; the offline-test function files their checked scripts
+        // under onlineStudents/{uid}, so read those alongside the offline ones.
+        const [testLoad, resultLoad, historyLoad, onlineResultLoad, onlineHistoryLoad] = await Promise.allSettled([list('offlineTests'), list(`students/${user.uid}/offlineResults`), list(`students/${user.uid}/offlineHistory`),
+          list(`onlineStudents/${user.uid}/results`), list(`onlineStudents/${user.uid}/history`)]);
+        const soft = r => r.status === 'fulfilled' ? r.value : [];
         _ots.historyError = historyLoad.status === 'rejected';
-        _ots.history = (historyLoad.value || []).map(d => Object.fromEntries(Object.entries(d.fields || {}).map(([k, v]) => [k, v.stringValue ?? v.doubleValue ?? (v.integerValue == null ? v.booleanValue : Number(v.integerValue))])));
+        _ots.history = [...(historyLoad.value || []), ...soft(onlineHistoryLoad)].map(d => Object.fromEntries(Object.entries(d.fields || {}).map(([k, v]) => [k, v.stringValue ?? v.doubleValue ?? (v.integerValue == null ? v.booleanValue : Number(v.integerValue))])));
         _ots.testsError = testLoad.status === 'rejected' ? testLoad.reason.message : '';
         _ots.resultsError = resultLoad.status === 'rejected' ? resultLoad.reason.message : '';
-        _ots.results = (resultLoad.value || []).map(d => {
+        _ots.results = [...(resultLoad.value || []), ...soft(onlineResultLoad)].map(d => {
           const f = d.fields || {}, s = k => f[k]?.stringValue || '', n = k => Number(f[k]?.doubleValue ?? f[k]?.integerValue ?? 0);
           return { reportId: s('reportId'), status: 'approved', chapter: s('topic') || 'General', module: s('module') || 'Full chapter', submittedAt: s('submittedAt'), approvedAt: s('approvedAt'), testName: s('testName'), subject: s('subject'), class: s('class'), testDate: s('testDate'), savedAt: s('savedAt'), score: n('score'), totalMarks: n('totalMarks'), teacherName: s('teacherName'), remark: s('remark'), answerSheetUrl: s('answerSheetUrl') };
         }).filter(r => r.reportId).sort((a, b) => (b.savedAt || b.testDate).localeCompare(a.savedAt || a.testDate));
@@ -2543,9 +2555,12 @@ renderCards();
             totalMarks: n(f.totalMarks), durationMin: n(f.durationMin) || 60,
             instructions: f.instructions?.stringValue || '', teacherName: f.teacherName?.stringValue || '', gradingMode: f.gradingMode?.stringValue || 'ai',
             isActive: f.isActive?.booleanValue !== false, createdAt: f.createdAt?.stringValue || '',
-            series: f.series?.stringValue || 'offline'
+            series: f.series?.stringValue || 'offline', kind: otsKind(f), hasAnswerKey: f.hasAnswerKey?.booleanValue === true
           };
-        }).filter(t => t.series !== 'online' && t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
+        // Online papers made for the whole class (chapter-wise and full mocks)
+        // show here too. Custom papers (one student's order) and mock-pack
+        // papers (bought and scheduled) stay on /test-series.
+        }).filter(t => (t.series !== 'online' || ['chapter', 'mock'].includes(t.kind)) && t.class === myClass && (!t.board || !myBoard || t.board === myBoard));
         const attempts = await Promise.all(_ots.tests.map(async t => {
           const r = await fetch(`${base}/offlineAttempts/${t.id}__${user.uid}?key=${FIREBASE_CONFIG.apiKey}`, { headers: { Authorization: 'Bearer ' + token } }).catch(() => null);
           if (!r || !r.ok) return null;
@@ -2653,11 +2668,13 @@ renderCards();
           : `<button type="button" class="ots-btn amber" data-open="${t.id}">⬆ Upload answer script${st.overGrace ? ' (late)' : ''}</button>`;
         else if (st.key === 'approved') btn = `<button type="button" class="ots-btn green" data-report="${t.id}__${user.uid}">📄 View checked script</button>`;
         else btn = '<button type="button" class="ots-btn soft" disabled>Submitted · awaiting teacher review</button>';
+        // After submitting: the answer key, when the admin shared one.
+        if (t.hasAnswerKey && ['checking', 'approved'].includes(st.key)) btn += `<button type="button" class="ots-btn ots-key" data-key="${t.id}">🔑 Download answer key</button>`;
         return `<div class="ots-card ots-test-card" data-state="${st.key}">
           <span class="ots-state">${{ new: 'Ready when you are', started: 'In progress', approved: 'Feedback is ready', checking: 'With your teacher' }[st.key]}</span>
           <span class="k">${otsEsc(t.module)}</span>
           <h3>${otsEsc(t.testName)}</h3>
-          <div class="meta"><span class="ots-chip">${t.totalMarks || '?'} marks</span><span class="ots-chip">⏱ ${t.durationMin} min</span>${t.board ? `<span class="ots-chip">${otsEsc(t.board)}</span>` : ''}</div>
+          <div class="meta">${t.kind === 'mock' ? '<span class="ots-chip ok">Full mock</span>' : ''}<span class="ots-chip">${t.totalMarks || '?'} marks</span><span class="ots-chip">⏱ ${t.durationMin} min</span>${t.board ? `<span class="ots-chip">${otsEsc(t.board)}</span>` : ''}</div>
           ${t.instructions ? `<p>${otsEsc(t.instructions)}</p>` : ''}
           <div class="act">${btn}</div>
         </div>`;
@@ -2665,6 +2682,19 @@ renderCards();
       body.querySelectorAll('[data-start]').forEach(b => b.onclick = () => otsStart(b.dataset.start, b));
       body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => otsStart(b.dataset.open, b));
       body.querySelectorAll('[data-report]').forEach(b => b.onclick = () => otsOpenReport(b.dataset.report));
+      body.querySelectorAll('[data-key]').forEach(b => b.onclick = () => otsAnswerKey(b.dataset.key, b));
+    }
+
+    // The server hands out the answer key only after this student submitted.
+    async function otsAnswerKey(testId, btn) {
+      const t = _ots.tests.find(x => x.id === testId); if (!t || btn.disabled) return;
+      const label = btn.textContent; btn.disabled = true; btn.textContent = 'Opening answer key…';
+      try {
+        const r = await otsApi({ action: 'answer-key', testId });
+        const url = NTCUploadcare.deliveryUrl(r.answerPdfUrl);
+        try { await NTCOfflineFiles.downloadPdf(url, t.testName + '_answer_key.pdf'); } catch (_) { window.open(url, '_blank', 'noopener'); }
+      } catch (e) { alert(e.message); }
+      finally { btn.disabled = false; btn.textContent = label; }
     }
 
     async function otsStart(testId, btn) {
@@ -2910,7 +2940,8 @@ renderCards();
         _ots.attempts[ex.test.id] = { ..._ots.attempts[ex.test.id], status: r.status };
         msg.className = 'ots-up-msg ok';
         msg.textContent = '✅ Submitted! Your checked result will arrive within 48 hours and stays saved in Results permanently.' +
-          (r.lateByMin > 15 ? ' (Marked as late.)' : '');
+          (ex.test.hasAnswerKey ? ' Download the answer key from this test’s card.' : '') +
+          (r.lateByMin > (ex.attempt.uploadGraceMin || 15) ? ' (Marked as late.)' : '');
         btn.textContent = 'Submitted ✓';
         clearInterval(ex.timer);
         setTimeout(() => { otsCloseUpload(); otsCloseExam(); otsLoad(); }, 2600);

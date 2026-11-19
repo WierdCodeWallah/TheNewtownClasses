@@ -337,6 +337,26 @@ const call = async (body) => {
   assert(!db.has('offlineAudit/return_manual1__stu1'));
   console.log('✓ admin returns in a teacher\'s name: teacher shown to the student, admin kept in a private audit log, misuse refused');
 
+  // Test Desk papers: no teacher ("TNC <Subject> Faculty"), their own upload
+  // time, and an answer key students get only after submitting.
+  db.set('offlineTests/desk01', { testName: 'Full mock 1', class: '11', subject: 'Physics', chapter: 'Full syllabus', module: 'Full mock', totalMarks: 80, durationMin: 180, uploadGraceMin: 20,
+    isActive: true, teacherUid: '', teacherName: 'TNC Physics Faculty', gradingMode: 'teacher', kind: 'mock', hasAnswerKey: true });
+  db.set('offlineTestKeys/desk01', { questionPdfUrl: 'https://ucarecdn.com/q/', answerPdfUrl: ok1 });
+  const ds = await call({ idToken: 'uid:stu4', action: 'start', testId: 'desk01' });
+  assert.equal(ds.status, 200); assert.equal(ds.body.uploadGraceMin, 20, 'full mock: 20 minutes to upload');
+  assert.equal(Date.parse(ds.body.deadline) - Date.parse(ds.body.startedAt), 180 * 60000, '3 hour timer');
+  assert.equal(s1.body.uploadGraceMin, 15, 'older papers keep 15 minutes');
+  assert.equal((await call({ idToken: 'uid:stu4', action: 'answer-key', testId: 'desk01' })).status, 409, 'no answer key while the timer runs');
+  assert.equal((await call({ idToken: 'uid:stu2', action: 'answer-key', testId: 'desk01' })).status, 409, 'no answer key before starting');
+  assert.equal((await call({ idToken: 'uid:stu4', action: 'submit', testId: 'desk01', scriptPdfUrl: currentScript })).status, 200);
+  const key = await call({ idToken: 'uid:stu4', action: 'answer-key', testId: 'desk01' });
+  assert.equal(key.status, 200); assert.equal(key.body.answerPdfUrl, ok1, 'answer key after submitting');
+  assert.equal((await call({ idToken: 'uid:stu1', action: 'answer-key', testId: 'otsphy1' })).status, 404, "a teacher's private answer key is never handed out");
+  assert.equal((await call({ action: 'return-script', attemptId: 'desk01__stu4', checkedScriptUrl: currentChecked, score: 60, idToken: 'uid:boss' })).status, 200);
+  assert.equal(db.get('students/stu4/offlineResults/ots_desk01__stu4').teacherName, 'TNC Physics Faculty', 'admin returns show TNC <Subject> Faculty');
+  assert.equal(db.get('offlineReports/desk01__stu4').approvedByName, 'TNC Physics Faculty');
+  console.log('✓ Test Desk papers: TNC Physics Faculty shown, 20-minute upload time for full mocks, answer key only after submitting and only when shared');
+
   // Admin permanent delete: every copy removed atomically, files deleted from
   // storage, a minimal admin-only audit entry kept, nobody else allowed.
   const del = (who, attemptId) => call({ idToken: 'uid:' + who, action: 'delete-record', attemptId });

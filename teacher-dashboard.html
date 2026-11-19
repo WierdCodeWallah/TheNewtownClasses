@@ -825,7 +825,7 @@
         <div class="field" id="otKindWrap" style="display:none;">
           <label for="otKind">Online test type</label>
           <select id="otKind">
-            <option value="chapter">Chapter-wise test · ₹199</option>
+            <option value="chapter">Chapter-wise test · ₹299</option>
             <option value="mock">Full mock test · ₹499</option>
           </select>
         </div>
@@ -867,7 +867,7 @@
           <input type="file" id="otAnswerPdf" accept="application/pdf,.pdf"/>
         </div>
       </div>
-      <p class="card-sub" style="margin-top:.6rem;">The answer key is never shown to students. A detailed key (step marks, units, final answers) gives the most accurate AI checking.</p>
+      <p class="card-sub" style="margin-top:.6rem;">The answer key stays private to teachers (students only get keys an admin shares, after they submit). A detailed key (step marks, units, final answers) gives the most accurate AI checking.</p>
       <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
         <button class="btn btn-primary" id="otPublishBtn" onclick="otPublish()">Publish test</button>
       </div>
@@ -3915,7 +3915,7 @@
     list.innerHTML = chapters.map(t => `<option value="${otEsc(t)}"></option>`).join('');
   };
 
-  // Online series tests are teacher-checked: chapter-wise ₹199, full mock ₹499
+  // Online series tests are teacher-checked: chapter-wise ₹299, full mock ₹499
   // (each student also gets one free full mock on a subject they choose).
   window.otSeriesChanged = function () {
     const online = $('otSeries').value === 'online';
@@ -3964,7 +3964,7 @@
         isActive: { booleanValue: true }, createdAt: { stringValue: now }
       });
       ['otName', 'otModule', 'otInstructions', 'otQuestionPdf', 'otAnswerPdf'].forEach(i => { $(i).value = ''; });
-      showMsg('otMsg', 'success', `✅ "${testName}" is live for Class ${cls} ${subject} → ${chapter}${series === 'online' ? ` · Online ${kind === 'mock' ? 'full mock' : 'chapter-wise'} test (${isFree ? 'free' : kind === 'mock' ? '₹499' : '₹199'})` : ''}.`);
+      showMsg('otMsg', 'success', `✅ "${testName}" is live for Class ${cls} ${subject} → ${chapter}${series === 'online' ? ` · Online ${kind === 'mock' ? 'full mock' : 'chapter-wise'} test (${isFree ? 'free' : kind === 'mock' ? '₹499' : '₹299'})` : ''}.`);
       otLoadMyTests();
     } catch (e) {
       showMsg('otMsg', 'error', 'Error: ' + e.message);

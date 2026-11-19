@@ -59,7 +59,11 @@ const docOf = (p, item) => ({ name: 'projects/fixture/databases/(default)/docume
 
 const tests = [
   { id: 'otsphy1', testName: 'Unit Test 1', class: '11', board: '', subject: 'Physics', chapter: 'Electric Charges and Fields', totalMarks: 5, durationMin: 60, isActive: true, teacherUid: 'teacher-demo', teacherName: 'Aarav Sen', createdAt: '2026-10-01' },
-  { id: 'otsphy2', testName: 'Unit Test 2', class: '11', board: '', subject: 'Physics', chapter: 'Electric Charges and Fields', totalMarks: 5, durationMin: 60, isActive: true, teacherUid: 'teacher-demo', teacherName: 'Aarav Sen', createdAt: '2026-10-02' },
+  { id: 'otsphy2', testName: 'Unit Test 2', class: '11', board: '', subject: 'Physics', chapter: 'Electric Charges and Fields', totalMarks: 5, durationMin: 60, isActive: true, teacherUid: 'teacher-demo', teacherName: 'Aarav Sen', createdAt: '2026-10-02', hasAnswerKey: true },
+  // Online Test Series papers: whole-class ones show on /learn too; custom and mock-pack papers do not.
+  { id: 'onmock1', testName: 'Physics full mock 1', class: '11', board: '', subject: 'Physics', chapter: 'Full syllabus', module: 'Full mock', totalMarks: 80, durationMin: 180, isActive: true, series: 'online', kind: 'mock', teacherName: 'TNC Physics Faculty', createdAt: '2026-10-03' },
+  { id: 'oncust1', testName: 'Custom module · Mathematics', class: '11', board: '', subject: 'Mathematics', chapter: 'Custom module', totalMarks: 30, durationMin: 60, isActive: true, series: 'online', kind: 'custom', forUid: 'someone', createdAt: '2026-10-03' },
+  { id: 'onpack1', testName: 'Pack mock 1', class: '11', board: '', subject: 'Physics', chapter: 'Pack syllabus', totalMarks: 80, durationMin: 180, isActive: true, series: 'online', kind: 'package', createdAt: '2026-10-03' },
   { id: 'otsmat1', testName: 'Sets quiz', class: '11', board: '', subject: 'Mathematics', chapter: 'Sets', totalMarks: 10, durationMin: 30, isActive: true, teacherUid: 'teacher-demo', teacherName: 'Aarav Sen', createdAt: '2026-10-01' },
   { id: 'otsicse', testName: 'ICSE only', class: '11', board: 'ICSE', subject: 'Physics', chapter: 'Other', totalMarks: 5, durationMin: 60, isActive: true, teacherUid: 'teacher-demo', createdAt: '2026-10-01' },
   { id: 'otscls12', testName: 'Class 12', class: '12', board: '', subject: 'Physics', chapter: 'Other', totalMarks: 5, durationMin: 60, isActive: true, teacherUid: 'teacher-demo', createdAt: '2026-10-01' }
@@ -103,6 +107,7 @@ async function openPortal(browser, origin, role, file, state, viewport) {
     if (['ucarecdn.com', '32zbpzustr.ucarecd.net'].includes(url.hostname)) return route.fulfill({ contentType: 'application/pdf', body: paperPdf });
     if (url.pathname === '/.netlify/functions/offline-test') {
       const body = req.postDataJSON(); state.calls.push(body);
+      if (body.action === 'answer-key') return route.fulfill({ json: { answerPdfUrl: 'https://ucarecdn.com/a/' } });
       if (state.manual && body.action === 'start') {
         state.attempt ||= { attemptId: body.testId + '__student-demo', status: 'started', startedAt: new Date().toISOString(), deadline: new Date(Date.now() + 3600000).toISOString(), serverNow: new Date().toISOString(), questionPdfUrl: 'https://ucarecdn.com/33333333-3333-3333-3333-333333333333/' };
         return route.fulfill({ json: { ...state.attempt, serverNow: new Date().toISOString() } });
@@ -235,6 +240,12 @@ async function openPortal(browser, origin, role, file, state, viewport) {
       const subjects = await page.$$eval('#otsBody [data-sub]', b => b.map(x => x.dataset.sub));
       assert.deepEqual(subjects.sort(), ['Mathematics', 'Physics'], 'only this class & board');
       await page.click('#otsBody [data-sub="Physics"]');
+      const physicsChapters = await page.$$eval('#otsBody [data-ch]', b => b.map(x => x.dataset.ch));
+      assert.ok(physicsChapters.includes('Full syllabus'), 'online full mock shows for TNC students'); assert.ok(!physicsChapters.includes('Pack syllabus'), 'mock-pack papers stay on /test-series');
+      await page.click('#otsBody [data-ch="Full syllabus"]'); await page.click('#otsBody [data-module="Full mock"]');
+      await page.waitForSelector('[data-start="onmock1"]');
+      assert.match(await page.textContent('.ots-test-card[data-state="new"]'), /Full mock[\s\S]*80 marks[\s\S]*180 min/);
+      await page.click('#otsCrumbs [data-level="subject"]');
       await page.click('#otsBody [data-ch="Electric Charges and Fields"]');
       await page.click('#otsBody [data-module="Full chapter"]');
       await page.waitForSelector('[data-report]');
@@ -266,6 +277,12 @@ async function openPortal(browser, origin, role, file, state, viewport) {
       await page.screenshot({ animations: 'disabled', path: path.join(out, `student-report-${viewport.width}.png`) });
       await page.click('#otsReport .ots-bar-btn.ghost');
       assert(await page.evaluate(() => document.getElementById('otsReport').hidden), 'report closes');
+      // Submitted test with a shared answer key: download it from the card.
+      assert.equal(await page.locator('[data-key="otsphy1"]').count(), 0, 'no answer key without one shared');
+      await page.waitForSelector('[data-key="otsphy2"]');
+      const [keyFile] = await Promise.all([page.waitForEvent('download'), page.click('[data-key="otsphy2"]')]);
+      assert.match(keyFile.suggestedFilename(), /answer_key\.pdf$/); assert.ok(state.calls.some(c => c.action === 'answer-key' && c.testId === 'otsphy2'));
+      await page.screenshot({ animations: 'disabled', path: path.join(out, `student-answer-key-${viewport.width}.png`) });
       assert.deepEqual(errors, [], 'student runtime errors');
       await page.close();
       console.log(`✓ student ${viewport.width}px: subject → chapter → start → paper + timer → PDF upload → approved report`);

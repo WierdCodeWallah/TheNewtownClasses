@@ -165,6 +165,7 @@ const findings = [];
       await page.waitForSelector('.v-home .subj');
       await page.click('#nav [data-tab=custom]');
       await page.waitForSelector('.v-custom .row.pick');
+      await page.click('[data-cboard=CBSE]'); await page.waitForSelector('[data-cboard=CBSE][aria-selected=true]');   // the fixture student is ICSE
       // Mark the screen: a full redraw would replace these elements.
       await page.evaluate(() => { document.querySelector('.v-custom').dataset.mark = '1'; document.querySelector('.row.pick[data-ch="5"]').dataset.mark = '1'; });
       // Taps done in the page itself, so the test runner never scrolls for us.

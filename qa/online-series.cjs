@@ -1,5 +1,5 @@
 /* Online Test Series portal (/test-series) — end-to-end browser check with fixtures.
-   New Google student: sign-in screen → 3-step form (validation, draft) → Home.
+   New Google student: sign-in screen → one quick page (validation, board-aware subjects) → Home; rest later from Profile.
    Returning student: Home → subject → locked test → Razorpay (fake) → unlocked →
    start → timer + paper → upload a PDF → submitted; Ranks, Results, Profile, TNC ID.
    Checks no horizontal overflow, fixed tab bar, no JS errors at 320/390/768/1440px.
@@ -34,20 +34,22 @@ const field = v => v === null ? { nullValue: null } : Array.isArray(v) ? { array
 const docOf = (p, item) => ({ name: 'projects/fixture/databases/(default)/documents/' + p, fields: Object.fromEntries(Object.entries(item).map(([k, v]) => [k, field(v)])) });
 
 const profile = { uid: 'riya', onlineId: 'TNC-ON-RIYA', enrolled: false, provider: 'google', email: 'riya@example.test', name: 'Riya Sharma', dob: '2011-05-04', gender: 'Female', phone: '9800012345',
-  class: '10', board: 'CBSE', school: 'DPS Newtown', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'], target: 'NEET', address: '12 Lake Road', city: 'Kolkata', state: 'West Bengal', pincode: '700156',
+  class: '10', board: 'ICSE', school: 'DPS Newtown', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'], target: 'NEET', address: '12 Lake Road', city: 'Kolkata', state: 'West Bengal', pincode: '700156',
   guardianName: 'Anil Sharma', guardianRelation: 'Father', guardianPhone: '9830012345', profileComplete: true, createdAt: '2026-11-01T10:00:00Z' };
 const T = (id, o) => ({ id, testName: 'Test', class: '10', board: '', subject: 'Physics', chapter: 'Light', module: 'Full chapter', totalMarks: 40, durationMin: 90, isActive: true, kind: 'chapter', teacherName: 'Aarav Sen', gradingMode: 'teacher', series: 'online', createdAt: '2026-11-01', ...o });
 const tests = [
   T('phyfree', { testName: 'Full syllabus mock 1', chapter: 'Full syllabus', kind: 'mock', createdAt: '2026-11-03' }),
   T('phymock2', { testName: 'Full syllabus mock 2', chapter: 'Full syllabus', kind: 'mock', createdAt: '2026-11-05' }),
-  T('phy1', { testName: 'Chapter test 1', chapter: 'Light — Reflection and Refraction', createdAt: '2026-11-01' }),
+  T('phy1', { testName: 'Chapter test 1', chapter: 'Light — Reflection and Refraction', createdAt: '2026-11-01', hasAnswerKey: true }),
   T('phy2', { testName: 'Chapter test 2', chapter: 'Electricity', createdAt: '2026-11-02' }),
   T('phy3', { testName: 'Chapter test 3', chapter: 'Magnetic Effects of Electric Current', createdAt: '2026-11-04' }),
   T('chem1', { subject: 'Chemistry', testName: 'Chapter test 1', chapter: 'Chemical Reactions' }),
   T('chem2', { subject: 'Chemistry', testName: 'Full mock 1', chapter: 'Full syllabus', kind: 'mock' }),
   T('bio1', { subject: 'Biology', testName: 'Full mock 1', chapter: 'Full syllabus', kind: 'mock' }),
   T('mat1', { subject: 'Mathematics', testName: 'Real numbers', chapter: 'Real Numbers', durationMin: 60 }),
-  T('icse', { board: 'ICSE', testName: 'ICSE only' })
+  T('cbse', { board: 'CBSE', testName: 'CBSE only' }),
+  // CBSE Class 10 has one Science paper: an all-boards Science paper is hidden from this ICSE student.
+  T('sci1', { subject: 'Science', testName: 'Science mock', chapter: 'Full syllabus', kind: 'mock' })
 ];
 const results = [{ id: 'chem1__riya', testId: 'chem1', reportId: 'chem1__riya', testName: 'Chapter test 1', subject: 'Chemistry', chapter: 'Chemical Reactions', class: '10', score: 34, totalMarks: 40,
   remark: 'Balanced equations well. Show state symbols every time.', teacherName: 'Priya Das', answerSheetUrl: 'https://32zbpzustr.ucarecd.net/44444444-4444-4444-4444-444444444444/', approvedAt: '2026-11-10T09:00:00Z', submittedAt: '2026-11-08T09:00:00Z' }];
@@ -97,10 +99,10 @@ async function open(browser, origin, state, viewport) {
       const b = req.postDataJSON(); state.calls.push(b.action);
       if (state.slow) await new Promise(r => setTimeout(r, state.slow));
       const uid = b.idToken.replace('tok-', '');
-      if (b.action === 'session') return route.fulfill({ json: { uid, enrolled: uid === 'tnc1', email: uid + '@example.test', profile: state.profiles[uid] || { uid, profileComplete: false }, unlocked: state.unlocked, prices: { chapter: 199, mock: 499 }, freeMock: { allowance: uid === 'tnc1' ? 0 : 1, usedCount: state.freeUsed ? 1 : 0, left: uid === 'tnc1' ? 0 : 1 - (state.freeUsed ? 1 : 0), claims: state.freeUsed ? [{ testId: state.freeUsed, subject: 'Physics' }] : [] }, paymentsReady: state.paymentsReady !== false, razorpayKeyId: 'rzp_test', serverNow: new Date().toISOString() } });
+      if (b.action === 'session') return route.fulfill({ json: { uid, enrolled: uid === 'tnc1', email: uid + '@example.test', profile: state.profiles[uid] || { uid, profileComplete: false }, unlocked: state.unlocked, prices: { chapter: 299, mock: 499 }, listPrices: { chapter: 399, mock: 699 }, freeMock: { allowance: uid === 'tnc1' ? 0 : 1, usedCount: state.freeUsed ? 1 : 0, left: uid === 'tnc1' ? 0 : 1 - (state.freeUsed ? 1 : 0), claims: state.freeUsed ? [{ testId: state.freeUsed, subject: 'Physics' }] : [] }, paymentsReady: state.paymentsReady !== false, razorpayKeyId: 'rzp_test', serverNow: new Date().toISOString() } });
       if (b.action === 'save-profile') {
         if (state.failSave) { state.failSave = false; return route.fulfill({ status: 500, json: { error: 'Something went wrong. Please try again.' } }); }
-        state.saved = b.profile; state.profiles[uid] = { ...b.profile, uid, onlineId: 'TNC-ON-MEERA', profileComplete: true, email: uid + '@example.test' };
+        state.saved = b.profile; state.profiles[uid] = { ...b.profile, uid, onlineId: 'TNC-ON-MEERA', profileComplete: true, detailsComplete: require('../assets/js/online-policy.js').validateProfile(b.profile).ok, email: uid + '@example.test' };
         return route.fulfill({ json: { ok: true, profile: state.profiles[uid] } });
       }
       if (b.action === 'create-order') return route.fulfill({ json: { orderId: 'order_Fx000001', amountPaise: 49900, currency: 'INR', keyId: 'rzp_test', testName: 'Chapter test 1', prefill: { name: 'Riya Sharma', email: 'riya@example.test', contact: '9800012345' } } });
@@ -145,6 +147,7 @@ async function open(browser, origin, state, viewport) {
     if (url.pathname === '/.netlify/functions/offline-test') {
       const b = req.postDataJSON(); state.calls.push(b.action);
       if (b.action === 'start') { state.attempts[b.testId] = { testId: b.testId, uid: 'riya', status: 'started', startedAt: new Date().toISOString(), deadline: new Date(Date.now() + 90 * 60000).toISOString(), uploadGraceMin: 15, questionPdfUrl: 'https://ucarecdn.com/66666666-6666-6666-6666-666666666666/' }; return route.fulfill({ json: { ...state.attempts[b.testId], serverNow: new Date().toISOString() } }); }
+      if (b.action === 'answer-key') return state.attempts[b.testId] && state.attempts[b.testId].status !== 'started' ? route.fulfill({ json: { answerPdfUrl: 'https://ucarecdn.com/77777777-7777-7777-7777-777777777777/' } }) : route.fulfill({ status: 409, json: { error: 'Submit your answers first.' } });
       if (b.action === 'submit') { state.submitted = b; state.attempts[b.testId].status = 'submitted'; return route.fulfill({ json: { ok: true, status: 'submitted', lateByMin: 0 } }); }
     }
     if (url.hostname === 'firestore.googleapis.com') {
@@ -195,6 +198,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       const { page, errors } = await open(browser, origin, newState(), { width: w, height: h });
       await page.waitForSelector('#auth:not([hidden])');
       await page.waitForSelector('#googleBtn:not([disabled])');
+      assert.equal(await page.getAttribute('#auth .au-home', 'href'), '/'); assert.ok(await page.isVisible('#auth .au-home'), 'Back to Home link on the sign-in screen');
       const fits = await page.evaluate(() => { const a = document.querySelector('#auth'); return a.scrollHeight <= a.clientHeight + 1; });
       assert.ok(fits, `sign-in fits one screen at ${w}×${h}`);
       await noOverflow(page, 'sign-in ' + w);
@@ -210,46 +214,51 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
     }
     console.log('✓ sign-in: one screen at 320/390/1440, Google + TNC ID, wrong password message');
 
-    // ── 2. New Google student fills the 3-step form ──
+    // ── 2. New Google student: one quick page (board-aware subjects), more details optional ──
     {
       const state = newState({ failSave: true });
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.click('#googleBtn');
       await page.waitForSelector('#onboard:not([hidden])');
+      assert.equal(await page.textContent('#obTitle'), 'Quick start', 'sign-up starts with one short page');
       assert.equal(await page.inputValue('[name=name]'), 'Meera Iyer', 'name prefilled from Google');
-      await shot(page, '03-form-step1-390');
+      assert.equal(await page.locator('[name=dob], [name=school], [name=address]').count(), 0, 'no date of birth, school or address to start');
+      assert.match(await page.textContent('#obNext'), /Start my tests/);
+      await shot(page, '03-form-quick-390');
       await page.click('#obNext');
       await page.waitForSelector('.fl.bad');
-      assert.match(await page.textContent('[data-err=dob]'), /date of birth/);
-      assert.match(await page.textContent('[data-err=phone]'), /10-digit/);
+      assert.match(await page.textContent('[data-err=phone]'), /10-digit/); assert.match(await page.textContent('[data-err=guardianPhone]'), /10-digit/);
+      assert.match(await page.textContent('[data-err=class]'), /class/); assert.match(await page.textContent('[data-err=board]'), /board/);
       await shot(page, '04-form-errors-390');
-      await page.fill('[name=dob]', '2010-08-15'); await page.fill('[name=phone]', '98abc76543210');
+      await page.fill('[name=phone]', '98abc76543210');
       assert.equal(await page.inputValue('[name=phone]'), '9876543210', 'digits only, capped at 10');
       await page.fill('[name=phone]', ''); await page.type('[name=phone]', '+91 98765 43210');
       assert.equal(await page.inputValue('[name=phone]'), '9876543210', 'typed/pasted +91 number keeps its 10 digits');
-      await page.click('label.chip:has-text("Female")');
-      await page.click('#obNext');
-      await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Your studies');
+      // Subjects follow the board: CBSE Class 10 → Science; ICSE → Physics, Chemistry, Biology.
       await page.click('label.chip:has-text("Class 10")'); await page.click('label.chip:has-text("CBSE")');
-      await page.fill('[name=school]', 'Kendriya Vidyalaya, Chennai');
-      await page.click('label.chip:has-text("Physics")'); await page.click('label.chip:has-text("Mathematics")');
-      await shot(page, '05-form-step2-390');
-      await page.click('#obNext');
-      await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Address & guardian');
-      await page.fill('[name=address]', '4 Gandhi Street, T Nagar'); await page.fill('[name=city]', 'Chennai'); await page.fill('[name=pincode]', '600017');
-      await page.selectOption('[name=state]', 'Tamil Nadu');
-      await page.fill('[name=guardianName]', 'Lakshmi Iyer'); await page.click('label.chip:has-text("Mother")'); await page.fill('[name=guardianPhone]', '9444012345');
-      await noOverflow(page, 'form step 3');
-      await shot(page, '06-form-step3-390');
-      // Back keeps answers.
-      await page.click('#obBack'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Your studies');
-      assert.equal(await page.inputValue('[name=school]'), 'Kendriya Vidyalaya, Chennai');
-      await page.click('#obNext'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Address & guardian');
-      assert.equal(await page.inputValue('[name=city]'), 'Chennai');
+      let subs = await page.locator('[data-f=subjects] label.chip').allTextContents();
+      assert.ok(subs.includes('Science') && !subs.some(x => ['Physics', 'Chemistry', 'Biology'].includes(x)), 'CBSE Class 10: Science only, no Physics / Chemistry / Biology');
+      assert.match(await page.textContent('.ob-hint'), /one Science paper/);
+      await page.click('[data-f=subjects] label.chip:has-text("Science")');
+      await shot(page, '05-form-cbse-subjects-390');
+      await page.click('label.chip:has-text("ICSE")');
+      subs = await page.locator('[data-f=subjects] label.chip').allTextContents();
+      assert.ok(['Physics', 'Chemistry', 'Biology'].every(x => subs.includes(x)) && !subs.includes('Science'), 'ICSE: Physics, Chemistry, Biology, no Science');
+      assert.equal(await page.locator('[data-f=subjects] input:checked').count(), 0, 'Science dropped when the board changed');
+      await page.click('[data-f=subjects] label.chip:has-text("Physics")'); await page.click('[data-f=subjects] label.chip:has-text("Mathematics")');
+      await page.fill('[name=guardianPhone]', '9444012345');
+      await noOverflow(page, 'quick form'); await shot(page, '05b-form-quick-filled-390');
+      // Optional: add everything now (3 steps), Back returns to the quick page with answers kept.
+      await page.click('[data-ob-full]'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'About you');
+      assert.equal(await page.textContent('#obStep'), '1/3'); assert.equal(await page.inputValue('[name=phone]'), '9876543210');
+      await page.click('#obBack'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Quick start');
+      assert.equal(await page.inputValue('[name=guardianPhone]'), '9444012345', 'quick answers kept');
       await page.click('#obNext');
       await page.waitForFunction(() => /went wrong/.test(document.querySelector('#obErr').textContent));
       await page.click('#obNext');   // retry after a failed save
       await page.waitForSelector('#app:not([hidden]) .v-home');
+      assert.equal(state.saved.board, 'ICSE'); assert.deepEqual(state.saved.subjects.slice().sort(), ['Mathematics', 'Physics']); assert.equal(state.saved.guardianPhone, '9444012345');
+      assert.equal(state.saved.dob, '', 'date of birth left for later');
       // New student: the free mock is offered by the pill at the top; the live checking card fills the bottom.
       await page.waitForSelector('.v-home .chk-card .chk-svg');
       assert.match(await page.textContent('.chk-card'), /You upload[\s\S]*Software checks[\s\S]*TNC teacher approves/);
@@ -258,12 +267,31 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.equal(await page.locator('#sheet [data-pick]').count(), 3, 'one choice per subject with a full mock (Physics, Chemistry, Biology)');
       await shot(page, '07b-free-mock-picker-390');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
-      assert.equal(state.saved.state, 'Tamil Nadu'); assert.deepEqual(state.saved.subjects, ['Physics', 'Mathematics']); assert.equal(state.saved.guardianRelation, 'Mother');
       assert.match(await page.textContent('.hello h2'), /Meera/);
       await shot(page, '07-home-new-student-390');
+      // Profile asks for the rest later; the full form saves with everything filled.
+      await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu');
+      assert.match(await page.textContent('.more-menu'), /Profile[\s\S]*Add your remaining details[\s\S]*TNC home page/);
+      await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
+      await goTab(page, 'me'); await page.waitForSelector('.v-me .banner.info');
+      assert.match(await page.textContent('.v-me .banner.info'), /Complete your profile/);
+      await shot(page, '07c-profile-complete-later-390');
+      await page.click('.v-me .banner.info'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'About you');
+      await page.fill('[name=dob]', '2010-08-15'); await page.click('label.chip:has-text("Female")');
+      await page.click('#obNext'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Your studies');
+      assert.equal(await page.locator('[data-f=subjects] input:checked').count(), 2, 'subjects kept');
+      await page.fill('[name=school]', 'Kendriya Vidyalaya, Chennai');
+      await page.click('#obNext'); await page.waitForFunction(() => document.querySelector('#obTitle').textContent === 'Address & guardian');
+      await page.fill('[name=address]', '4 Gandhi Street, T Nagar'); await page.fill('[name=city]', 'Chennai'); await page.fill('[name=pincode]', '600017');
+      await page.selectOption('[name=state]', 'Tamil Nadu');
+      await page.fill('[name=guardianName]', 'Lakshmi Iyer'); await page.click('label.chip:has-text("Mother")');
+      await noOverflow(page, 'form step 3'); await shot(page, '06-form-step3-390');
+      await page.click('#obNext'); await page.waitForSelector('#app:not([hidden])');
+      assert.equal(state.saved.state, 'Tamil Nadu'); assert.equal(state.saved.guardianRelation, 'Mother'); assert.equal(state.saved.dob, '2010-08-15');
+      assert.equal(await page.locator('.v-me .banner.info').count(), 0, 'reminder gone once everything is filled');
       assert.deepEqual(errors, []); await page.close();
     }
-    console.log('✓ form: Google name prefilled, inline errors, digit-only phone, back keeps answers, failed save retried, lands on Home');
+    console.log('✓ form: one quick page (name, phone, class, board, subjects, guardian phone), CBSE → Science / ICSE → Physics·Chemistry·Biology, failed save retried, rest added later from Profile');
 
     // ── 3. Returning student: Home → subject → unlock → test → upload ──
     for (const [w, h] of [[320, 640], [390, 844], [768, 1024], [1440, 900]]) {
@@ -271,8 +299,9 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       const { page, errors } = await open(browser, origin, state, { width: w, height: h });
       await page.waitForSelector('#app:not([hidden]) .v-home');
       await page.waitForSelector('.subj');
-      assert.equal(await page.locator('.subj').count(), 4, 'four subjects for Class 10 CBSE');
-      assert.ok(!(await page.textContent('#view')).includes('ICSE only'), 'other-board tests hidden');
+      assert.equal(await page.locator('.subj').count(), 4, 'four subjects for Class 10 ICSE');
+      assert.ok(!(await page.textContent('#view')).includes('Science'), 'ICSE: no combined Science');
+      assert.ok(!(await page.textContent('#view')).includes('CBSE only'), 'other-board tests hidden');
       const nav = await page.evaluate(() => { const n = document.querySelector('#nav').getBoundingClientRect(); return { bottom: Math.round(n.bottom), h: innerHeight, left: Math.round(n.left), height: Math.round(n.height) }; });
       if (w < 960) assert.equal(nav.bottom, nav.h, 'bottom tab bar pinned to the bottom');
       else assert.ok(nav.height >= h - 1 && nav.left === 0, 'side rail on laptops');
@@ -284,11 +313,13 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('.v-subject .row');
       assert.equal(await page.getAttribute('[data-seg=mock]', 'aria-selected'), 'true', 'opens on Full mocks while the free mock is unused');
       let rows = await page.locator('.v-subject .row').allTextContents();
-      assert.equal(rows.length, 2); assert.match(rows[0], /Full syllabus mock 1[\s\S]*₹499/, 'full mocks ₹499');
+      assert.equal(rows.length, 2); assert.match(rows[0], /Full syllabus mock 1[\s\S]*₹499[\s\S]*₹699/, 'full mocks ₹499, ₹699 struck through');
+      assert.equal(await page.locator('.v-subject .row .pill.lock s').first().textContent(), '₹699');
       assert.match(await page.textContent('.seg-hint'), /1 free mock left — use on any subject/);
       await page.click('[data-seg=chapter]');
       rows = await page.locator('.v-subject .row').allTextContents();
-      assert.equal(rows.length, 3); assert.ok(rows.every(r => /₹199/.test(r)), 'chapter-wise tests ₹199 each');
+      assert.equal(rows.length, 3); assert.ok(rows.every(r => /₹299[\s\S]*₹399/.test(r)), 'chapter-wise tests ₹299 each, ₹399 struck through');
+      assert.match(await page.textContent('.seg-hint'), /₹299 per chapter test \(regular ₹399\)/);
       assert.match(await page.textContent('.rank-chip'), /Not ranked/);
       await noOverflow(page, 'subject ' + w); await shot(page, `09-subject-${w}`);
       if (w !== 390) { assert.deepEqual(errors, []); await page.close(); continue; }
@@ -309,11 +340,11 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.click('.row:has-text("Full syllabus mock 2")'); await page.waitForSelector('#sheet.on .price');
       assert.equal(await page.locator('#sheet .free-card').count(), 0, 'no second free mock');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
-      // Chapter-wise test: ₹199 through Razorpay.
+      // Chapter-wise test: ₹299 through Razorpay.
       await page.click('[data-seg=chapter]');
       await page.click('.row:has-text("Chapter test 1")');
       await page.waitForSelector('#sheet.on .price');
-      assert.match(await page.textContent('.price-top'), /₹199/);
+      assert.match(await page.textContent('.price-top'), /₹299[\s\S]*₹399/, 'sheet price with the regular price struck through');
       assert.match(await page.textContent('#sheetBody .no-refund'), /Non-refundable\.\s*Once paid, the amount is not refunded/, 'non-refundable notice before paying');
       await shot(page, '10-unlock-sheet-390');
       await page.click('[data-go=pay]');
@@ -354,7 +385,14 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForFunction(() => /Submitted/.test(document.querySelector('#exMsg').textContent));
       assert.equal(state.submitted.testId, 'phy1'); assert.match(state.submitted.scriptPdfUrl, /^https:\/\/32zbpzustr\.ucarecd\.net\/55555555-/);
       await page.waitForSelector('#exam', { state: 'hidden', timeout: 8000 });
-      await page.waitForSelector('#sheet', { state: 'hidden' });
+      // The test had an answer key: its sheet reopens with the download.
+      await page.waitForSelector('#sheet.on [data-go=key]');
+      assert.match(await page.textContent('#sheetBody'), /Download answer key[\s\S]*Submitted[\s\S]*Being checked/);
+      await shot(page, '15b-answer-key-390');
+      await page.click('#sheet [data-go=key]');
+      await page.waitForFunction(() => !document.querySelector('#sheet [data-go=key]').disabled);
+      assert.ok(state.calls.includes('answer-key'), 'answer key requested from the server');
+      await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
 
       // Phone tab bar: 4 items; Ranks, Custom and Profile are in More.
       assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'results', 'more'], 'four tabs on phones: Custom second');
@@ -381,7 +419,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await noOverflow(page, 'profile'); await shot(page, '18-profile-390');
       assert.deepEqual(errors, []); await page.close();
     }
-    console.log('✓ returning student: 4 subjects, Chapter-wise ₹199 / Full mocks ₹499 sections, one free mock claimed (others stay paid), Razorpay unlock, timer + paper, Back minimises, resume card, PDF upload + submit');
+    console.log('✓ returning student: 4 subjects, Chapter-wise ₹299 (₹399) / Full mocks ₹499 (₹699) sections, answer key after submitting, one free mock claimed (others stay paid), Razorpay unlock, timer + paper, Back minimises, resume card, PDF upload + submit');
     console.log('✓ ranks (#6 of 248, podium), results (in review + checked feedback), profile; tab bar / side rail and no overflow at 320/390/768/1440');
 
     // ── 4. Phone reloaded mid-payment: back to the paid test once confirmed ──
@@ -405,7 +443,8 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
       await goTab(page, 'custom'); await page.waitForSelector('.v-custom .row.pick');
-      assert.equal(await page.getAttribute('[data-cboard=CBSE]', 'aria-selected'), 'true', 'starts on the student’s board');
+      assert.equal(await page.getAttribute('[data-cboard=CISCE]', 'aria-selected'), 'true', 'starts on the student’s board');
+      await page.click('[data-cboard=CBSE]'); await page.waitForSelector('[data-cboard=CBSE][aria-selected=true]');
       assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Science', 'Mathematics']);
       for (const i of [0, 1, 2]) await page.click(`.row.pick[data-ch="${i}"]`);
       await page.click('[data-csub=Mathematics]');
@@ -417,6 +456,22 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.equal(await page.locator('[data-cart]').isDisabled(), false);
       assert.match(await page.textContent('.cart-bar'), /5 chapters · ₹946[\s\S]*You save ₹49/, '4 × ₹199 + 1 × ₹150');
       assert.match(await page.textContent('[data-csub=Science]'), /3/, 'subject chip shows its count');
+      // Every Science chapter → a Custom full mock at ₹699 (the chapters' own price struck through).
+      const sciAll = require('../assets/js/syllabus.js').chapters('CBSE', '10', 'Science'), pol = require('../assets/js/online-policy.js');
+      await page.click('[data-csub=Science]');
+      assert.match(await page.textContent('.fm-note'), new RegExp(`Pick all ${sciAll.length} chapters for a Custom full mock[\\s\\S]*₹699[\\s\\S]*₹${pol.modulePrice(sciAll.length)}`));
+      await page.click('[data-call]'); await page.waitForSelector('.fm-note.on');
+      assert.match(await page.textContent('.fm-note.on'), new RegExp(`Custom full mock · all ${sciAll.length} Science chapters`));
+      assert.match(await page.textContent('.cart-bar'), /1 full mock \+ 2 chapters · ₹1097/, 'Science ₹699 + 2 Maths chapters × ₹199');
+      await noOverflow(page, 'custom full mock'); await shot(page, '20b-custom-full-mock-390');
+      await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .bill');
+      assert.match(await page.textContent('.bill'), new RegExp(`Custom full mock · Science[\\s\\S]*₹${pol.modulePrice(sciAll.length)}[\\s\\S]*₹699[\\s\\S]*2 × ₹199[\\s\\S]*Total[\\s\\S]*₹1097`));
+      assert.match(await page.textContent('#sheet .cg'), /Custom full mock · all/);
+      await shot(page, '21b-custom-full-mock-cart-390');
+      await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
+      await page.click('[data-call]'); for (const i of [0, 1, 2]) await page.click(`.row.pick[data-ch="${i}"]`);
+      assert.equal(await page.locator('.fm-note.on').count(), 0, 'back to chapter pricing');
+      assert.match(await page.textContent('.cart-bar'), /5 chapters · ₹946/);
       await noOverflow(page, 'custom build'); await shot(page, '20-custom-build-390');
       await page.click('[data-cboard=CISCE]');
       assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Physics', 'Chemistry', 'Biology', 'Mathematics'], 'ICSE subjects for Class 10');
@@ -460,14 +515,14 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.equal(await page.locator('.more-menu a[href="#/packs"]').count(), 0, 'Class 8: no mock packs anywhere');
       await page.keyboard.press('Escape'); await page.waitForSelector('#sheet', { state: 'hidden' });
       assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'results', 'more'], 'Class 8: Custom test on the tab bar');
-      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom .row.pick');
+      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom .row.pick'); await page.click('[data-cboard=CBSE]'); await page.waitForSelector('[data-cboard=CBSE][aria-selected=true]');
       assert.match(await page.textContent('.v-custom'), /Exploring the Investigative World of Science/, 'Class 8 CBSE chapters (Curiosity)');
       await page.click('[data-cboard=CISCE]'); assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Physics', 'Chemistry', 'Biology', 'Mathematics'], 'Class 8 ICSE subjects');
       await page.evaluate(() => { location.hash = '#/packs'; }); await page.waitForSelector('.v .empty, .v [class*=empty]');
       assert.match(await page.textContent('#view'), /For Classes 9 to 12/, 'packs page explains it is for 9–12');
       assert.deepEqual(errors, []); await page.close();
     }
-    console.log('✓ custom module: CBSE/ICSE chapters, per-board cart, ₹199 × 4 then ₹150, cart sheet + remove, Razorpay → one paper per subject, ready paper starts, only own papers, Classes 9–12');
+    console.log('✓ custom module: CBSE/ICSE chapters, per-board cart, ₹199 × 4 then ₹150, all chapters → Custom full mock ₹699, cart sheet + remove, Razorpay → one paper per subject, ready paper starts, only own papers, Classes 9–12');
 
     // ── 6. Before Razorpay: contact card + promo code makes a purchase ₹0 ──
     {
@@ -485,7 +540,7 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForFunction(() => /not valid/.test(document.querySelector('#promoMsg').textContent));
       await page.fill('#promoInput', 'tncgift1'); await page.press('#promoInput', 'Enter');
       await page.waitForSelector('#sheet .promo.ok');
-      assert.match(await page.textContent('.price-top'), /₹0[\s\S]*₹199/, 'price shows ₹0 with the old price struck');
+      assert.match(await page.textContent('.price-top'), /₹0[\s\S]*₹299/, 'price shows ₹0 with the old price struck');
       await shot(page, '23-promo-applied-390');
       await page.click('[data-go=promo-redeem]');
       await page.waitForSelector('#sheet', { state: 'hidden' });

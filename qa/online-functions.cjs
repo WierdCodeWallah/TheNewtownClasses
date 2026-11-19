@@ -65,7 +65,7 @@ const hook = async (payload, secret) => {
   return { status: r.statusCode, body: JSON.parse(r.body) };
 };
 const form = over => ({ name: 'Riya Sharma', dob: '2011-05-04', gender: 'Female', phone: '+91 98000 12345', class: '10', board: 'CBSE', school: 'DPS Newtown',
-  subjects: ['Physics', 'Chemistry', 'Nonsense'], target: 'NEET', address: '12 Lake Road, Sector 5', city: 'Kolkata', state: 'West Bengal', pincode: '700156',
+  subjects: ['Science', 'Mathematics', 'Physics', 'Nonsense'], target: 'NEET', address: '12 Lake Road, Sector 5', city: 'Kolkata', state: 'West Bengal', pincode: '700156',
   guardianName: 'Anil Sharma', guardianRelation: 'Father', guardianPhone: '9830012345', ...over });
 const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(`${orderId}|${paymentId}`).digest('hex');
 
@@ -93,15 +93,28 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(s.status, 200);
   assert.equal(s.body.enrolled, false); assert.equal(s.body.profile.profileComplete, false);
   assert.equal(s.body.paymentsReady, false, 'payments report not ready without keys');
-  assert.deepEqual(s.body.prices, { chapter: 199, mock: 499 }, 'chapter-wise ₹199, full mock ₹499');
+  assert.deepEqual(s.body.prices, { chapter: 299, mock: 499 }, 'chapter-wise ₹299, full mock ₹499');
+  assert.deepEqual(s.body.listPrices, { chapter: 399, mock: 699 }, 'regular prices ₹399 / ₹699, shown struck through');
+  assert.equal(policy.listPriceFor({ kind: 'mock' }), 699); assert.equal(policy.listPriceFor({ kind: 'chapter' }), 399); assert.equal(policy.listPriceFor({ kind: 'mock' }, null, null, true), 0, 'nothing struck through for TNC students');
+  assert.deepEqual(policy.paperFor('mock'), { marks: 80, durationMin: 180, graceMin: 20 }); assert.deepEqual(policy.paperFor('chapter'), { marks: 40, durationMin: 90, graceMin: 10 });
+  assert.equal(policy.facultyName('Physics'), 'TNC Physics Faculty'); assert.equal(policy.facultyName('Computer'), 'TNC Computer Science Faculty');
   assert.deepEqual(s.body.freeMock, { allowance: 1, usedCount: 0, left: 1, claims: [] }, 'online students: 1 free mock');
   let bad = await api({ idToken: 'g:riya', action: 'save-profile', profile: form({ phone: '123', state: 'Atlantis' }) });
   assert.equal(bad.status, 400); assert.ok(bad.body.fields.phone && bad.body.fields.state, 'field errors returned');
+  // Quick start: name, class, board, subjects and both phone numbers are enough; the rest comes later.
+  const quickForm = { name: 'Quick Student', class: '10', board: 'CBSE', subjects: ['Physics', 'Science', 'Mathematics'], phone: '9800011111', guardianPhone: '9830011111' };
+  assert.equal((await api({ idToken: 'g:quick', action: 'save-profile', profile: { ...quickForm, guardianPhone: '' } })).status, 400, 'guardian phone is required to start');
+  const quick = await api({ idToken: 'g:quick', action: 'save-profile', profile: quickForm });
+  assert.equal(quick.status, 200); assert.equal(quick.body.profile.profileComplete, true); assert.equal(quick.body.profile.detailsComplete, false, 'details can be added later');
+  assert.deepEqual(db.get('onlineStudents/quick').subjects, ['Science', 'Mathematics'], 'CBSE Class 10: Physics dropped, Science kept');
+  assert.equal((await api({ idToken: 'g:quick', action: 'save-profile', profile: { ...quickForm, pincode: '12' } })).status, 400, 'optional fields must still be valid when filled');
+  assert.deepEqual(policy.subjectsFor('ICSE', '10').filter(x => ['Physics', 'Chemistry', 'Biology', 'Science'].includes(x)), ['Physics', 'Chemistry', 'Biology'], 'ICSE: three sciences, no Science');
+  assert.deepEqual(policy.subjectsFor('CBSE', '12').filter(x => ['Physics', 'Science'].includes(x)), ['Physics'], 'CBSE Class 11-12: Physics, no Science');
   const saved = await api({ idToken: 'g:riya', action: 'save-profile', profile: form() });
-  assert.equal(saved.status, 200);
+  assert.equal(saved.status, 200); assert.equal(saved.body.profile.detailsComplete, true, 'full form → details complete');
   const prof = db.get('onlineStudents/riya');
   assert.equal(prof.phone, '9800012345', '+91 and spaces stripped');
-  assert.deepEqual(prof.subjects, ['Physics', 'Chemistry'], 'unknown subjects dropped');
+  assert.deepEqual(prof.subjects, ['Science', 'Mathematics'], 'unknown subjects and other-board subjects (Physics for CBSE Class 10) dropped');
   assert.equal(prof.onlineId, 'TNC-ON-RIYA'); assert.equal(prof.provider, 'google'); assert.equal(prof.email, 'riya@gmail.example');
   assert.equal(prof.profileComplete, true);
   const tnc = await api({ idToken: 'p:tnc1', action: 'session' });
@@ -123,7 +136,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal((await ot({ idToken: 'g:nobody', action: 'start', testId: 'onfree01' })).status, 403, 'no profile → complete your profile');
   assert.equal((await ot({ idToken: 'g:riya', action: 'start', testId: 'offln001' })).status, 403, 'online students cannot take offline-series tests');
   const locked = await ot({ idToken: 'g:riya', action: 'start', testId: 'onpaid01' });
-  assert.equal(locked.status, 402); assert.match(locked.body.error, /₹199/, 'chapter test asks ₹199');
+  assert.equal(locked.status, 402); assert.match(locked.body.error, /₹299/, 'chapter test asks ₹299');
   const lockedMock = await ot({ idToken: 'g:riya', action: 'start', testId: 'onfree01' });
   assert.equal(lockedMock.status, 402); assert.match(lockedMock.body.error, /₹499/, 'every mock is paid until the free one is chosen');
   assert.equal((await ot({ idToken: 'g:riya', action: 'start', testId: 'onpaid02' })).status, 403, 'other class refused');
@@ -144,7 +157,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   for (const id of ['onpaid01', 'onfree01', 'onmock02', 'onmock03']) assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: id })).status, 200, 'TNC students start ' + id + ' free');
   assert.deepEqual((await api({ idToken: 'p:tnc1', action: 'session' })).body.freeMock, { allowance: 0, usedCount: 0, left: 0, claims: [] }, 'no free-mock offer for TNC students');
   assert.equal((await api({ idToken: 'p:tnc1', action: 'claim-free', testId: 'onmock03' })).status, 409, 'TNC students need no claim');
-  console.log('✓ start: online — chapter ₹199 / mock ₹499, 1 free mock; TNC — every test free');
+  console.log('✓ start: online — chapter ₹299 / mock ₹499, 1 free mock; TNC — every test free');
 
   // ── payments ──
   assert.equal((await api({ idToken: 'g:riya', action: 'create-order', testId: 'onpaid01' })).status, 503, 'no keys → payments not ready');
@@ -155,8 +168,8 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal((await api({ idToken: 'p:tnc1', action: 'create-order', testId: 'onpaid01' })).status, 409, 'TNC students never pay for chapter tests');
   assert.equal((await api({ idToken: 'p:tnc1', action: 'create-order', testId: 'onmock03' })).status, 409, 'TNC students never pay for mocks');
   const order = await api({ idToken: 'g:riya', action: 'create-order', testId: 'onpaid01' });
-  assert.equal(order.status, 200); assert.equal(order.body.amountPaise, 19900, 'chapter test ₹199'); assert.equal(order.body.keyId, 'rzp_test_fixture');
-  assert.equal(calls.razorpay[0].body.amount, 19900);
+  assert.equal(order.status, 200); assert.equal(order.body.amountPaise, 29900, 'chapter test ₹299'); assert.equal(order.body.keyId, 'rzp_test_fixture');
+  assert.equal(calls.razorpay[0].body.amount, 29900);
   assert.equal((await api({ idToken: 'g:riya', action: 'create-order', testId: 'onmock02' })).body.amountPaise, 49900, 'full mock ₹499'); assert.deepEqual(calls.razorpay[0].body.notes, { uid: 'riya', testId: 'onpaid01' });
   assert.match(calls.razorpay[0].headers.Authorization, /^Basic /);
   assert.equal(db.get('onlineOrders/' + order.body.orderId).status, 'created');
@@ -181,11 +194,11 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(t1.body.orderId, t2.body.orderId, 'second tap reuses the unpaid order'); assert.equal(calls.razorpay.length, before + 1, 'only one Razorpay order');
   // A payment for something already unlocked is flagged for refund, not lost.
   const dupOrder = 'order_Dup0000001';
-  db.set('onlineOrders/' + dupOrder, { orderId: dupOrder, uid: 'riya', testId: 'onpaid01', amountPaise: 19900, currency: 'INR', status: 'created', createdAt: new Date().toISOString() });
+  db.set('onlineOrders/' + dupOrder, { orderId: dupOrder, uid: 'riya', testId: 'onpaid01', amountPaise: 29900, currency: 'INR', status: 'created', createdAt: new Date().toISOString() });
   assert.equal((await api({ idToken: 'g:riya', action: 'verify-payment', orderId: dupOrder, paymentId: 'pay_Dup0000001', signature: sign(dupOrder, 'pay_Dup0000001') })).status, 200);
   assert.equal(db.get('onlineOrders/' + dupOrder).duplicate, true, 'duplicate payment flagged for a refund');
   assert.equal(db.get('onlinePurchases/onpaid01__riya').orderId, order.body.orderId, 'original unlock untouched');
-  console.log('✓ payments: ₹199 chapter / ₹499 mock Razorpay orders, signature verified, purchase saved once, cannot pay twice, unlocked test starts');
+  console.log('✓ payments: ₹299 chapter / ₹499 mock Razorpay orders, signature verified, purchase saved once, cannot pay twice, unlocked test starts');
 
   // ── webhook ──
   test('onpaid03', { kind: 'mock' }); db.set('offlineTestKeys/onpaid03', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
@@ -233,6 +246,14 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(rq.amountPaise + db.get(reqKeys().find(k => k.endsWith('_mathematics'))).amountPaise, 109600, 'amount shared across the papers');
   assert.equal((await hook({ event: 'payment.captured', payload: { payment: { entity: { id: mpay, order_id: mo.body.orderId, amount: 109600, currency: 'INR', status: 'captured' } } } })).status, 200);
   assert.equal(reqKeys().length, 2, 'webhook after checkout creates nothing twice');
+  // Every chapter of a subject → a Custom full mock at ₹699; other chapters keep the per-chapter rate.
+  assert.equal(policy.isFullMock(mat.length, mat.length), true); assert.equal(policy.isFullMock(3, 3), false, 'three chapters cost less than ₹699 on their own');
+  const fm = await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: mat.slice() }, { subject: 'Science', chapters: [sci[2], sci[4]] }] });
+  assert.equal(fm.status, 200); assert.equal(fm.body.amountPaise, (699 + 2 * 199) * 100, 'all Maths chapters ₹699 + 2 Science chapters × ₹199');
+  const fmo = db.get('onlineOrders/' + fm.body.orderId); assert.equal(fmo.items.find(i => i.subject === 'Mathematics').full, true); assert.ok(!fmo.items.find(i => i.subject === 'Science').full);
+  await api({ idToken: 'g:riya', action: 'verify-payment', orderId: fm.body.orderId, paymentId: 'pay_Mod00002', signature: sign(fm.body.orderId, 'pay_Mod00002') });
+  const fmReq = k => db.get([...db.keys()].find(x => x.startsWith('moduleRequests/' + fm.body.orderId) && x.endsWith(k)));
+  assert.equal(fmReq('_mathematics').full, true); assert.equal(fmReq('_mathematics').amountPaise, 69900, 'full mock paper worth ₹699'); assert.equal(fmReq('_science').amountPaise, 39800);
   const tm = await api({ idToken: 'p:tnc1', action: 'module-order', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: [mat[5], mat[7]] }] });
   assert.equal(tm.status, 200); assert.equal(tm.body.free, true, 'TNC students order custom tests free'); assert.equal(tm.body.requests.length, 1, 'paper requested straight away');
   const tmo = db.get('onlineOrders/' + tm.body.orderId); assert.equal(tmo.enrolled, true); assert.equal(tmo.amountPaise, 0); assert.equal(tmo.confirmedVia, 'free');
@@ -240,7 +261,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   test('oncust01', { kind: 'custom', forUid: 'riya', requestId: rq.id, testName: 'Custom module · Science' }); db.set('offlineTestKeys/oncust01', { questionPdfUrl: 'https://ucarecdn.com/11111111-1111-1111-1111-111111111111/' });
   assert.equal((await ot({ idToken: 'p:tnc1', action: 'start', testId: 'oncust01' })).status, 403, "another student's custom paper is refused");
   assert.equal((await ot({ idToken: 'g:riya', action: 'start', testId: 'oncust01' })).status, 200, 'the student starts their custom paper without paying again');
-  console.log('✓ custom module: ₹199 × 4 then ₹150, syllabus-checked cart, Classes 9–12 only, paid → one request per subject (once), TNC students free, paper only for its student');
+  console.log('✓ custom module: ₹199 × 4 then ₹150, all chapters of a subject = ₹699 Custom full mock, syllabus-checked cart, Classes 9–12 only, paid → one request per subject (once), TNC students free, paper only for its student');
 
   // ── Promo codes: 100% off one purchase for Google students ──
   test('onpromo1', { kind: 'chapter', testName: 'Chapter promo' }); test('onpromo2', { kind: 'mock', testName: 'Mock promo' }); test('onpromo3', { kind: 'chapter', testName: 'Chapter promo 2' });
@@ -299,8 +320,8 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(twoCh.body.free, true, 'exactly 2 chapters goes through at ₹0'); assert.equal(db.get('promoCodes/TWOCH').uses, 1);
   db.set('promoCodes/CAP399', { code: 'CAP399', scope: 'all', maxUses: 0, uses: 0, oncePerStudent: false, active: true, maxValueInr: 399 });
   assert.match((await promo('g:lim', { action: 'redeem-promo', code: 'CAP399', testId: 'onpromo2' })).body.error, /covers up to ₹399[\s\S]*₹499/, '₹499 mock refused by a ₹399 code');
-  assert.equal((await promo('g:lim', { action: 'redeem-promo', code: 'CAP399', testId: 'onpromo3' })).status, 200, '₹199 chapter test is covered');
-  console.log('✓ promo limits: a 2-chapter / ₹399 code refuses a 4-chapter cart and a ₹499 mock (nothing used up), covers 2 chapters and a ₹199 test');
+  assert.equal((await promo('g:lim', { action: 'redeem-promo', code: 'CAP399', testId: 'onpromo3' })).status, 200, '₹299 chapter test is covered');
+  console.log('✓ promo limits: a 2-chapter / ₹399 code refuses a 4-chapter cart and a ₹499 mock (nothing used up), covers 2 chapters and a ₹299 test');
   console.log('✓ promo codes: validated (format, unknown, off, expired, scope), check uses nothing, redeem unlocks at ₹0 once per student, total limit, custom module ₹0 order');
 
   // ── Mock packs: weekly full-syllabus mocks at a fixed day and time ──
@@ -390,7 +411,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.match(mail.htmlContent, /View checked answer sheet/); assert.match(mail.htmlContent, /approved by a TNC teacher/);
   delete process.env.BREVO_API_KEY;
   const result = db.get('onlineStudents/riya/results/onfree01__riya');
-  assert.equal(result.teacherName, 'TNC faculty'); assert.equal(result.teacherUid, '', 'online students never see who checked');
+  assert.equal(result.teacherName, 'TNC Physics Faculty'); assert.equal(result.teacherUid, '', 'online students never see who checked');
   assert.equal(db.get('offlineReports/onfree01__riya').approvedByUid, 't1', 'admins still see the checker');
   assert.equal(result.score, 30); assert.equal(result.testId, 'onfree01'); assert.equal(result.class, '10'); assert.equal(result.series, 'online'); assert.equal(result.answerSheetUrl, checked);
   assert.ok(!db.has('students/riya/offlineResults/ots_onfree01__riya'), 'online results stay out of the institute record');

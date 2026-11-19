@@ -581,10 +581,10 @@ exports.handler = async function (event) {
     const dups = await findDuplicateScripts(projectId, sa, scriptHash, attemptId).catch(() => []);
     dups.forEach(d => flags.push({ type: 'Same PDF submitted by another student', severity: 'high',
       detail: `Identical file to ${d.studentName || 'another student'}${d.studentId ? ' (' + d.studentId + ')' : ''} — ${d.testName}.` }));
-    const late = Number(rep.lateByMin) || 0;
-    if (late > UPLOAD_GRACE_MIN) {
+    const late = Number(rep.lateByMin) || 0, grace = Number(att.uploadGraceMin) || UPLOAD_GRACE_MIN;
+    if (late > grace) {
       flags.push({ type: 'Late submission', severity: late > 60 ? 'high' : 'medium',
-        detail: `Submitted ${late} min after the timer ended (${UPLOAD_GRACE_MIN} min are allowed for scanning and uploading).` });
+        detail: `Submitted ${late} min after the timer ended (${grace} min are allowed for scanning and uploading).` });
     }
     const used = Number(rep.usedMin) || 0, dur = Number(rep.durationMin) || 0;
     if (dur && used < dur * 0.25 && report.pct >= 70) {
