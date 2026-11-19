@@ -106,6 +106,7 @@ async function createModuleRequests(projectId, sa, order, orderId, now) {
       id, orderId, uid: order.uid, studentName: order.studentName || '', onlineId: order.onlineId || '', enrolled: !!order.enrolled, phone: order.phone || '',
       class: String(order.class || ''), board: order.board, boardLabel: syllabus.boardLabel(order.board, order.class),
       subject: it.subject, chapters: it.chapters, chapterCount: it.chapters.length, full: !!it.full, amountPaise: share,
+      level: policy.levelOf(order.level), note: policy.cleanNote(order.note),
       status: 'requested', testId: '', createdAt: now, dueAt: due, readyAt: '' } });
   }
   return writes;

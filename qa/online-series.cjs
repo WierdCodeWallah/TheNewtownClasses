@@ -346,9 +346,14 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('#sheet.on .price');
       assert.match(await page.textContent('.price-top'), /₹299[\s\S]*₹399/, 'sheet price with the regular price struck through');
       assert.match(await page.textContent('#sheetBody .no-refund'), /Non-refundable\.\s*Once paid, the amount is not refunded/, 'non-refundable notice before paying');
+      assert.match(await page.textContent('.price .save'), /Save ₹100/, 'saving shown on the price card');
+      assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector('[data-go=pay]')).backgroundImage.includes('gradient')), 'premium pay button');
       await shot(page, '10-unlock-sheet-390');
       await page.click('[data-go=pay]');
-      // After Razorpay confirms: back on the subject list, the paid test highlighted as unlocked.
+      // After Razorpay confirms: a short "Payment successful" moment, then back on the subject list with the test highlighted.
+      await page.waitForSelector('#sheet.on .celebrate.ok .ok-mark');
+      assert.match(await page.textContent('#sheet .celebrate.ok'), /Payment successful/);
+      await page.waitForTimeout(500); await shot(page, '10c-payment-success-390');
       await page.waitForSelector('#sheet', { state: 'hidden' });
       await page.waitForSelector('.row.fresh:has-text("Chapter test 1")');
       assert.equal(await page.evaluate(() => location.hash), '#/s/Physics');
@@ -387,7 +392,8 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.waitForSelector('#exam', { state: 'hidden', timeout: 8000 });
       // The test had an answer key: its sheet reopens with the download.
       await page.waitForSelector('#sheet.on [data-go=key]');
-      assert.match(await page.textContent('#sheetBody'), /Download answer key[\s\S]*Submitted[\s\S]*Being checked/);
+      assert.match(await page.textContent('#sheetBody'), /Submitted[\s\S]*Being checked[\s\S]*Answer key[\s\S]*Download/);
+      assert.ok((await page.locator('#sheet [data-go=key]').boundingBox()).height <= 42, 'answer key button is compact');
       await shot(page, '15b-answer-key-390');
       await page.click('#sheet [data-go=key]');
       await page.waitForFunction(() => !document.querySelector('#sheet [data-go=key]').disabled);
@@ -395,9 +401,10 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
 
       // Phone tab bar: 4 items; Ranks, Custom and Profile are in More.
-      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'results', 'more'], 'four tabs on phones: Custom second');
+      assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'packs', 'more'], 'four tabs on phones: Home, Custom, Mocks, More');
+      assert.equal((await page.textContent('#navPacks')).trim(), 'Mocks');
       await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu');
-      assert.match(await page.textContent('.more-menu'), /Leaderboard[\s\S]*Mock packs[\s\S]*Profile[\s\S]*Help on WhatsApp[\s\S]*Call us/);
+      assert.match(await page.textContent('.more-menu'), /Leaderboard[\s\S]*Results[\s\S]*Profile[\s\S]*Help on WhatsApp[\s\S]*Call us/, 'Results moved into More');
       await shot(page, '31-more-390');
       await page.click('#sheetClose'); await page.waitForSelector('#sheet', { state: 'hidden' });
       // Ranks, Results, Profile.
@@ -407,7 +414,8 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.match(await page.textContent('.rank-me strong'), /#6/, '85% average → #6 of 248 (five students above)');
       assert.match(await page.textContent('.podium'), /Aditi R\.[\s\S]*Kabir S\.|Kabir S\.[\s\S]*Aditi R\./);
       await noOverflow(page, 'ranks'); await shot(page, '16-ranks-390');
-      await page.click('a[data-tab=results]'); await page.waitForSelector('.v-results');
+      await goTab(page, 'results'); await page.waitForSelector('.v-results');
+      assert.ok(await page.locator('#navMore.on').count(), 'Results sits in More');
       assert.match(await page.textContent('.v-results'), /Being checked[\s\S]*Chapter test 1/);
       assert.doesNotMatch(await page.locator('#app').innerText(), /Priya Das|Aarav Sen/, 'no teacher names shown to online students');
       await page.click('[data-result="chem1__riya"]'); await page.waitForSelector('#sheet.on .score');
@@ -437,14 +445,14 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
     }
     console.log('✓ payment return: Razorpay success → subject list with the test unlocked → Start now → exam; reload mid-payment recovers');
 
-    // ── 5. Custom module test: pick chapters → cart → pay → My tests ──
+    // ── 5. Custom module test: pick chapters → cart → pay → My tests (a CBSE student: CBSE syllabus only) ──
     {
-      const state = newState({ user: { uid: 'riya', displayName: 'Riya Sharma', email: 'riya@example.test' } });
+      const state = newState({ user: { uid: 'riya', displayName: 'Riya Sharma', email: 'riya@example.test' }, profiles: { riya: { ...profile, board: 'CBSE' } } });
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
       await goTab(page, 'custom'); await page.waitForSelector('.v-custom .row.pick');
-      assert.equal(await page.getAttribute('[data-cboard=CISCE]', 'aria-selected'), 'true', 'starts on the student’s board');
-      await page.click('[data-cboard=CBSE]'); await page.waitForSelector('[data-cboard=CBSE][aria-selected=true]');
+      assert.equal(await page.locator('[data-cboard]').count(), 0, 'CBSE student: no board switch, CBSE syllabus only');
+      assert.match(await page.textContent('.v-custom .sec h3'), /Class 10 CBSE/);
       assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Science', 'Mathematics']);
       for (const i of [0, 1, 2]) await page.click(`.row.pick[data-ch="${i}"]`);
       await page.click('[data-csub=Mathematics]');
@@ -473,19 +481,22 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.equal(await page.locator('.fm-note.on').count(), 0, 'back to chapter pricing');
       assert.match(await page.textContent('.cart-bar'), /5 chapters · ₹946/);
       await noOverflow(page, 'custom build'); await shot(page, '20-custom-build-390');
-      await page.click('[data-cboard=CISCE]');
-      assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Physics', 'Chemistry', 'Biology', 'Mathematics'], 'ICSE subjects for Class 10');
-      assert.equal(await page.locator('.cart-bar').count(), 0, 'each board keeps its own cart');
-      await page.click('[data-cboard=CBSE]'); await page.waitForSelector('.cart-bar');
+      assert.ok(!(await page.locator('[data-csub]').allTextContents()).some(x => ['Physics', 'Chemistry', 'Biology'].includes(x)), 'no ICSE subjects for a CBSE student');
       await page.click('[data-cart]'); await page.waitForSelector('#sheet.on .bill');
       assert.match(await page.textContent('.bill'), /4 × ₹199[\s\S]*₹796[\s\S]*1 × ₹150[\s\S]*₹150[\s\S]*You save[\s\S]*₹49[\s\S]*Total[\s\S]*₹946/);
       assert.match(await page.textContent('#sheetBody .no-refund'), /Non-refundable/, 'non-refundable notice in the cart');
       await shot(page, '21-custom-cart-390');
       await page.locator('#sheet [data-rm]').first().click();
       await page.waitForFunction(() => /Total\s*₹796/.test(document.querySelector('.bill').textContent));
+      // Level and a request for the teacher go with the order.
+      assert.equal(await page.getAttribute('[data-level=medium]', 'aria-checked'), 'true', 'Medium by default');
+      await page.click('[data-level=high]'); assert.equal(await page.getAttribute('[data-level=high]', 'aria-checked'), 'true');
+      await page.fill('#cmNote', 'More numericals please');
+      await noOverflow(page, 'custom cart options'); await shot(page, '21c-custom-level-note-390');
       await page.click('[data-buy]');
       await page.waitForSelector('#sheet', { state: 'hidden' });
       await page.waitForSelector('.v-custom .row[data-cmod]');
+      assert.equal(state.moduleOrder.level, 'high'); assert.equal(state.moduleOrder.note, 'More numericals please');
       assert.equal(state.moduleOrder.board, 'CBSE'); assert.equal(state.moduleOrder.items.reduce((n, i) => n + i.chapters.length, 0), 4);
       assert.equal(await page.evaluate(() => window.__rzOpened.amount), 79600);
       const mine = await page.locator('.row[data-cmod]').allTextContents();
@@ -515,9 +526,20 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.equal(await page.locator('.more-menu a[href="#/packs"]').count(), 0, 'Class 8: no mock packs anywhere');
       await page.keyboard.press('Escape'); await page.waitForSelector('#sheet', { state: 'hidden' });
       assert.deepEqual(await page.locator('#nav [data-tab]:visible').evaluateAll(els => els.map(e => e.dataset.tab)), ['home', 'custom', 'results', 'more'], 'Class 8: Custom test on the tab bar');
-      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom .row.pick'); await page.click('[data-cboard=CBSE]'); await page.waitForSelector('[data-cboard=CBSE][aria-selected=true]');
-      assert.match(await page.textContent('.v-custom'), /Exploring the Investigative World of Science/, 'Class 8 CBSE chapters (Curiosity)');
-      await page.click('[data-cboard=CISCE]'); assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Physics', 'Chemistry', 'Biology', 'Mathematics'], 'Class 8 ICSE subjects');
+      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom .row.pick');
+      // An ICSE student builds from the ICSE syllabus only: Physics, Chemistry, Biology — no combined Science, no CBSE tab.
+      assert.equal(await page.locator('[data-cboard]').count(), 0, 'ICSE student: no board switch');
+      assert.deepEqual(await page.locator('[data-csub]').allTextContents(), ['Physics', 'Chemistry', 'Biology', 'Mathematics'], 'Class 8 ICSE subjects');
+      assert.doesNotMatch(await page.textContent('.v-custom'), /Exploring the Investigative World of Science/, 'no CBSE chapters');
+      assert.match(await page.textContent('.v-custom .sec h3'), /Class 8 ICSE/);
+      await shot(page, '20c-custom-icse-390');
+      await page.evaluate(() => { location.hash = '#/'; }); await page.waitForSelector('.v-home');
+      // A State Board student may choose either syllabus.
+      state.profiles.riya = { ...state.profiles.riya, board: 'State Board' };
+      await page.reload(); await page.waitForSelector('.v-home .subj');
+      await page.click('#nav [data-tab=custom]'); await page.waitForSelector('.v-custom .row.pick');
+      assert.equal(await page.locator('[data-cboard]').count(), 2, 'other boards: CBSE and ICSE syllabus tabs');
+      await page.click('[data-cboard=CBSE]'); assert.match(await page.textContent('.v-custom'), /Exploring the Investigative World of Science/, 'Class 8 CBSE chapters (Curiosity)');
       await page.evaluate(() => { location.hash = '#/packs'; }); await page.waitForSelector('.v .empty, .v [class*=empty]');
       assert.match(await page.textContent('#view'), /For Classes 9 to 12/, 'packs page explains it is for 9–12');
       assert.deepEqual(errors, []); await page.close();
@@ -581,6 +603,11 @@ const shot = async (page, name) => { await page.waitForTimeout(380); await page.
       assert.equal(await page.locator('.v-packs .pack-card').count(), 2, 'paused packs are not on sale');
       assert.match(await page.textContent('.pack-card[data-pack=pkphy8]'), /Physics · 8 weekly mocks[\s\S]*8 mocks[\s\S]*₹3199[\s\S]*₹400\/mock/);
       assert.match(await page.textContent('.pack-card[data-pack=pkche4]'), /₹1699[\s\S]*₹425\/mock/);
+      assert.match(await page.textContent('.pack-card[data-pack=pkphy8] .pk-sub'), /Physics · Class 10/, 'each pack shows its subject');
+      assert.deepEqual(await page.locator('.v-packs .pk-sec h3').allTextContents(), ['Physics', 'Chemistry'], 'packs grouped by subject');
+      await page.click('[data-psub=Chemistry]'); assert.equal(await page.locator('.v-packs .pack-card').count(), 1, 'subject filter');
+      await shot(page, '25b-packs-chemistry-390');
+      await page.click('[data-psub=""]'); assert.equal(await page.locator('.v-packs .pack-card').count(), 2);
       await noOverflow(page, 'packs 390');
       await shot(page, '25-packs-390');
       await page.click('.pack-card[data-pack=pkphy8]'); await page.waitForSelector('#sheet.on [data-ppay]');

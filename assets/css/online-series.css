@@ -709,3 +709,66 @@ body:has(#sheet.on, #exam:not([hidden])) .tsx-toast.on { transform: translate(-5
 .au-home { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--brand-2); text-decoration: none; }
 .au-home svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
 @media (min-width: 960px) { .au-home { color: #cfe0ff; } }
+/* Mocks tab: packs by subject; compact sheet actions */
+.pk-sub { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--tint, var(--brand-2)); }
+.pk-sec h3 { display: flex; align-items: center; gap: 8px; }
+.pk-sec h3 .subj-ic { width: 26px; height: 26px; border-radius: 8px; }
+.pk-sec h3 .subj-ic svg { width: 15px; height: 15px; }
+.chip-btn i { font-style: normal; font-size: 11px; font-weight: 700; margin-left: 2px; opacity: .7; }
+.btn.sm { min-height: 40px; padding: 0 14px; font-size: 13.5px; border-radius: 12px; gap: 6px; box-shadow: none; }
+.btn.sm svg { width: 16px; height: 16px; }
+.sh-acts { display: flex; gap: 8px; }
+.sh-acts .btn { flex: 1 1 0; min-width: 0; }
+.key-card { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 10px 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+.key-card > svg { width: 20px; height: 20px; flex: none; color: var(--brand-2); }
+.key-card > span { flex: 1; min-width: 0; display: grid; }
+.key-card b { font-size: 14px; } .key-card small { font-size: 12px; color: var(--ink-3); }
+.key-card .btn { flex: none; }
+.ring { width: 64px; height: 64px; }
+.ring b { font-size: 18px; }
+.score { padding: 12px; gap: 14px; }
+.score > div:last-child b { font-size: 19px; }
+.more-menu .dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--bad); vertical-align: middle; }
+/* Custom test: level + request for the teacher */
+.cm-opts { display: grid; gap: 10px; }
+.cm-lbl { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.cm-lbl i { font-style: normal; font-weight: 500; color: var(--ink-3); }
+.cm-opts .seg { margin-top: -4px; }
+.cm-note { display: grid; gap: 6px; }
+.cm-note textarea { width: 100%; min-height: 64px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; font: 500 16px/1.35 inherit; font-family: inherit; color: var(--ink); background: #fff; resize: vertical; }
+.cm-note textarea:focus { outline: 0; border-color: var(--brand-2); box-shadow: 0 0 0 4px rgba(26, 86, 219, .12); }
+.seg [role=radio][aria-checked=true] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(7, 29, 71, .12); }
+/* ── Payments: premium look, smooth motion, no blink ── */
+.tsx-sheet { transition: transform .32s cubic-bezier(.2, .9, .25, 1); will-change: transform; }
+.tsx-sheet-back { transition: background .28s ease; }
+#sheetBody.swap { animation: sheetSwap .24s var(--ease) backwards; }   /* backwards: nothing lingers after the fade */
+.sheet-x { z-index: 3; }   /* the close button always stays on top of sheet content */
+@keyframes sheetSwap { from { opacity: 0; transform: translateY(6px); } }
+.btn { transition: transform .14s var(--ease), background .18s ease, box-shadow .18s ease, opacity .18s ease; -webkit-tap-highlight-color: transparent; }
+.btn:active:not(:disabled) { transform: scale(.975); }
+.btn.busy { cursor: progress; }
+.price { position: relative; overflow: hidden; border: 1px solid rgba(233, 196, 106, .38); border-radius: 20px; padding: 18px;
+  background: radial-gradient(120% 140% at 100% 0%, rgba(59, 130, 246, .35) 0%, transparent 55%), linear-gradient(160deg, #071d47 0%, #0b2a6b 100%);
+  color: #fff; box-shadow: 0 18px 40px -20px rgba(7, 29, 71, .65); }
+.price::before { content: ''; position: absolute; inset: 0 0 auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(243, 213, 138, .7), transparent); }
+.price .price-top { flex-wrap: wrap; row-gap: 4px; }
+.price .price-top b { color: #fff; font-size: 34px; }
+.price .price-top s { color: rgba(255, 255, 255, .55); }
+.price .price-top small { color: rgba(255, 255, 255, .72); flex-basis: 100%; }
+.price .save { align-self: center; padding: 3px 9px; border-radius: 999px; background: rgba(243, 213, 138, .16); color: #f3d58a; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.price ul { color: rgba(255, 255, 255, .86); }
+.price li svg { color: #f3d58a; }
+.btn.pay { background: linear-gradient(135deg, #f6dc94 0%, #e2b453 55%, #c9952f 100%); color: #1a1405; box-shadow: 0 10px 24px -10px rgba(201, 149, 47, .7), inset 0 1px 0 rgba(255, 255, 255, .45); }
+.btn.pay:hover:not(:disabled) { background: linear-gradient(135deg, #f8e2a6 0%, #e6bb60 55%, #cf9c35 100%); }
+.btn.pay svg { color: #1a1405; }
+.btn.pay .spin { border-color: #1a1405; border-right-color: transparent; }
+.pay-loader { width: 44px; height: 44px; border-radius: 50%; border: 3px solid #e6ecf7; border-top-color: #c9952f; animation: spin .9s cubic-bezier(.5, .1, .5, .9) infinite; }
+.celebrate.ok b { font-size: 19px; }
+.ok-mark { width: 64px; height: 64px; }
+.ok-mark circle { fill: none; stroke: var(--ok); stroke-width: 3; stroke-dasharray: 151; stroke-dashoffset: 151; animation: okDraw .5s var(--ease) forwards; }
+.ok-mark path { fill: none; stroke: var(--ok); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 36; stroke-dashoffset: 36; animation: okDraw .32s .42s var(--ease) forwards; }
+@keyframes okDraw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #sheetBody.swap, .ok-mark circle, .ok-mark path { animation: none; stroke-dashoffset: 0; }
+  .tsx-sheet, .btn { transition: none; }
+}

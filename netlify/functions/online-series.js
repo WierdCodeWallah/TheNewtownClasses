@@ -22,7 +22,8 @@
  *    'module-order'    { board, items:[{subject, chapters[]}] } — Custom module
  *                      test (Classes 7–12): ₹199 a chapter for the first 4,
  *                      ₹150 after, or ₹699 for a subject with every chapter picked (a
- *                      Custom full mock); free for TNC students. Each subject
+ *                      Custom full mock); free for TNC students. Optional level
+ *                      ('easy' | 'medium' | 'high') and note for the teacher. Each subject
  *                      becomes a moduleRequests/{id} the team makes a paper for.
  *    'check-promo'     { code, testId } or { code, kind:'custom', board?, items? } — is the code
  *                      valid for this purchase? (100% off; nothing is used yet)
@@ -47,6 +48,7 @@
  */
 const crypto = require('crypto');
 const policy = require('../../assets/js/online-policy');
+const syllabusName = (board, cls) => require('../../assets/js/syllabus').boardLabel(board, cls);
 const { verifyFirebaseIdToken, getServiceAccountAccessToken, fsGet, fsCommit, decFields } = require('./_google');
 const online = require('./_online');
 
@@ -256,6 +258,8 @@ exports.handler = async function (event) {
       let use;
       if (test) use = { valueInr: online.priceFor(test, false) };
       else if (Array.isArray(body.items) && body.items.length) {
+        const own = policy.customBoard(profile.board);
+        if (own && String(body.board || '') !== own) return bad(400, `Custom tests follow your ${syllabusName(own, profile.class)} syllabus.`);
         const cart = online.checkModuleCart(String(body.board || ''), profile.class, body.items);
         if (!cart.ok) return bad(400, cart.error);
         use = { chapters: cart.count, valueInr: cart.amountInr };
@@ -288,10 +292,15 @@ exports.handler = async function (event) {
     if (body.action === 'module-order') {
       if (!profile || !profile.profileComplete) return bad(403, 'Complete your profile first.');
       const board = String(body.board || '');
+      // CBSE students order CBSE chapters only, ICSE students ICSE / ISC chapters only.
+      const own = policy.customBoard(profile.board);
+      if (own && board !== own) return bad(400, `Custom tests follow your ${syllabusName(own, profile.class)} syllabus.`);
       const cart = online.checkModuleCart(board, profile.class, body.items);
       if (!cart.ok) return bad(400, cart.error);
       const amountPaise = enrolled ? 0 : cart.amountInr * 100;
-      const order = { type: 'module', uid, class: String(profile.class), board, items: cart.items, chapterCount: cart.count, amountPaise, currency: 'INR',
+      // How hard the paper should be, and an optional note for the teacher.
+      const level = policy.levelOf(body.level), note = policy.cleanNote(body.note);
+      const order = { type: 'module', uid, class: String(profile.class), board, items: cart.items, chapterCount: cart.count, amountPaise, currency: 'INR', level, note,
         enrolled, studentName: profile.name || '', onlineId: profile.onlineId || '', email: profile.email || email || '', phone: profile.phone || '',
         testName: `Custom module · ${cart.count} chapter${cart.count === 1 ? '' : 's'}`, subject: cart.items.map(i => i.subject).join(', '), createdAt: now };
       if (enrolled) {   // TNC students: no payment, the papers are requested straight away

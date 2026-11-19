@@ -37,7 +37,7 @@ const S = {
   user: null, session: null, tests: [], attempts: {}, results: [], boards: {}, errors: {},
   loading: null, offset: 0, segment: 'tests', rankSubject: '', resultSubject: '',
   exam: null, pdfjs: null, zoom: 1, up: { photos: [], file: null, pdf: null, version: 0, uploaded: null, busy: false },
-  ob: null, view: '', modules: [], cust: null, packages: [], packSeg: 'packs'
+  ob: null, view: '', modules: [], cust: null, packages: [], packSeg: 'packs', packSubject: ''
 };
 const now = () => Date.now() + S.offset;
 const enrolled = () => !!(S.session && S.session.enrolled);
@@ -135,8 +135,10 @@ function toast(msg, kind) {
 function haptic(ms) { if (!REDUCED.matches && navigator.vibrate) { try { navigator.vibrate(ms || 12); } catch (_) {} } }
 function busy(btn, label) {
   if (!btn) return () => {};
-  const html = btn.innerHTML; btn.disabled = true; btn.classList.add('busy'); btn.innerHTML = `<span class="spin" aria-hidden="true"></span>${esc(label)}`;
-  return () => { btn.disabled = false; btn.classList.remove('busy'); btn.innerHTML = html; };
+  // Keep the button's size while it shows the spinner, so nothing around it jumps.
+  const html = btn.innerHTML, w = btn.style.minWidth; btn.style.minWidth = btn.offsetWidth + 'px';
+  btn.disabled = true; btn.classList.add('busy'); btn.innerHTML = `<span class="spin" aria-hidden="true"></span>${esc(label)}`;
+  return () => { btn.disabled = false; btn.classList.remove('busy'); btn.innerHTML = html; btn.style.minWidth = w; };
 }
 function bootMessage(text, retry) {
   show('boot');
@@ -164,9 +166,17 @@ window.addEventListener('popstate', () => {
 // ═══ Sheet ═══
 let sheetOpener = null;
 function openSheet(html, bind) {
-  const back = $('sheet'), wasOpen = !back.hidden;
-  $('sheetBody').innerHTML = html;
-  if (bind) bind($('sheetBody'));
+  const back = $('sheet'), wasOpen = !back.hidden, panel = back.firstElementChild, body = $('sheetBody');
+  // Already open (Pay → confirming → done, promo applied…): glide to the new
+  // height and fade the new content in, instead of jumping.
+  const from = wasOpen && !REDUCED.matches ? panel.offsetHeight : 0;
+  body.innerHTML = html;
+  if (bind) bind(body);
+  if (from) {
+    const to = panel.offsetHeight;
+    body.classList.remove('swap'); void body.offsetWidth; body.classList.add('swap');
+    if (Math.abs(to - from) > 2 && panel.animate) panel.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
   if (!wasOpen) {
     sheetOpener = document.activeElement;
     back.hidden = false;
@@ -400,7 +410,7 @@ function openMore() {
   openSheet(`<div class="sh-head"><h2 id="sheetTitle">More</h2></div>
     <div class="menu more-menu">
       ${item('#/ranks', 'i-trophy', 'Leaderboard', rank ? `Your best: #${rank.rank} in ${esc(rank.subject || '')}` : 'All-India ranks by subject', r.name === 'ranks')}
-      ${packsEligible() ? item('#/packs', 'i-calendar', 'Mock packs', 'A full-syllabus mock every week', r.name === 'packs') : ''}
+      ${packsEligible() ? item('#/results', 'i-results', 'Results' + (newResults() ? ' <i class="dot" aria-label="new"></i>' : ''), 'Checked scripts and marks', r.name === 'results') : ''}
       ${item('#/me', 'i-user', 'Profile', S.session.profile.detailsComplete === false && !enrolled() ? 'Add your remaining details' : esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
       <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span><b>Help on WhatsApp</b><small>Payments, papers, anything else</small></span>${ic('i-chev', 'chev')}</a>
       <a href="tel:${CONTACT.tel}">${ic('i-phone')}<span><b>Call us</b><small>${esc(CONTACT.show)}</small></span>${ic('i-chev', 'chev')}</a>
@@ -413,28 +423,34 @@ function openMore() {
 $('navMore').onclick = () => openMore();
 $('topBack').onclick = () => { if (history.length > 1 && S.cameFromApp) history.back(); else location.hash = '#/'; };
 
+// A checked script the student hasn't opened Results for yet.
+function newResults() {
+  const seen = (() => { try { return localStorage.getItem('ntc-online:seen:' + S.user.uid) || ''; } catch (_) { return ''; } })();
+  return S.results.some(x => (x.approvedAt || '') > seen);
+}
 function render(navigated) {
   if (!S.session) return;
   const r = route(), p = S.session.profile;
-  const titles = { home: 'Test Series', subject: r.subject, ranks: 'Leaderboard', results: 'Results', me: 'Profile', packs: 'Mock packs', custom: 'Custom test' };
-  // Phone tab bar: Home · Custom · Results · More (Classes 7–12). Packs sits in More for Classes 9–12 only.
-  // Classes 7–8 have no Custom test, so Packs takes the second slot.
+  const titles = { home: 'Test Series', subject: r.subject, ranks: 'Leaderboard', results: 'Results', me: 'Profile', packs: 'Mock tests', custom: 'Custom test' };
+  // Phone tab bar: Home · Custom · Mocks · More for Classes 9–12 (Results moves into More);
+  // Classes 7–8 have no mock packs: Home · Custom · Results · More.
   $('navCustom').hidden = !moduleEligible();
-  $('navPacks').classList.toggle('nav-extra', moduleEligible());
   $('navPacks').hidden = !packsEligible();
+  $('navPacks').classList.remove('nav-extra');
+  $('navResults').classList.toggle('nav-extra', packsEligible());
   $('topTitle').textContent = titles[r.name];
   $('topBack').hidden = r.name !== 'subject';
   $('topMark').hidden = r.name === 'subject';
   $('topAvatar').textContent = initials(p.name);
   $('topAvatar').hidden = r.name === 'me';
-  // Phone bar: Home · Custom (or Packs) · Results · More (Ranks, Packs, Profile live in More).
-  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'me', ...(packsEligible() ? ['packs'] : [])].includes(tab);
+  // Ranks and Profile live in More; so does Results when Mocks is on the bar.
+  const tab = r.name === 'subject' ? 'home' : r.name, inMore = ['ranks', 'me', ...(packsEligible() ? ['results'] : [])].includes(tab);
   document.querySelectorAll('#nav [data-tab]').forEach(a => {
     const on = a.dataset.tab === tab || (a.dataset.tab === 'more' && inMore);
     a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  const seen = (() => { try { return localStorage.getItem('ntc-online:seen:' + S.user.uid) || ''; } catch (_) { return ''; } })();
-  $('resultsDot').hidden = !S.results.some(x => (x.approvedAt || '') > seen) || r.name === 'results';
+  $('resultsDot').hidden = !newResults() || r.name === 'results';
+  $('moreDot').hidden = !packsEligible() || $('resultsDot').hidden;
   if (r.name === 'results' && S.results[0]) { try { localStorage.setItem('ntc-online:seen:' + S.user.uid, S.results[0].approvedAt || ''); } catch (_) {} }
   if (r.name === 'subject' && S.view !== 'subject' + r.subject) {
     const hasMock = visibleTests().some(t => t.subject === r.subject && kindOf(t) === 'mock');
@@ -654,11 +670,11 @@ function openTest(id, mode) {
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="claim">Use free mock</button></div>`;
   else if (mode === 'unlocked') body = `<div class="celebrate">${ic('i-unlock')}<b>Test unlocked</b><p>It's yours. Start whenever you're ready — the timer begins only when you open the paper.</p></div>
     <button type="button" class="btn primary block" data-go="confirm">${ic('i-play')}Start test</button>`;
-  else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>${was(t)}`}<small>One-time · this test</small></div>
+  else if (st.key === 'locked') body = `${kindOf(t) === 'mock' && freeLeft() ? `<button type="button" class="free-card" data-go="free-confirm"><span class="free-ic">${ic('i-gift')}</span><span><b>Use a free mock here</b><small>${freeMocks(freeLeft())} left · any subject</small></span>${ic('i-chev', 'chev')}</button>` : ''}<div class="price"><div class="price-top">${S.promo && S.promo.target === t.id ? `<b>₹0</b><s>₹${priceOf(t)}</s>` : `<b>₹${priceOf(t)}</b>${was(t)}${listOf(t) ? `<span class="save">Save ₹${listOf(t) - priceOf(t)}</span>` : ''}`}<small>One-time · this test</small></div>
       <ul><li>${ic('i-check')}Question paper with a fair timer</li><li>${ic('i-check')}Checked script &amp; marks within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
     ${promoBox(t.id, !S.session.paymentsReady)}
     ${S.promo && S.promo.target === t.id ? `<button type="button" class="btn primary block" data-go="promo-redeem">${ic('i-unlock')}Unlock for ₹0</button>`
-      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-go="pay">${ic('i-lock')}Unlock for ₹${priceOf(t)}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-go="pay">${ic('i-lock')}Unlock for ₹${priceOf(t)}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
       : contactCard(`"${t.testName}" (${t.subject})`)}`;
   else if (st.key === 'ready' && mode === 'confirm') body = `<div class="warn-box">${ic('i-clock')}<p><b>Your ${t.durationMin}-minute timer starts as soon as the paper opens.</b> It can't be paused. Keep pen, paper and your phone camera ready.</p></div>
     <div class="sh-actions"><button type="button" class="btn ghost" data-go="back">Not now</button><button type="button" class="btn primary" data-go="start">Start now</button></div>`;
@@ -667,8 +683,8 @@ function openTest(id, mode) {
   else if (st.key === 'started') body = `<div class="warn-box">${ic('i-clock')}<p>${st.left > 0 ? `<b>${fmtTime(st.left).replace(/:\d\d$/, '')} left.</b> Your timer kept running while you were away.` : `<b>Time's up.</b> Upload your answers now${st.late ? ' — it will be marked late' : ''}.`}</p></div>
     <button type="button" class="btn primary block" data-go="resume">${st.left > 0 ? 'Continue test' : 'Upload answers'}</button>`;
   else if (st.key === 'scheduled') body = `<div class="warn-box">${ic('i-clock')}<p><b>This mock opens on ${esc(fmtWhen(st.at))}.</b> Come back then — the paper and your timer start only when you open it.</p></div>`;
-  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `${keyButton(t)}<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>`; }
-  else if (st.key === 'checked') { const r = st.result; body = (r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>') + keyButton(t); }
+  else if (st.key === 'review') { const a = S.attempts[t.id]; body = `<ol class="track"><li class="done">${ic('i-check')}<b>Submitted</b><small>${a.submittedAt ? fmtDate(a.submittedAt) : 'Received'}</small></li><li class="now">${ic('i-pen')}<b>Being checked</b><small>Software check, then a TNC teacher approves</small></li><li>${ic('i-results')}<b>Result</b><small>Within 48 hours</small></li></ol>${keyButton(t)}`; }
+  else if (st.key === 'checked') { const r = st.result; body = r ? resultBody(r) : '<p class="instr">Your checked script is ready. Refresh to see it.</p>' + keyButton(t); }
   else body = '<p class="instr">This test is closed.</p>';
   openSheet(testHead(t) + body, root => {
     const go = root.querySelectorAll('[data-go]');
@@ -689,7 +705,7 @@ function openTest(id, mode) {
 }
 // After submitting, the answer key (when the team shared one) — the server
 // checks the submission before handing it out.
-const keyButton = t => t.hasAnswerKey ? `<button type="button" class="btn ghost block key-btn" data-go="key">${ic('i-download')}Download answer key</button>` : '';
+const keyButton = t => t.hasAnswerKey ? `<div class="key-card">${ic('i-doc')}<span><b>Answer key</b><small>Check your answers now</small></span><button type="button" class="btn sm ghost" data-go="key">${ic('i-download')}Download</button></div>` : '';
 async function downloadKey(t, btn) {
   const done = busy(btn, 'Opening answer key…');
   try {
@@ -704,14 +720,25 @@ function resultBody(r) {
   return `<div class="score ${tone(pct)}"><div class="ring" style="--p:${pct || 0}"><b>${Number.isFinite(r.score) ? r.score : '—'}</b><small>of ${r.totalMarks}</small></div>
     <div><b>${pct == null ? '' : pct + '%'}</b><small>Approved by a TNC teacher${r.approvedAt ? ' · ' + fmtDate(r.approvedAt) : ''}</small></div></div>
     ${r.remark && !/^Offline Test Series|^Checked by TNC faculty$/.test(r.remark) ? `<div class="feedback"><span class="eyebrow">Feedback from TNC faculty</span><p>${esc(r.remark)}</p></div>` : ''}
-    ${r.pdf ? `<a class="btn primary block" href="${esc(r.pdf)}" target="_blank" rel="noopener noreferrer" download>${ic('i-download')}Checked answer script</a>` : ''}
+    ${resultActions(r)}
     <p class="fine center">Saved permanently in your results.</p>`;
+}
+// Small side-by-side actions: checked script, and the answer key when one was shared.
+function resultActions(r) {
+  const t = S.tests.find(x => x.id === r.testId), key = t && t.hasAnswerKey;
+  if (!r.pdf && !key) return '';
+  return `<div class="sh-acts">${r.pdf ? `<a class="btn sm primary" href="${esc(r.pdf)}" target="_blank" rel="noopener noreferrer" download>${ic('i-download')}Checked script</a>` : ''}${key ? `<button type="button" class="btn sm ghost" data-key-test="${esc(t.id)}">${ic('i-doc')}Answer key</button>` : ''}</div>`;
 }
 function openResult(id) {
   const r = S.results.find(x => x.id === id);
   if (!r) return;
   openSheet(`<div class="sh-head" style="${tint(r.subject)}"><span class="sh-kicker">${subjIc(r.subject)}${esc(r.subject)} · ${esc(r.chapter)}</span><h2 id="sheetTitle">${esc(r.testName)}</h2></div>` + resultBody(r));
 }
+// Answer key buttons inside result sheets (wherever the sheet was opened from).
+$('sheetBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-key-test]'); if (!b) return;
+  const t = S.tests.find(x => x.id === b.dataset.keyTest); if (t) downloadKey(t, b);
+});
 
 // ═══ Free mock: pick a subject ═══
 function openFreePicker() {
@@ -803,7 +830,7 @@ async function unlock(t, btn) {
     const rz = new window.Razorpay({
       key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,
       name: 'The NewTown Classes', description: (order.testName || t.testName) + ' · Non-refundable', prefill: order.prefill || {},
-      notes: { testId: t.id }, theme: { color: '#003087' }, retry: { enabled: true, max_count: 3 },
+      notes: { testId: t.id }, image: location.origin + '/assets/img/logo-mark.png', theme: { color: '#0b2a6b', backdrop_color: 'rgba(7, 18, 40, 0.72)' }, retry: { enabled: true, max_count: 3 },
       modal: { ondismiss: () => { S.checkoutOpen = false; clearPending(); done(); }, escape: true, backdropclose: false },
       handler: resp => { S.checkoutOpen = false; confirmPayment(t, resp); }
     });
@@ -866,8 +893,10 @@ async function resumePendingPayment() {
     toast('Payment not confirmed yet. If money was deducted, the test unlocks automatically within a few minutes.', 'err');
   } finally { pendingBusy = false; }
 }
+// Animated check drawn once (no loop) for a finished payment.
+const successMark = () => '<svg class="ok-mark" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>';
 async function confirmPayment(t, resp) {
-  openSheet(testHead(t) + '<div class="celebrate wait"><span class="spin lg" aria-hidden="true"></span><b>Confirming your payment…</b><p>Please keep this screen open.</p></div>');
+  openSheet(testHead(t) + '<div class="celebrate wait"><span class="pay-loader" aria-hidden="true"></span><b>Confirming your payment…</b><p>Secured by Razorpay · please keep this screen open.</p></div>');
   let unlocked = false;
   try {
     await fn('online-series', { action: 'verify-payment', orderId: resp.razorpay_order_id, paymentId: resp.razorpay_payment_id, signature: resp.razorpay_signature });
@@ -881,6 +910,8 @@ async function confirmPayment(t, resp) {
   }
   if (unlocked) {
     clearPending(); markUnlocked(t); haptic(30);
+    openSheet(testHead(t) + `<div class="celebrate ok">${successMark()}<b>Payment successful</b><p>${esc(t.testName)} is unlocked. Taking you there…</p></div>`);
+    await sleep(REDUCED.matches ? 300 : 1200);
     returnToTest(t, 'Payment successful — test unlocked');
   } else {
     openSheet(testHead(t) + `<div class="celebrate err">${ic('i-shield')}<b>We're still confirming your payment</b><p>If money was deducted, the test unlocks automatically within a few minutes. If the payment did not go through, your bank returns any amount it held. Payment ID: <code>${esc(resp.razorpay_payment_id)}</code></p></div>
@@ -902,6 +933,8 @@ function cust() {
     let saved = {}; try { saved = JSON.parse(localStorage.getItem(cartKey()) || '{}'); } catch (_) {}
     S.cust = { board: NTCSyllabus.boardFor(S.session.profile.board), subject: '', seg: 'build', carts: { CBSE: saved.CBSE || {}, CISCE: saved.CISCE || {} } };
   }
+  // CBSE students build from the CBSE syllabus only, ICSE students from ICSE / ISC only.
+  const own = P.customBoard(S.session.profile.board); if (own) S.cust.board = own;
   return S.cust;
 }
 function saveCart() { try { localStorage.setItem(cartKey(), JSON.stringify(S.cust.carts)); } catch (_) {} }
@@ -972,7 +1005,7 @@ function packCard(p) {
   const own = ownsPack(p.id), slots = own ? packSlots(p) : [], done = slots.filter(s => s.done).length, n = p.schedule.length;
   return `<button type="button" class="pack-card" data-pack="${esc(p.id)}" style="${tint(p.subject)}">
     <span class="subj-ic">${subjIc(p.subject)}</span>
-    <span class="pk-main"><b>${esc(p.title)}</b><small>${plural(n, 'mock')} · ${esc(packWhen(p, true))}</small>
+    <span class="pk-main"><span class="pk-sub">${esc(p.subject)} · Class ${esc(p.class)}${p.board ? ' · ' + esc(p.board) : ''}</span><b>${esc(p.title)}</b><small>${plural(n, 'mock')} · ${esc(packWhen(p, true))}</small>
       ${own ? `<span class="pk-meter" aria-label="${done} of ${n} done"><i style="width:${n ? Math.round(done / n * 100) : 0}%"></i></span><small>${done} of ${n} done</small>` : `<small>Starts ${esc(fmtDay(p.schedule[0]))}</small>`}</span>
     ${own ? `<span class="pill done">${ic('i-check')}Joined</span>` : `<span class="pk-price"><b>₹${p.priceInr}</b><small>${'₹' + Math.round(p.priceInr / Math.max(1, n)) + '/mock'}</small></span>`}</button>`;
 }
@@ -982,18 +1015,29 @@ function viewPacks() {
   const owned = ownedPacks();
   if (!['packs', 'mine'].includes(S.packSeg)) S.packSeg = 'packs';
   const seg = S.packSeg;
-  const head = `<div class="cm-hero"><span class="cm-ic">${ic('i-calendar')}</span><div><h2>Mock packs</h2><p>A full-syllabus mock every week, at a fixed time</p></div></div>
-    <div class="seg" role="tablist"><button type="button" role="tab" data-pseg="packs" aria-selected="${seg === 'packs'}">All packs</button><button type="button" role="tab" data-pseg="mine" aria-selected="${seg === 'mine'}">My packs <i>${owned.length}</i></button></div>`;
+  // The top bar already says "Mock tests": no big header card here.
+  const head = `<div class="seg" role="tablist"><button type="button" role="tab" data-pseg="packs" aria-selected="${seg === 'packs'}">All packs</button><button type="button" role="tab" data-pseg="mine" aria-selected="${seg === 'mine'}">My packs <i>${owned.length}</i></button></div>`;
   let body = '';
   if (seg === 'mine') {
-    body = owned.length ? `<div class="pack-list">${owned.map(packCard).join('')}</div>`
+    body = owned.length ? bySubject(owned)
       : emptyBlock('i-calendar', 'No packs yet', 'Join a mock pack — your weekly mocks and their dates show up here.', '<button type="button" class="btn primary" data-pseg="packs">See all packs</button>');
   } else {
     const sale = S.packages.filter(p => p.active);
-    body = `<div class="cm-price">${ic('i-spark')}Opens at the set time · take it any time after · software-checked, teacher-approved</div>`
-      + (sale.length ? `<div class="pack-list">${sale.map(packCard).join('')}</div>` : emptyBlock('i-layers', 'Mock packs are on the way', `Weekly mock packs for Class ${S.session.profile.class} will appear here soon.`));
+    body = `<p class="seg-hint">A full-syllabus mock every week · opens at the set time · teacher-approved</p>`
+      + (sale.length ? bySubject(sale) : emptyBlock('i-layers', 'Mock packs are on the way', `Weekly mock packs for Class ${S.session.profile.class} will appear here soon.`));
   }
   return `<section class="v v-custom v-packs">${head}${body}</section>`;
+}
+
+// Packs organised by subject: subject chips on top (when there are several),
+// then one titled group per subject.
+function bySubject(list) {
+  const order = s => { const i = P.SUBJECTS.indexOf(s); return i < 0 ? 99 : i; };
+  const subs = [...new Set(list.map(p => p.subject))].sort((a, b) => order(a) - order(b) || a.localeCompare(b));
+  if (!subs.includes(S.packSubject)) S.packSubject = '';
+  const chips = subs.length > 1 ? `<div class="chips-scroll" role="tablist" aria-label="Subject"><button type="button" role="tab" class="chip-btn${!S.packSubject ? ' on' : ''}" data-psub="" aria-selected="${!S.packSubject}">All</button>${subs.map(s => `<button type="button" role="tab" class="chip-btn${s === S.packSubject ? ' on' : ''}" data-psub="${esc(s)}" aria-selected="${s === S.packSubject}">${subjIc(s)}${esc(s)}<i>${list.filter(p => p.subject === s).length}</i></button>`).join('')}</div>` : '';
+  return chips + subs.filter(s => !S.packSubject || s === S.packSubject).map(s => { const g = list.filter(p => p.subject === s);
+    return `<div class="sec pk-sec" style="${tint(s)}"><h3>${subjIc(s)}${esc(s)}</h3><span>${plural(g.length, 'pack')}</span></div><div class="pack-list">${g.map(packCard).join('')}</div>`; }).join('');
 }
 
 // Custom module test tab (Classes 7–12): Build a test | My tests.
@@ -1012,7 +1056,7 @@ function customMineRows(mods) {
   return `<ul class="rows">${mods.map(m => {
     const t = m.testId && S.tests.find(x => x.id === m.testId), st = t && stateOf(t);
     return `<li><button type="button" class="row" data-cmod="${esc(m.id)}" style="${tint(m.subject)}"><span class="subj-ic">${subjIc(m.subject)}</span>
-      <span class="row-main"><b>${esc(m.subject)} · ${m.full ? 'Custom full mock' : plural(m.chapterCount, 'chapter')}</b><small>${t ? esc((m.chapters || []).slice(0, 2).join(', ')) + (m.chapterCount > 2 ? ` +${m.chapterCount - 2}` : '') : 'Ready by ' + esc(fmtWhen(m.dueAt))}</small></span>
+      <span class="row-main"><b>${esc(m.subject)} · ${m.full ? 'Custom full mock' : plural(m.chapterCount, 'chapter')}${m.level ? ' · ' + esc(P.LEVELS[P.levelOf(m.level)]) : ''}</b><small>${t ? esc((m.chapters || []).slice(0, 2).join(', ')) + (m.chapterCount > 2 ? ` +${m.chapterCount - 2}` : '') : 'Ready by ' + esc(fmtWhen(m.dueAt))}</small></span>
       ${t ? pill(t, st) : '<span class="pill wait">Preparing</span>'}</button></li>`; }).join('')}</ul>`;
 }
 
@@ -1022,10 +1066,10 @@ function customBuild() {
   if (!subs.some(s => s.subject === c.subject)) c.subject = subs[0].subject;
   const picked = (c.carts[c.board][c.subject]) || [];
   const chapters = NTCSyllabus.chapters(c.board, cls, c.subject);
-  const boardTabs = ['CBSE', 'CISCE'].map(bd => `<button type="button" role="tab" data-cboard="${bd}" aria-selected="${c.board === bd}">${NTCSyllabus.boardLabel(bd, cls)}${cartCount(bd) ? ` <i>${cartCount(bd)}</i>` : ''}</button>`).join('');
+  const boardTabs = P.customBoard(S.session.profile.board) ? '' : ['CBSE', 'CISCE'].map(bd => `<button type="button" role="tab" data-cboard="${bd}" aria-selected="${c.board === bd}">${NTCSyllabus.boardLabel(bd, cls)}${cartCount(bd) ? ` <i>${cartCount(bd)}</i>` : ''}</button>`).join('');
   return `<div class="cm-price">${enrolled() ? ic('i-shield') + 'Free for TNC students · at least ' + M.minPerPaper + ' chapters per subject' : `${ic('i-spark')}₹${M.first} a chapter · ₹${M.rest} from the ${M.firstCount + 1}th · all chapters = Custom full mock ₹${M.fullMock}`}</div>
     <div class="cm-pick">
-      <div class="seg small" role="tablist" aria-label="Board">${boardTabs}</div>
+      ${boardTabs ? `<div class="seg small" role="tablist" aria-label="Board">${boardTabs}</div>` : ''}
       <div class="chips-scroll" role="tablist" aria-label="Subject">${subs.map(s => { const k = ((c.carts[c.board][s.subject]) || []).length; return `<button type="button" role="tab" class="chip-btn${s.subject === c.subject ? ' on' : ''}" data-csub="${esc(s.subject)}" aria-selected="${s.subject === c.subject}">${subjIc(s.subject)}${esc(s.subject)}${k ? `<i>${k}</i>` : ''}</button>`; }).join('')}</div>
     </div>
     <div class="sec"><h3>${esc(c.subject)} · Class ${esc(cls)} ${esc(NTCSyllabus.boardLabel(c.board, cls))}</h3><button type="button" class="link" data-call>${picked.length === chapters.length ? 'Clear' : 'Select all'}</button></div>
@@ -1078,7 +1122,7 @@ function openPackage(id) {
         <ul><li>${ic('i-check')}One full-syllabus mock every week</li><li>${ic('i-check')}Opens at the set time — take it any time after</li><li>${ic('i-check')}Software-checked and approved by a TNC teacher within 48 hours</li><li>${ic('i-check')}Counts towards your all-India rank</li></ul></div>
       ${p.description ? `<p class="instr">${esc(p.description)}</p>` : ''}
       ${`${promoBox('pkg:' + id, !S.session.paymentsReady)}${promo ? `<button type="button" class="btn primary block" data-pjoin>${ic('i-unlock')}Join for ₹0</button>`
-          : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+          : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-ppay>${ic('i-lock')}Join for ₹${p.priceInr}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
           : contactCard(`the "${p.title}" (${plural(n, 'mock')})`)}`}
       ${schedule}`;
   }
@@ -1112,7 +1156,7 @@ async function payPack(p, btn) {
     const [order] = await Promise.all([fn('online-series', { action: 'package-order', packageId: p.id }), loadRazorpay()]);
     const rz = new window.Razorpay({
       key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,
-      name: 'The NewTown Classes', description: order.testName + ' · Non-refundable', prefill: order.prefill || {}, theme: { color: '#003087' }, retry: { enabled: true, max_count: 3 },
+      name: 'The NewTown Classes', description: order.testName + ' · Non-refundable', prefill: order.prefill || {}, image: location.origin + '/assets/img/logo-mark.png', theme: { color: '#0b2a6b', backdrop_color: 'rgba(7, 18, 40, 0.72)' }, retry: { enabled: true, max_count: 3 },
       modal: { ondismiss: () => { S.checkoutOpen = false; clearPending(); done(); }, escape: true, backdropclose: false },
       handler: async resp => {
         S.checkoutOpen = false;
@@ -1146,6 +1190,7 @@ async function resumePackPayment(p) {
 function bindCustom(root) {
   root.querySelectorAll('[data-cseg]').forEach(b => b.onclick = () => { cust().seg = b.dataset.cseg; render(); });
   root.querySelectorAll('[data-pseg]').forEach(b => b.onclick = () => { S.packSeg = b.dataset.pseg; render(); });
+  root.querySelectorAll('[data-psub]').forEach(b => b.onclick = () => { S.packSubject = b.dataset.psub; render(); });
   root.querySelectorAll('[data-pseg-link]').forEach(b => b.addEventListener('click', () => { S.packSeg = b.dataset.psegLink; }));
   root.querySelectorAll('[data-pack]').forEach(b => b.onclick = () => openPackage(b.dataset.pack));
   root.querySelectorAll('[data-cboard]').forEach(b => b.onclick = () => { cust().board = b.dataset.cboard; render(); });
@@ -1187,11 +1232,13 @@ function openCart() {
       <div class="total"><span>Total</span><span>${enrolled() || cartPromo() ? '₹0' : '₹' + b.total}</span></div></div>
     ${enrolled() ? '' : cartPromoMiss() ? `<div class="promo warn">${ic('i-spark')}<span>${esc(cartPromoMiss())}</span><button type="button" class="link" data-promo-remove>Remove code</button></div>` : promoBox('cart:' + c.board, !S.session.paymentsReady)}
     ${!enrolled() && b.chapters && b.chapters < M.firstCount + 1 ? `<p class="fine center">Add ${M.firstCount + 1 - b.chapters} more chapter${M.firstCount + 1 - b.chapters === 1 ? '' : 's'} and each extra one costs just ₹${M.rest}.</p>` : ''}
+    <div class="cm-opts"><span class="cm-lbl">Level</span><div class="seg small" role="radiogroup" aria-label="Paper level">${Object.entries(P.LEVELS).map(([k, l]) => `<button type="button" role="radio" data-level="${k}" aria-checked="${P.levelOf(c.level) === k}" aria-selected="${P.levelOf(c.level) === k}">${l}</button>`).join('')}</div>
+      <label class="cm-note"><span class="cm-lbl">Request for the teacher <i>optional</i></span><textarea id="cmNote" rows="2" maxlength="${P.NOTE_MAX}" placeholder="e.g. More numericals, include diagram questions">${esc(c.note || '')}</textarea></label></div>
     <ol class="track"><li class="done">${ic('i-check')}<b>Pay &amp; confirm</b><small>Your chapters are locked in</small></li><li>${ic('i-pen')}<b>We make your paper</b><small>One per subject, within ${M.readyHours} hours</small></li><li>${ic('i-play')}<b>Start any time</b><small>Software-checked, teacher-approved</small></li></ol>
     ${short.length ? `<div class="warn-box">${ic('i-layers')}<p><b>${esc(shortMsg(short))}.</b> One chapter on its own is a chapter-wise test — add another or remove it.</p></div><button type="button" class="btn primary block" data-buy disabled aria-disabled="true">${ic('i-lock')}Pay ₹${b.total}</button>`
       : enrolled() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Request my tests · free</button>`
       : cartPromo() ? `<button type="button" class="btn primary block" data-buy>${ic('i-unlock')}Confirm order · ₹0</button>`
-      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
+      : S.session.paymentsReady ? `${noRefund()}<button type="button" class="btn primary block pay" data-buy>${ic('i-lock')}Pay ₹${b.total}</button><p class="fine center">Secure payment by Razorpay · UPI, cards, net banking</p>`
       : contactCard(`a custom module test (${plural(n, 'chapter')}: ${items.map(i => i.subject).join(', ')})`)}`,
   root => {
     root.querySelectorAll('[data-rmall]').forEach(btn => btn.onclick = () => {
@@ -1202,6 +1249,11 @@ function openCart() {
       const cart = cust().carts[cust().board]; cart[btn.dataset.rm] = (cart[btn.dataset.rm] || []).filter(x => x !== btn.dataset.rmch); saveCart();
       render(); if (cartCount(cust().board)) openCart(); else closeSheet();
     });
+    root.querySelectorAll('[data-level]').forEach(b => b.onclick = () => {
+      cust().level = b.dataset.level; haptic(8);
+      root.querySelectorAll('[data-level]').forEach(x => { const on = x === b; x.setAttribute('aria-checked', String(on)); x.setAttribute('aria-selected', String(on)); });
+    });
+    const note = root.querySelector('#cmNote'); if (note) note.oninput = () => { cust().note = note.value.slice(0, P.NOTE_MAX); };
     const buy = root.querySelector('[data-buy]'); if (buy && !buy.disabled) buy.onclick = () => buyModules(buy);
     bindPromo(root, 'cart:' + c.board, { kind: 'custom', board: c.board, items: cartItems(c.board) }, openCart);
   });
@@ -1219,13 +1271,14 @@ const cartPromo = () => { const p = cartPromoRaw(); return p && !cartPromoMiss()
 
 function openModuleSheet(m) {
   openSheet(`<div class="sh-head" style="${tint(m.subject)}"><span class="sh-kicker">${subjIc(m.subject)}${esc(m.subject)} · Class ${esc(m.class)} ${esc(m.boardLabel || '')}</span><h2 id="sheetTitle">${m.full ? 'Custom full mock' : 'Custom module test'}</h2>
-      <div class="facts"><span class="kind">${plural(m.chapterCount, 'chapter')}</span><span>${ic('i-clock')}Ready by ${esc(fmtWhen(m.dueAt))}</span></div></div>
+      <div class="facts"><span class="kind">${plural(m.chapterCount, 'chapter')}</span>${m.level ? `<span>${esc(P.LEVELS[P.levelOf(m.level)])}</span>` : ''}<span>${ic('i-clock')}Ready by ${esc(fmtWhen(m.dueAt))}</span></div></div>
     <ol class="track"><li class="done">${ic('i-check')}<b>Ordered</b><small>${esc(fmtWhen(m.createdAt))}</small></li><li class="now">${ic('i-pen')}<b>Making your paper</b><small>TNC faculty are setting it</small></li><li>${ic('i-play')}<b>Ready to start</b><small>You'll see it here</small></li></ol>
+    ${m.note ? `<div class="feedback"><span class="eyebrow">Your request to the teacher</span><p>${esc(m.note)}</p></div>` : ''}
     <div class="cg"><div class="cg-h">Chapters</div><ul>${(m.chapters || []).map(ch => `<li><span>${esc(ch)}</span></li>`).join('')}</ul></div>`);
 }
 
 function finishModules(message) {
-  const c = cust(); c.carts[c.board] = {}; saveCart(); c.seg = 'mine'; saveCache();
+  const c = cust(); c.carts[c.board] = {}; c.note = ''; c.level = ''; saveCart(); c.seg = 'mine'; saveCache();
   closeSheet(() => { if (location.hash !== '#/custom') location.hash = '#/custom'; else { S.view = ''; render(); } toast(message); haptic(30); });
 }
 async function loadModules() {
@@ -1237,11 +1290,11 @@ async function buyModules(btn) {
   const done = busy(btn, enrolled() ? 'Requesting…' : cartPromo() ? 'Confirming…' : 'Opening payment…');
   try {
     const promoCode = cartPromo();
-    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, ...(promoCode ? { promoCode } : {}) }), promoCode || enrolled() ? null : loadRazorpay()]);
+    const [order] = await Promise.all([fn('online-series', { action: 'module-order', board: c.board, items, level: P.levelOf(c.level), note: (c.note || '').trim(), ...(promoCode ? { promoCode } : {}) }), promoCode || enrolled() ? null : loadRazorpay()]);
     if (order.free) { S.promo = null; S.modules = [...(order.requests || []), ...S.modules]; return finishModules(order.promo ? `Promo applied · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours` : `Requested · your paper${(order.requests || []).length === 1 ? '' : 's'} will be ready within ${P.MODULE.readyHours} hours`); }
     const rz = new window.Razorpay({
       key: order.keyId, amount: order.amountPaise, currency: 'INR', order_id: order.orderId,
-      name: 'The NewTown Classes', description: order.testName + ' · Non-refundable', prefill: order.prefill || {}, theme: { color: '#003087' }, retry: { enabled: true, max_count: 3 },
+      name: 'The NewTown Classes', description: order.testName + ' · Non-refundable', prefill: order.prefill || {}, image: location.origin + '/assets/img/logo-mark.png', theme: { color: '#0b2a6b', backdrop_color: 'rgba(7, 18, 40, 0.72)' }, retry: { enabled: true, max_count: 3 },
       modal: { ondismiss: () => { S.checkoutOpen = false; clearPending(); done(); }, escape: true, backdropclose: false },
       handler: resp => { S.checkoutOpen = false; confirmModulePayment(order, resp); }
     });

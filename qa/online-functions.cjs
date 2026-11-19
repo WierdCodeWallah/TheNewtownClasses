@@ -220,7 +220,9 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   const sci = sy.chapters('CBSE', '10', 'Science'), mat = sy.chapters('CBSE', '10', 'Mathematics');
   assert.equal((await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [] })).status, 400, 'empty cart refused');
   assert.equal((await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [{ subject: 'Science', chapters: ['Made-up chapter'] }] })).status, 400, 'chapters must be in the syllabus');
-  assert.equal((await api({ idToken: 'g:riya', action: 'module-order', board: 'CISCE', items: [{ subject: 'Science', chapters: [sci[0]] }] })).status, 400, 'ICSE has no combined Science');
+  const crossBoard = await api({ idToken: 'g:riya', action: 'module-order', board: 'CISCE', items: [{ subject: 'Physics', chapters: sy.chapters('CISCE', '10', 'Physics').slice(0, 2) }] });
+  assert.equal(crossBoard.status, 400); assert.match(crossBoard.body.error, /follow your CBSE syllabus/, 'a CBSE student cannot order ICSE chapters');
+  assert.equal(policy.customBoard('CBSE'), 'CBSE'); assert.equal(policy.customBoard('ICSE'), 'CISCE'); assert.equal(policy.customBoard('State Board'), '', 'other boards may pick either');
   db.set('onlineStudents/junior', { ...prof, uid: 'junior', class: '8' });
   // Class 8 (new NCERT "Curiosity" / "Ganita Prakash" chapters) can order custom tests too.
   const sci8 = sy.chapters('CBSE', '8', 'Science'), mat8 = sy.chapters('CBSE', '8', 'Mathematics');
@@ -241,6 +243,7 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   const reqKeys = () => [...db.keys()].filter(k => k.startsWith('moduleRequests/' + mo.body.orderId));
   assert.equal(reqKeys().length, 2, 'one paper request per subject');
   const rq = db.get(reqKeys().find(k => k.endsWith('_science')));
+  assert.equal(rq.level, 'medium', 'Medium when no level is chosen'); assert.equal(rq.note, '');
   assert.equal(rq.chapterCount, 3); assert.equal(rq.status, 'requested'); assert.equal(rq.boardLabel, 'CBSE'); assert.equal(rq.uid, 'riya');
   assert.equal(Date.parse(rq.dueAt) - Date.parse(rq.createdAt), 24 * 3600000, 'ready within 24 hours');
   assert.equal(rq.amountPaise + db.get(reqKeys().find(k => k.endsWith('_mathematics'))).amountPaise, 109600, 'amount shared across the papers');
@@ -248,11 +251,13 @@ const sign = (orderId, paymentId) => crypto.createHmac('sha256', process.env.RAZ
   assert.equal(reqKeys().length, 2, 'webhook after checkout creates nothing twice');
   // Every chapter of a subject → a Custom full mock at ₹699; other chapters keep the per-chapter rate.
   assert.equal(policy.isFullMock(mat.length, mat.length), true); assert.equal(policy.isFullMock(3, 3), false, 'three chapters cost less than ₹699 on their own');
-  const fm = await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: mat.slice() }, { subject: 'Science', chapters: [sci[2], sci[4]] }] });
+  const fm = await api({ idToken: 'g:riya', action: 'module-order', board: 'CBSE', level: 'high', note: 'More numericals <b>please</b>', items: [{ subject: 'Mathematics', chapters: mat.slice() }, { subject: 'Science', chapters: [sci[2], sci[4]] }] });
   assert.equal(fm.status, 200); assert.equal(fm.body.amountPaise, (699 + 2 * 199) * 100, 'all Maths chapters ₹699 + 2 Science chapters × ₹199');
   const fmo = db.get('onlineOrders/' + fm.body.orderId); assert.equal(fmo.items.find(i => i.subject === 'Mathematics').full, true); assert.ok(!fmo.items.find(i => i.subject === 'Science').full);
   await api({ idToken: 'g:riya', action: 'verify-payment', orderId: fm.body.orderId, paymentId: 'pay_Mod00002', signature: sign(fm.body.orderId, 'pay_Mod00002') });
   const fmReq = k => db.get([...db.keys()].find(x => x.startsWith('moduleRequests/' + fm.body.orderId) && x.endsWith(k)));
+  assert.equal(fmReq('_mathematics').level, 'high'); assert.equal(fmReq('_science').level, 'high', 'level on every paper of the order'); assert.match(fmReq('_mathematics').note, /^More numericals\s+b\s+please/, 'note kept, markup stripped');
+  assert.equal(policy.levelOf('impossible'), 'medium', 'unknown level → Medium');
   assert.equal(fmReq('_mathematics').full, true); assert.equal(fmReq('_mathematics').amountPaise, 69900, 'full mock paper worth ₹699'); assert.equal(fmReq('_science').amountPaise, 39800);
   const tm = await api({ idToken: 'p:tnc1', action: 'module-order', board: 'CBSE', items: [{ subject: 'Mathematics', chapters: [mat[5], mat[7]] }] });
   assert.equal(tm.status, 200); assert.equal(tm.body.free, true, 'TNC students order custom tests free'); assert.equal(tm.body.requests.length, 1, 'paper requested straight away');

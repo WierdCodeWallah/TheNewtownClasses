@@ -2669,7 +2669,7 @@ renderCards();
         else if (st.key === 'approved') btn = `<button type="button" class="ots-btn green" data-report="${t.id}__${user.uid}">📄 View checked script</button>`;
         else btn = '<button type="button" class="ots-btn soft" disabled>Submitted · awaiting teacher review</button>';
         // After submitting: the answer key, when the admin shared one.
-        if (t.hasAnswerKey && ['checking', 'approved'].includes(st.key)) btn += `<button type="button" class="ots-btn ots-key" data-key="${t.id}">🔑 Download answer key</button>`;
+        if (t.hasAnswerKey && ['checking', 'approved'].includes(st.key)) btn = `<div class="ots-act-row">${btn}<button type="button" class="ots-btn ots-key" data-key="${t.id}">🔑 Answer key</button></div>`;
         return `<div class="ots-card ots-test-card" data-state="${st.key}">
           <span class="ots-state">${{ new: 'Ready when you are', started: 'In progress', approved: 'Feedback is ready', checking: 'With your teacher' }[st.key]}</span>
           <span class="k">${otsEsc(t.module)}</span>

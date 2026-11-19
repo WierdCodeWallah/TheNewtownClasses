@@ -37,7 +37,7 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
   try {
     for (const width of [320, 390, 1440]) {
       const ctx = { docs: reportDocs.map(d => ({ ...d, fields: { ...d.fields } })), calls: [], patches: [], requests: [
-        { id: 'order_Mod1_physics', orderId: 'order_Mod1', uid: 'stu5', studentName: 'Student 05', onlineId: 'TNC-ON-STU5', enrolled: false, class: '11', board: 'CISCE', boardLabel: 'ISC', subject: 'Physics',
+        { id: 'order_Mod1_physics', orderId: 'order_Mod1', uid: 'stu5', level: 'high', note: 'Focus on numericals', studentName: 'Student 05', onlineId: 'TNC-ON-STU5', enrolled: false, class: '11', board: 'CISCE', boardLabel: 'ISC', subject: 'Physics',
           chapters: ['Laws of Motion', 'Gravitation', 'Oscillations'], chapterCount: 3, amountPaise: 59700, status: 'requested', testId: '', createdAt: new Date(Date.now() - 3600000).toISOString(), dueAt: new Date(Date.now() + 23 * 3600000).toISOString(), readyAt: '' },
         { id: 'order_Mod0_chemistry', orderId: 'order_Mod0', uid: 'stu8', studentName: 'Student 08', onlineId: 'TNC-ON-STU8', enrolled: true, class: '11', board: 'CBSE', boardLabel: 'CBSE', subject: 'Chemistry',
           chapters: ['Equilibrium'], chapterCount: 1, amountPaise: 0, status: 'ready', testId: 'otsready', createdAt: new Date(Date.now() - 86400000).toISOString(), dueAt: new Date().toISOString(), readyAt: new Date().toISOString() }],
@@ -144,6 +144,7 @@ const pendingTotal = reports.filter(r => r.status === 'submitted').length;
       if (width === 390) await shot(page, 'desk-11-to-make-390');
       await page.locator('.dk-row').first().click(); await page.waitForSelector('#dkrSend');
       assert.match(await page.textContent('.dk-chapters'), /Laws of Motion[\s\S]*Gravitation[\s\S]*Oscillations/);
+      assert.match(await page.textContent('#dkSheet .dk-facts'), /Level\s*High/, 'admin sees the level'); assert.match(await page.textContent('#dkSheet .dk-note'), /Student's request:\s*Focus on numericals/, 'admin sees the request');
       assert.equal(await page.locator('#dkrTeacher').count(), 0, 'no teacher picker');
       await page.click('#dkrSend'); assert.match(await page.textContent('#dkMsg'), /Marks must be/);
       await page.fill('#dkrMarks', '30'); await page.fill('#dkrTime', '75'); await page.setInputFiles('#dkrFile', paperPdf); await page.setInputFiles('#dkrKey', paperPdf);

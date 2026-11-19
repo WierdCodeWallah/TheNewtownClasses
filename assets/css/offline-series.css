@@ -276,3 +276,4 @@ body.motion-paused :is(#otsSection,.ots-exam,#tab-offline-series,#tab-script-app
 /* Teacher download: button saves Name_ID_Test.pdf; link opens the file as a fallback. */
 .ota-download-row{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin:12px 0}.ota-open-link{align-self:center;font-size:13px;color:#47637c;text-decoration:underline}
 .ots-card .act .ots-key{margin-top:8px;background:#fff;color:#173e56;border:1.5px solid #c9d9e4;box-shadow:none}
+.ots-act-row{display:flex;gap:8px}.ots-act-row .ots-btn{flex:1 1 0;min-width:0;min-height:40px;padding:8px 10px;font-size:12.5px}.ots-card .act .ots-act-row .ots-key{margin-top:0}

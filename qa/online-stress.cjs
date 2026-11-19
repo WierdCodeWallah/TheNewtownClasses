@@ -30,13 +30,13 @@ const findings = [];
       const state = newState({ user: riya });
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
-      const tabs = ['custom', 'results', 'home', 'custom', 'home', 'results'];
+      const tabs = ['custom', 'packs', 'home', 'custom', 'home', 'packs'];   // phone bar: Home · Custom · Mocks · More
       for (let round = 0; round < 4; round++) for (const t of tabs) await page.click('#nav [data-tab=' + t + ']', { delay: 0 });
-      await page.waitForSelector('.v-results');
-      assert.equal(await page.evaluate(() => location.hash), '#/results', 'last tap wins');
+      await page.waitForSelector('.v-packs');
+      assert.equal(await page.evaluate(() => location.hash), '#/packs', 'last tap wins');
       // Time a switch: tap → new view painted.
       const ms = [];
-      for (const t of ['home', 'custom', 'results', 'home']) {
+      for (const t of ['home', 'custom', 'packs', 'home']) {
         const t0 = await page.evaluate(() => performance.now());
         await page.click('#nav [data-tab=' + t + ']');
         await page.waitForSelector('#nav [data-tab=' + t + '].on');
@@ -114,7 +114,7 @@ const findings = [];
       const state = newState({ user: riya, profiles: { riya: { ...profile, name: evil, school: '<script>window.__xss=2</script>' } } });
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
-      for (const t of ['home', 'custom', 'results']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(80); }
+      for (const t of ['home', 'custom', 'packs']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(80); }
       await page.click('#navMore'); await page.waitForSelector('.more-menu'); await page.click('.more-menu a[href="#/me"]'); await page.waitForSelector('.me-card');
       assert.equal(await page.evaluate(() => window.__xss), undefined, 'injected HTML never runs');
       assert.match(await page.textContent('.me-card'), /<img src=x/, 'shown as plain text');
@@ -129,7 +129,7 @@ const findings = [];
       const { page, errors } = await open(browser, origin, state, { width: 320, height: 640 });
       await page.waitForSelector('.v-home .subj');
       for (const t of ['home', 'custom', 'results', 'ranks', 'packs', 'me']) {
-        if (['ranks', 'packs', 'me'].includes(t)) { await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu'); await page.click('.more-menu a[href="#/' + t + '"]'); await page.waitForSelector('#sheet', { state: 'hidden' }); }
+        if (['ranks', 'results', 'me'].includes(t)) { await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu'); await page.click('.more-menu a[href="#/' + t + '"]'); await page.waitForSelector('#sheet', { state: 'hidden' }); }
         else await page.click('#nav [data-tab=' + t + ']');
         await page.waitForTimeout(150);
         const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, nav: Math.round(document.querySelector('#nav').getBoundingClientRect().bottom), h: innerHeight }));
@@ -148,7 +148,7 @@ const findings = [];
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.route(u => new URL(u).origin === origin && new URL(u).pathname === '/', r => r.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, 'index.html'), 'utf8') }));
       await page.waitForSelector('.v-home .subj');
-      for (const t of ['custom', 'results', 'home']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(120); }
+      for (const t of ['custom', 'packs', 'home']) { await page.click('#nav [data-tab=' + t + ']'); await page.waitForTimeout(120); }
       await page.click('#navMore'); await page.waitForSelector('#sheet.on .more-menu'); await page.click('.more-menu a[href="#/me"]'); await page.waitForSelector('.me-card');
       await page.click('[data-act=signout]'); await page.waitForSelector('#sheet.on [data-out]'); await page.click('[data-out]');
       await page.waitForFunction(() => document.body.dataset.screen === 'auth');
@@ -160,12 +160,11 @@ const findings = [];
     }
     // ── 7. Picking chapters never redraws the screen; a 2-chapter code stops covering a bigger cart ──
     {
-      const state = newState({ user: riya, paymentsReady: false });
+      const state = newState({ user: riya, paymentsReady: false, profiles: { riya: { ...profile, board: 'CBSE' } } });   // a CBSE student: CBSE syllabus
       const { page, errors } = await open(browser, origin, state, { width: 390, height: 844 });
       await page.waitForSelector('.v-home .subj');
       await page.click('#nav [data-tab=custom]');
       await page.waitForSelector('.v-custom .row.pick');
-      await page.click('[data-cboard=CBSE]'); await page.waitForSelector('[data-cboard=CBSE][aria-selected=true]');   // the fixture student is ICSE
       // Mark the screen: a full redraw would replace these elements.
       await page.evaluate(() => { document.querySelector('.v-custom').dataset.mark = '1'; document.querySelector('.row.pick[data-ch="5"]').dataset.mark = '1'; });
       // Taps done in the page itself, so the test runner never scrolls for us.

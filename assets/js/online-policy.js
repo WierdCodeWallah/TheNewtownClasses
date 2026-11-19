@@ -83,8 +83,15 @@
     return true;
   }
   const subjectsFor = (board, cls) => SUBJECTS.filter(s => subjectAllowed(s, board, cls));
+  // Custom tests use the student's own board syllabus: CBSE → 'CBSE', ICSE → 'CISCE'.
+  // Other boards ('') may pick either syllabus.
+  const customBoard = board => { const b = String(board || '').toUpperCase(); return b === 'CBSE' ? 'CBSE' : ['ICSE', 'ISC', 'CISCE'].includes(b) ? 'CISCE' : ''; };
   // Needed to start; the rest of the form can be filled in later from Profile.
   const QUICK_FIELDS = ['name', 'class', 'board', 'subjects', 'phone', 'guardianPhone'];
+  // Custom tests: the student picks how hard the paper should be and may add a note for the teacher.
+  const LEVELS = { easy: 'Easy', medium: 'Medium', high: 'High' };
+  const levelOf = v => (Object.prototype.hasOwnProperty.call(LEVELS, String(v)) ? String(v) : 'medium');
+  const NOTE_MAX = 300;
 
   const clean = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
   const phone = v => { const d = String(v == null ? '' : v).replace(/\D/g, '').replace(/^(91|0)(?=[6-9]\d{9}$)/, ''); return d; };
@@ -197,7 +204,7 @@
   }
 
   const api = { PRICE_INR, PRICES, LIST_PRICES, PAPER, paperFor, KINDS, FREE_MOCKS, MODULE, modulePrice, isFullMock, cartPrice, paperValues, listPriceFor, facultyName, PACK_PRESETS, PACK_REMIND_DAYS, PACK_CLASSES, packSchedule, kindOf, priceFor, CLASSES, BOARDS, SUBJECTS, TARGETS, GENDERS, RELATIONS, STATES,
-    validateProfile, QUICK_FIELDS, subjectAllowed, subjectsFor, onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
+    validateProfile, QUICK_FIELDS, subjectAllowed, subjectsFor, customBoard, LEVELS, levelOf, NOTE_MAX, cleanNote: v => clean(v, NOTE_MAX), onlineId, subjectKey, boardKey, shortName, rank, averageOf, rankFrom, phone };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NTCOnlinePolicy = api;
 })(typeof window === 'undefined' ? null : window);

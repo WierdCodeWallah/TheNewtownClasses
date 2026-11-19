@@ -311,7 +311,7 @@ function rowHtml(tab, r, counts) {
   if (tab === 'requests') {
     if (r.type === 'slot') return open(r.id, Date.parse(r.at) < Date.now() ? ' overdue' : '', `<span class="dk-av paper">${I.cal}</span>`, `Mock ${r.n} of ${r.pkg.schedule.length}`, esc(`Pack · opens ${when(r.at)}`), slotPill(r));
     const late = r.status === 'requested' && Date.parse(r.dueAt) < Date.now();
-    return open(r.id, late ? ' overdue' : '', person(r.studentName), esc(r.studentName || 'Student'), esc(`${r.full ? 'Custom full mock' : 'Custom'} · ${plural(r.chapterCount, 'chapter')} · ${ago(r.createdAt)}`),
+    return open(r.id, late ? ' overdue' : '', person(r.studentName), esc(r.studentName || 'Student'), esc(`${r.full ? 'Custom full mock' : 'Custom'} · ${plural(r.chapterCount, 'chapter')}${r.level ? ' · ' + P().LEVELS[P().levelOf(r.level)] : ''}${r.note ? ' · has a request' : ''} · ${ago(r.createdAt)}`),
       r.status === 'requested' ? due(r) : '<span class="dk-pill ok">Sent</span>');
   }
   if (tab === 'students') {
@@ -478,7 +478,8 @@ function openRequest(id, opener) {
   if (String(id).includes('#')) { const [pid, n] = id.split('#'); return openSlot(pid, Number(n), opener); }
   const r = S.requests.find(x => x.id === id); if (!r) return;
   const facts = `<dl class="dk-facts">${fact('Student', r.studentName)}${fact('ID', r.onlineId)}${fact('Class', 'Class ' + r.class + ' · ' + (r.boardLabel || ''))}${fact('Subject', r.subject)}
-    ${fact('Chapters', r.chapterCount)}${fact('Paid', r.enrolled ? 'Free (TNC student)' : '₹' + Math.round((r.amountPaise || 0) / 100))}${fact('Ordered', day(r.createdAt) + ' · ' + ago(r.createdAt))}${fact(r.status === 'requested' ? 'Due' : 'Sent', day(r.status === 'requested' ? r.dueAt : r.readyAt))}</dl>
+    ${fact('Chapters', r.chapterCount)}${fact('Level', (P().LEVELS[P().levelOf(r.level)]) + (r.level ? '' : ' (not chosen)'))}${fact('Paid', r.enrolled ? 'Free (TNC student)' : '₹' + Math.round((r.amountPaise || 0) / 100))}${fact('Ordered', day(r.createdAt) + ' · ' + ago(r.createdAt))}${fact(r.status === 'requested' ? 'Due' : 'Sent', day(r.status === 'requested' ? r.dueAt : r.readyAt))}</dl>
+    ${r.note ? `<p class="dk-note"><b>Student's request:</b> ${esc(r.note)}</p>` : ''}
     <div class="dk-chapters"><b>Chapters to cover</b><ol>${(r.chapters || []).map(c => `<li>${esc(c)}</li>`).join('')}</ol></div>`;
   if (r.status !== 'requested') {
     const t = S.tests.find(x => x.id === r.testId);
