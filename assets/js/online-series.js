@@ -527,7 +527,7 @@ function emptyBlock(iconId, title, text, extra) {
 function checkCard() {
   return `<div class="chk-card"><div class="chk-art">${(document.querySelector('#auth .chk-svg') || { outerHTML: '' }).outerHTML.replace(/chkBeam/g, 'chkBeamHome')}</div>
     <div class="chk-copy"><span class="eyebrow">How your paper is checked</span>
-      <ol class="chk-steps"><li><b>You upload</b><small>Photos of your answer sheet</small></li><li><b>Software checks</b><small>Every answer, step by step</small></li><li><b>TNC teacher approves</b><small>Marks + feedback in 48 h</small></li></ol></div></div>`;
+      <ol class="chk-steps"><li><b>You upload</b><small>Photos of your answer sheet</small></li><li><b>Software checks</b><small>Every answer, step by step</small></li><li><b>TNC teacher approves</b><small>Marks + feedback in 24 h</small></li></ol></div></div>`;
 }
 // Small Home notice about mock packs (Classes 9–12), until the student joins
 // one or taps "Not now" (hidden for a week).
