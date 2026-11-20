@@ -19,7 +19,7 @@
 // See SECURITY_SETUP.md for the step-by-step on items 2 and 3.
 export const FIREBASE_CONFIG = {
     apiKey: "AIzaSyB-aTXaWLduMaB9lw6lxGcOWzhzKcH2B0E",
-    authDomain: "the-newtown-classes-d98e8.firebaseapp.com",
+    authDomain: "thenewtownclasses.com",
     projectId: "the-newtown-classes-d98e8",
     storageBucket: "the-newtown-classes-d98e8.firebasestorage.app",
     messagingSenderId: "644697936619",

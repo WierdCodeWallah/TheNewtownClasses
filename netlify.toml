@@ -14,6 +14,14 @@
 
 # Serve portal HTML directly: avoid fetching a second HTML page and document.write
 # through the directory shims. force overrides the existing directory index files.
+# Google sign-in runs through our own domain, so the account chooser says
+# "continue to thenewtownclasses.com" instead of the Firebase project address.
+[[redirects]]
+  from = "/__/auth/*"
+  to = "https://the-newtown-classes-d98e8.firebaseapp.com/__/auth/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/learn"
   to = "/student-dashboard.html"

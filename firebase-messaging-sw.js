@@ -19,7 +19,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-com
 
 firebase.initializeApp({
   apiKey: "AIzaSyB-aTXaWLduMaB9lw6lxGcOWzhzKcH2B0E",
-  authDomain: "the-newtown-classes-d98e8.firebaseapp.com",
+  authDomain: "thenewtownclasses.com",
   projectId: "the-newtown-classes-d98e8",
   storageBucket: "the-newtown-classes-d98e8.firebasestorage.app",
   messagingSenderId: "644697936619",
