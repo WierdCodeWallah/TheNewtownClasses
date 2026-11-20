@@ -469,20 +469,41 @@ function render(navigated) {
   }
   const html = r.name === 'subject' ? viewSubject(r.subject) : r.name === 'ranks' ? viewRanks() : r.name === 'results' ? viewResults() : r.name === 'me' ? viewProfile() : r.name === 'packs' ? viewPacks() : r.name === 'custom' ? viewCustom() : viewHome();
   const main = $('view'), key = r.name + (r.subject || '');
-  main.innerHTML = html;
-  if (navigated || S.view !== key) {
+  const fresh = navigated || S.view !== key;
+  if (fresh) {
+    main.innerHTML = html;
     if (navigated) S.cameFromApp = true;
     main.scrollTop = 0;
     if (!REDUCED.matches) { main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter'); }
+  } else {
+    // Same screen, new data (timer tick, background refresh): change only what
+    // differs, so nothing flashes and animations don't restart.
+    if (html === S.viewHtml) return;
+    const next = document.createElement('template'); next.innerHTML = html;
+    morphChildren(main, next.content);
   }
-  S.view = key;
-  bindView(main);
+  S.view = key; S.viewHtml = html;
+  bindView(main, !fresh);
+}
+// Update a live DOM tree to match a new one, keeping every node that is unchanged.
+function morphChildren(a, b) {
+  const ac = Array.from(a.childNodes), bc = Array.from(b.childNodes);
+  bc.forEach((n, i) => { if (i < ac.length) morphNode(ac[i], n); else a.appendChild(n); });
+  for (let i = bc.length; i < ac.length; i++) ac[i].remove();
+}
+function morphNode(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return a.replaceWith(b);
+  if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  if (a.isEqualNode(b)) return;
+  Array.from(a.attributes).forEach(({ name }) => { if (!b.hasAttribute(name)) a.removeAttribute(name); });
+  Array.from(b.attributes).forEach(({ name, value }) => { if (a.getAttribute(name) !== value) a.setAttribute(name, value); });
+  morphChildren(a, b);
 }
 const initials = name => (String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('') || '··').toUpperCase();
 const firstName = () => String(S.session.profile.name || 'there').trim().split(/\s+/)[0];
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
 
-function bindView(root) {
+function bindView(root, quiet) {
   root.querySelectorAll('[data-test]').forEach(b => b.onclick = () => {
     const t = S.tests.find(x => x.id === b.dataset.test);
     openTest(b.dataset.test, t && S.justUnlocked === t.id && stateOf(t).key === 'ready' ? 'confirm' : undefined);
@@ -504,7 +525,7 @@ function bindView(root) {
   root.querySelectorAll('[data-refresh]').forEach(b => b.onclick = async () => { const done = busy(b, 'Refreshing'); await refresh(); done(); });
   const act = { edit: () => startOnboarding(true), signout: confirmSignOut };
   root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act[b.dataset.act] && act[b.dataset.act]());
-  root.querySelectorAll('.chips-scroll .on').forEach(el => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
+  if (!quiet) root.querySelectorAll('.chips-scroll .on').forEach(el => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
 }
 
 // ═══ Views ═══
@@ -1259,7 +1280,7 @@ function bindCustom(root) {
   root.querySelectorAll('[data-cseg]').forEach(b => b.onclick = () => { cust().seg = b.dataset.cseg; render(); });
   root.querySelectorAll('[data-pseg]').forEach(b => b.onclick = () => { S.packSeg = b.dataset.pseg; render(); });
   root.querySelectorAll('[data-psub]').forEach(b => b.onclick = () => { S.packSubject = b.dataset.psub; render(); });
-  root.querySelectorAll('[data-pseg-link]').forEach(b => b.addEventListener('click', () => { S.packSeg = b.dataset.psegLink; }));
+  root.querySelectorAll('[data-pseg-link]').forEach(b => { if (!b._segBound) { b._segBound = true; b.addEventListener('click', () => { S.packSeg = b.dataset.psegLink; }); } });
   root.querySelectorAll('[data-pack]').forEach(b => b.onclick = () => openPackage(b.dataset.pack));
   root.querySelectorAll('[data-cboard]').forEach(b => b.onclick = () => { cust().board = b.dataset.cboard; render(); });
   root.querySelectorAll('[data-csub]').forEach(b => b.onclick = () => { cust().subject = b.dataset.csub; render(); });
