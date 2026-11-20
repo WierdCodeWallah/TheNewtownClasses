@@ -1,0 +1,29 @@
+/* Policy pages (privacy, terms, refunds, delivery, contact): short sections that open on tap. */
+.pol-wrap { max-width: 760px; }
+.pol-hero h1 { font-size: clamp(1.7rem, 4.6vw, 2.4rem); }
+.pol-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 0 1rem; padding-bottom: 2px; }
+.pol-chips::-webkit-scrollbar { display: none; }
+.pol-chips a { flex: none; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(0, 48, 135, .14); background: #fff; color: #1c3b66; font: 600 .86rem/1.2 'DM Sans', system-ui, sans-serif; text-decoration: none; white-space: nowrap; }
+.pol-chips a[aria-current="page"] { background: #003087; border-color: #003087; color: #fff; }
+.pol-secs { display: grid; gap: 10px; }
+.pol-sec { border: 1px solid rgba(0, 48, 135, .1); border-radius: 16px; background: #fff; box-shadow: 0 8px 20px -18px rgba(0, 30, 80, .5); }
+.pol-sec > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 18px; font: 700 1rem/1.3 'DM Sans', system-ui, sans-serif; color: #0e1c36; -webkit-tap-highlight-color: transparent; }
+.pol-sec > summary::-webkit-details-marker { display: none; }
+.pol-sec > summary::after { content: ''; margin-left: auto; width: 9px; height: 9px; flex: none; border-right: 2px solid #5b7aa6; border-bottom: 2px solid #5b7aa6; transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s ease; }
+.pol-sec[open] > summary::after { transform: rotate(225deg) translate(-1px, -1px); }
+.pol-body { padding: 0 18px 16px; color: #3a4f68; font: 400 .95rem/1.65 'DM Sans', system-ui, sans-serif; animation: polIn .2s ease; }
+.pol-body p { margin: 0 0 .6rem; } .pol-body p:last-child { margin-bottom: 0; }
+.pol-body ul { margin: 0 0 .6rem; padding-left: 1.15rem; display: grid; gap: .4rem; }
+.pol-body ul:last-child { margin-bottom: 0; }
+.pol-body a { color: #0059d1; font-weight: 600; }
+.pol-body b { color: #1c2f4a; }
+.pol-updated { margin: 1.2rem 0 0; font: 500 .8rem/1.4 'DM Sans', system-ui, sans-serif; color: #7a8ba3; text-align: center; }
+.pol-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+@media (min-width: 720px) { .pol-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.pol-card { display: grid; gap: 4px; padding: 14px; border-radius: 16px; border: 1px solid rgba(0, 48, 135, .1); background: linear-gradient(160deg, #fff 55%, #f1f6ff); color: #0e1c36; text-decoration: none; box-shadow: 0 8px 20px -18px rgba(0, 30, 80, .5); transition: transform .14s ease; }
+.pol-card:active { transform: scale(.97); }
+.pol-ic { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: #003087; color: #fff; font-size: 1.05rem; margin-bottom: 4px; }
+.pol-card b { font: 700 .95rem/1.2 'DM Sans', system-ui, sans-serif; }
+.pol-card small { font: 500 .8rem/1.3 'DM Sans', system-ui, sans-serif; color: #5b6b82; overflow-wrap: anywhere; }
+@keyframes polIn { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pol-body { animation: none; } .pol-sec > summary::after { transition: none; } }

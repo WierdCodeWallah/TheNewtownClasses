@@ -421,6 +421,7 @@ function openMore() {
       ${item('#/me', 'i-user', 'Profile', S.session.profile.detailsComplete === false && !enrolled() ? 'Add your remaining details' : esc(S.session.profile.onlineId || S.session.profile.studentId || 'Your details'), r.name === 'me')}
       <a href="${WA}" target="_blank" rel="noopener">${ic('i-chat')}<span><b>Help on WhatsApp</b><small>Payments, papers, anything else</small></span>${ic('i-chev', 'chev')}</a>
       <a href="tel:${CONTACT.tel}">${ic('i-phone')}<span><b>Call us</b><small>${esc(CONTACT.show)}</small></span>${ic('i-chev', 'chev')}</a>
+      <a href="/terms/">${ic('i-doc')}<span><b>Terms &amp; policies</b><small>Privacy, refunds, delivery</small></span>${ic('i-chev', 'chev')}</a>
       <a href="/">${ic('i-home')}<span><b>TNC home page</b><small>thenewtownclasses.com</small></span>${ic('i-chev', 'chev')}</a>
     </div>`, root => root.querySelectorAll('[data-more-go]').forEach(a => a.onclick = e => {
       e.preventDefault(); const h = a.getAttribute('href');
@@ -852,7 +853,7 @@ function coBar(total, button, paid, sub) {
     ${paid ? `<p class="co-trust">${ic('i-shield')}<span>Secure payment by Razorpay · UPI, cards, net banking</span></p>${noRefund()}` : ''}`;
 }
 // Shown with every Pay button: a successful payment is not refunded.
-const noRefund = () => `<p class="no-refund">${ic('i-shield')}<span><b>Non-refundable.</b> Once paid, the amount is not refunded or exchanged.</span></p>`;
+const noRefund = () => `<p class="no-refund">${ic('i-shield')}<span><b>Non-refundable.</b> Once paid, the amount is not refunded or exchanged. <a href="/refund-policy/" target="_blank" rel="noopener">Refund policy</a> · <a href="/terms/" target="_blank" rel="noopener">Terms</a></span></p>`;
 
 // ═══ Payments (Razorpay Checkout) ═══
 let razorpayLoader = null;

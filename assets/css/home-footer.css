@@ -58,3 +58,8 @@
 @media (prefers-reduced-motion: reduce) {
   .site-footer :is(a, summary svg) { transition: none; }
 }
+.site-footer .footer-meta { display: grid; justify-items: center; gap: 3px; }
+.site-footer .footer-legal { display: flex; flex-wrap: wrap; gap: 2px 12px; justify-content: center; padding: 0; margin: 0; background: none; border: 0; box-shadow: none; position: static; }
+.site-footer .footer-legal a { color: inherit; opacity: .72; min-height: 0; padding: 1px 0; font-size: 11.5px; line-height: 1.4; font-weight: 600; text-decoration: none; }
+.site-footer .footer-legal a:hover { opacity: 1; text-decoration: underline; }
+@media (max-width: 760px) { .site-footer .footer-meta { grid-column: 1 / -1; grid-row: 2; } .site-footer .footer-legal a { font-size: 11px; } }

@@ -891,3 +891,6 @@ body:has(#sheet.on, #exam:not([hidden])) .tsx-toast.on { transform: translate(-5
 .co-items .cg ul { max-height: 200px; overflow-y: auto; }
 .co-head h2 { font-size: 20px; }
 @media (min-width: 600px) { .co-bar { margin: 2px -18px 0; } }
+.au-legal { margin: 4px 0 0; text-align: center; font-size: 11.5px; color: var(--ink-3); }
+.au-legal a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.no-refund a { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
